@@ -1,6 +1,7 @@
 import os
 from flask import Blueprint, request, jsonify
 from openai import OpenAI
+from flask_cors import cross_origin
 
 llm_bp = Blueprint("llm", __name__)
 
@@ -12,7 +13,20 @@ def _get_client():
     )
 
 
+@llm_bp.route("/api/chat", methods=["OPTIONS"])
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def chat_options():
+    return "", 204
+
+
 @llm_bp.post("/api/chat")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
 def chat():
     data = request.get_json(silent=True) or {}
     message = data.get("message", "").strip()
