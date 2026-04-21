@@ -42,8 +42,8 @@ Use this quick checklist to implement a feature with clear quality gates.
 
 - Run targeted checks for changed behavior.
 - Confirm acceptance criteria are met.
-- Check if the README files need updating - but don't document every internal detail, only user-facing changes.
-- If the architectural contract changed, check if the agent instruction files need updating - but only if the change affects how agents should interact with the service.
+- Update README files for user-facing changes only.
+- Update agent instruction files only if the architectural contract changed.
 - Summarize changed files, test evidence, and remaining risks.
 
 ## Decision Rules
