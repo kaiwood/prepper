@@ -27,7 +27,9 @@ The API runs at `http://127.0.0.1:5000`.
 **Endpoints**
 
 - `GET  /health` — health check
-- `POST /api/chat` — send `{ "message": "..." }`, get back `{ "reply": "..." }`
+- `POST /api/chat` — send `{ "message": "...", "conversation_history": [...] }`, get back `{ "reply": "..." }`
+
+`conversation_history` is optional. When provided it must be a list of `{ "role": "user" | "assistant", "content": "..." }` objects representing the prior turns. The backend passes the last 10 messages to the LLM as context (sliding window).
 
 The backend uses the local `prepper-cli` package for all OpenRouter calls.
 
@@ -47,7 +49,7 @@ One-shot mode:
 prepper-cli "How should I prepare for behavioral interview questions?"
 ```
 
-Interactive mode:
+Interactive mode (maintains conversation context across all prompts in the session):
 
 ```bash
 prepper-cli --interactive

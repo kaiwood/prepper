@@ -31,11 +31,13 @@ Always use `jsonify()`; never return raw dicts or strings.
 
 ## LLM Integration
 
-- Import `get_chat_reply` from the `prepper_cli` package — do not call OpenRouter directly from the backend.
+- Import `get_chat_reply` and `Conversation` from the `prepper_cli` package — do not call OpenRouter directly from the backend.
   ```python
-  from prepper_cli import get_chat_reply
+  from prepper_cli import Conversation, get_chat_reply
   ```
 - Catch `ValueError` (bad input) → 400. Catch generic `Exception` (LLM failure) → 502.
+- When `conversation_history` is present in the request body, validate it is a list, then call `Conversation.from_messages(conversation_history)` and pass the result to `get_chat_reply(message, conversation=conversation)`.
+- The backend is **stateless** — no server-side session store. The client is responsible for maintaining and sending conversation history on each request.
 
 ## Environment Variables
 
@@ -49,4 +51,13 @@ Always use `jsonify()`; never return raw dicts or strings.
   message = data.get("message", "").strip()
   if not message:
       return jsonify({"error": "message is required"}), 400
+  ```
+- When `conversation_history` is supplied, validate its shape before constructing a `Conversation`:
+  ```python
+  if not isinstance(conversation_history, list):
+      return jsonify({"error": "conversation_history must be a list"}), 400
+  try:
+      conversation = Conversation.from_messages(conversation_history)
+  except ValueError as exc:
+      return jsonify({"error": str(exc)}), 400
   ```
