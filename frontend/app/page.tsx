@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import MarkdownMessage from "../components/MarkdownMessage";
-
-type ConversationMessage = {
-  role: "user" | "assistant";
-  content: string;
-};
+import Conversation, {
+  type ConversationMessage,
+} from "../components/Conversation";
 
 export default function Home() {
   const [message, setMessage] = useState("");
@@ -15,7 +12,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const conversationRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -33,13 +29,6 @@ export default function Home() {
     textarea.style.overflowY =
       textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [message]);
-
-  useEffect(() => {
-    const conversationElement = conversationRef.current;
-    if (!conversationElement) return;
-
-    conversationElement.scrollTop = conversationElement.scrollHeight;
-  }, [conversation, loading]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,41 +74,7 @@ export default function Home() {
       <h1 className="text-3xl font-bold mt-6">Prepper</h1>
       <p className="text-gray-500">Interview preparation, powered by AI.</p>
 
-      <section
-        ref={conversationRef}
-        className="w-full max-w-3xl border rounded-xl bg-white shadow-sm p-4 h-[50vh] overflow-y-auto"
-      >
-        {conversation.length === 0 ? (
-          <p className="text-gray-500">
-            Start a conversation. Your recent context will be used in follow-up
-            replies.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {conversation.map((item, index) => (
-              <div
-                key={`${item.role}-${index}`}
-                className={`max-w-[80%] rounded-xl px-4 py-3 ${
-                  item.role === "user"
-                    ? "self-end bg-blue-600 text-white whitespace-pre-wrap"
-                    : "self-start bg-gray-100 text-gray-900"
-                }`}
-              >
-                {item.role === "assistant" ? (
-                  <MarkdownMessage content={item.content} />
-                ) : (
-                  item.content
-                )}
-              </div>
-            ))}
-            {loading && (
-              <div className="self-start bg-gray-100 text-gray-900 rounded-xl px-4 py-3">
-                Thinking...
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+      <Conversation conversation={conversation} loading={loading} />
 
       <form
         ref={formRef}
