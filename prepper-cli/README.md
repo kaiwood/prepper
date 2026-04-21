@@ -12,7 +12,9 @@ prepper-cli/
 │       ├── chat.py           # get_chat_reply() — core function
 │       ├── conversation.py   # Conversation class — in-memory history
 │       ├── client.py         # OpenAI/OpenRouter client factory
-│       └── config.py         # Config dataclass + load_config()
+│       ├── config.py         # Config dataclass + load_config()
+│       ├── system_prompts.py # System prompt discovery/loading
+│       └── prompts/          # Bundled system prompts (.md)
 └── tests/
     ├── test_smoke.py
     └── test_conversation.py
@@ -36,6 +38,7 @@ Create a `.env` file (or export env vars):
 OPENROUTER_API_KEY=your_key_here
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_MODEL=openai/gpt-4o-mini
+PREPPER_DEFAULT_SYSTEM_PROMPT=interview_coach
 ```
 
 ## Usage
@@ -46,10 +49,24 @@ One-shot:
 prepper-cli "How should I prepare for a backend interview?"
 ```
 
+One-shot with an explicit system prompt:
+
+```bash
+prepper-cli --system-prompt coding_focus "Give me a DSA prep plan"
+```
+
 Interactive mode — maintains full conversation context across all prompts in the session:
 
 ```bash
 prepper-cli --interactive
+```
+
+Interactive mode starts with a prompt selector so you can choose which coaching style to use for that session.
+
+List available system prompts:
+
+```bash
+prepper-cli --list-system-prompts
 ```
 
 Type `exit` or `quit` to leave interactive mode. History is kept in memory for the duration of the session and discarded on exit.
