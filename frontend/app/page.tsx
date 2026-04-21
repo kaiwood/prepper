@@ -88,7 +88,7 @@ export default function Home() {
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-3 w-full max-w-lg"
+        className="flex flex-col gap-3 w-full max-w-3xl"
       >
         <textarea
           className="border rounded-lg p-3 resize-none h-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
