@@ -61,3 +61,16 @@ Always use `jsonify()`; never return raw dicts or strings.
   except ValueError as exc:
       return jsonify({"error": str(exc)}), 400
   ```
+
+## Testing
+
+- Tests live in `backend/tests/`.
+- Always run tests from the `backend/` directory (not repo root or `prepper-cli/`).
+- Use the `backend` virtual environment, not any other service environment.
+- Canonical command (preferred over plain `pytest`): `cd backend && .venv/bin/python -m pytest tests -q`.
+- If you prefer activation, run `source .venv/bin/activate` inside `backend/`, then run `python -m pytest tests -q`.
+- If `.venv/bin/python` does not exist, create and bootstrap it first:
+  - `cd backend && python -m venv .venv`
+  - `cd backend && .venv/bin/python -m pip install -r requirements.txt`
+  - `cd backend && .venv/bin/python -m pip install -r requirements-dev.txt`
+- If reusing a terminal that previously activated another environment (for example `prepper-cli/.venv`), open a fresh terminal before running the command above.
