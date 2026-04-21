@@ -7,7 +7,8 @@ An AI-powered interview preparation tool. The backend proxies questions to an LL
 ```
 prepper/
 ├── backend/   # Python Flask API
-└── frontend/  # Next.js app
+├── frontend/  # Next.js app
+└── prepper-cli/ # Shared OpenRouter package + CLI
 ```
 
 ## Backend
@@ -24,8 +25,33 @@ python run.py
 The API runs at `http://127.0.0.1:5000`.
 
 **Endpoints**
-- `GET  /health`   — health check
+
+- `GET  /health` — health check
 - `POST /api/chat` — send `{ "message": "..." }`, get back `{ "reply": "..." }`
+
+The backend uses the local `prepper-cli` package for all OpenRouter calls.
+
+## prepper-cli
+
+```bash
+cd prepper-cli
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+cp .env.example .env
+```
+
+One-shot mode:
+
+```bash
+prepper-cli "How should I prepare for behavioral interview questions?"
+```
+
+Interactive mode:
+
+```bash
+prepper-cli --interactive
+```
 
 ## Frontend
 

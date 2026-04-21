@@ -1,16 +1,8 @@
-import os
 from flask import Blueprint, request, jsonify
-from openai import OpenAI
 from flask_cors import cross_origin
+from prepper_cli import get_chat_reply
 
 llm_bp = Blueprint("llm", __name__)
-
-
-def _get_client():
-    return OpenAI(
-        api_key=os.environ["OPENROUTER_API_KEY"],
-        base_url=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
-    )
 
 
 @llm_bp.route("/api/chat", methods=["OPTIONS"])
@@ -34,11 +26,11 @@ def chat():
     if not message:
         return jsonify({"error": "message is required"}), 400
 
-    client = _get_client()
-    response = client.chat.completions.create(
-        model="openai/gpt-4o-mini",
-        messages=[{"role": "user", "content": message}],
-    )
+    try:
+        reply = get_chat_reply(message)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
-    reply = response.choices[0].message.content
     return jsonify({"reply": reply})
