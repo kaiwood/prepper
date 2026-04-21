@@ -6,6 +6,7 @@ def get_chat_reply(
     message: str,
     conversation: Conversation | None = None,
     history_limit: int = 10,
+    system_prompt: str | None = None,
 ) -> str:
     prompt = message.strip()
     if not prompt:
@@ -15,6 +16,13 @@ def get_chat_reply(
     if conversation is not None and history_limit > 1:
         context_messages = conversation.get_recent_messages(limit=history_limit - 1)
         messages = context_messages + messages
+
+    normalized_system_prompt = (system_prompt or "").strip()
+    if normalized_system_prompt:
+        messages = [
+            {"role": "system", "content": normalized_system_prompt},
+            *messages,
+        ]
 
     client, model = get_client()
     response = client.chat.completions.create(

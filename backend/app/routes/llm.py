@@ -21,6 +21,10 @@ def chat_options():
 )
 def chat():
     data = request.get_json(silent=True) or {}
+
+    if "system_prompt" in data or "system_prompt_name" in data:
+        return jsonify({"error": "system prompt is only supported in the CLI"}), 400
+
     message = data.get("message", "").strip()
     conversation_history = data.get("conversation_history")
 
