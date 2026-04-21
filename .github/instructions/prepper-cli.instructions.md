@@ -89,4 +89,5 @@ def get_chat_reply(
 ## Testing
 
 - Tests live in `prepper-cli/tests/`.
+- To be able to run tests, you need to activate the virtual environment first
 - Run with `pytest` from the `prepper-cli/` directory.
