@@ -1,5 +1,5 @@
 ---
-name: create-feature
+name: feature
 description: "Plan and implement new features in the prepper monorepo. Use when adding backend Flask endpoints, frontend Next.js UI flows, prepper-cli behavior, or cross-service feature updates with tests and validation."
 argument-hint: "Describe the feature goal, affected areas (backend/frontend/prepper-cli), constraints, and acceptance criteria."
 user-invocable: true
