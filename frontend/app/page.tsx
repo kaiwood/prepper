@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type ConversationMessage = {
   role: "user" | "assistant";
@@ -12,6 +12,25 @@ export default function Home() {
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const computed = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(computed.lineHeight) || 24;
+    const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
+    const maxHeight = lineHeight * 3 + paddingTop + paddingBottom;
+
+    textarea.style.height = "auto";
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [message]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -87,14 +106,25 @@ export default function Home() {
       </section>
 
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         className="flex flex-col gap-3 w-full max-w-3xl"
       >
         <textarea
-          className="border rounded-lg p-3 resize-none h-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          ref={textareaRef}
+          rows={1}
+          className="border rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Ask a question or describe the role you're preparing for…"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (!loading && message.trim()) {
+                formRef.current?.requestSubmit();
+              }
+            }
+          }}
         />
         <button
           type="submit"
