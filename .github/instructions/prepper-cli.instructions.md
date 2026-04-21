@@ -89,5 +89,12 @@ def get_chat_reply(
 ## Testing
 
 - Tests live in `prepper-cli/tests/`.
-- To be able to run tests, you need to activate the virtual environment first
-- Run with `pytest` from the `prepper-cli/` directory.
+- Always run tests from the `prepper-cli/` directory (not repo root or `backend/`).
+- Use the `prepper-cli` virtual environment, not any other service environment.
+- Canonical command (preferred over plain `pytest`): `cd prepper-cli && .venv/bin/python -m pytest tests -q`.
+- If you prefer activation, run `source .venv/bin/activate` inside `prepper-cli/`, then run `python -m pytest tests -q`.
+- If `.venv/bin/python` does not exist, create and bootstrap it first:
+  - `cd prepper-cli && python -m venv .venv`
+  - `cd prepper-cli && .venv/bin/python -m pip install -e .`
+  - `cd prepper-cli && .venv/bin/python -m pip install -r ../backend/requirements-dev.txt` (or at minimum `pytest`)
+- If reusing a terminal that previously activated another environment (for example `backend/.venv`), open a fresh terminal before running the command above.
