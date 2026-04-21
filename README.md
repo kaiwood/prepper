@@ -21,7 +21,7 @@ cp .env.example .env           # then fill in your OPENROUTER_API_KEY
 python run.py
 ```
 
-The API runs at `http://localhost:5000`.
+The API runs at `http://127.0.0.1:5000`.
 
 **Endpoints**
 - `GET  /health`   — health check
@@ -32,8 +32,10 @@ The API runs at `http://localhost:5000`.
 ```bash
 cd frontend
 npm install
-cp .env.local.example .env.local   # adjust if backend runs on a different port
+cp .env.local.example .env.local   # uses http://127.0.0.1:5000 by default
 npm run dev
 ```
 
 The app runs at `http://localhost:3000`.
+
+If `localhost:5000` behaves oddly on macOS, keep using `127.0.0.1:5000` for the backend URL.
