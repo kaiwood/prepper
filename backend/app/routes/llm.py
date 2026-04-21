@@ -1,8 +1,17 @@
 from flask import Blueprint, request, jsonify
 from flask_cors import cross_origin
 from prepper_cli import Conversation, get_chat_reply
+from prepper_cli.system_prompts import (
+    get_default_system_prompt_name,
+    load_system_prompt,
+)
 
 llm_bp = Blueprint("llm", __name__)
+
+
+def _resolve_system_prompt_text(selected_name: str | None = None) -> str:
+    prompt_name = (selected_name or get_default_system_prompt_name()).strip()
+    return load_system_prompt(prompt_name)
 
 
 @llm_bp.route("/api/chat", methods=["OPTIONS"])
@@ -41,7 +50,16 @@ def chat():
             return jsonify({"error": str(exc)}), 400
 
     try:
-        reply = get_chat_reply(message, conversation=conversation)
+        system_prompt_text = _resolve_system_prompt_text()
+    except ValueError as exc:
+        return jsonify({"error": f"LLM request failed: {exc}"}), 502
+
+    try:
+        reply = get_chat_reply(
+            message,
+            conversation=conversation,
+            system_prompt=system_prompt_text,
+        )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
