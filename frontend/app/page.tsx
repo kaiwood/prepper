@@ -1,11 +1,63 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 type ConversationMessage = {
   role: "user" | "assistant";
   content: string;
 };
+
+function MarkdownMessage({ content }: { content: string }) {
+  return (
+    <div className="text-gray-900">
+      <ReactMarkdown
+        components={{
+          p: ({ children }) => <p className="mb-2">{children}</p>,
+          ul: ({ children }) => (
+            <ul className="list-disc pl-4 mb-2">{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="list-decimal pl-4 mb-2">{children}</ol>
+          ),
+          li: ({ children }) => <li className="mb-1">{children}</li>,
+          code: ({ children }) => (
+            <code className="bg-gray-200 px-1 rounded text-sm">{children}</code>
+          ),
+          pre: ({ children }) => (
+            <pre className="bg-gray-200 p-2 rounded mb-2 overflow-x-auto text-xs">
+              {children}
+            </pre>
+          ),
+          h1: ({ children }) => (
+            <h1 className="text-lg font-bold mb-2">{children}</h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className="text-base font-bold mb-2">{children}</h2>
+          ),
+          h3: ({ children }) => <h3 className="font-bold mb-1">{children}</h3>,
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 border-gray-400 pl-3 italic mb-2">
+              {children}
+            </blockquote>
+          ),
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              {children}
+            </a>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 export default function Home() {
   const [message, setMessage] = useState("");
@@ -14,6 +66,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const conversationRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -31,6 +84,13 @@ export default function Home() {
     textarea.style.overflowY =
       textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [message]);
+
+  useEffect(() => {
+    const conversationElement = conversationRef.current;
+    if (!conversationElement) return;
+
+    conversationElement.scrollTop = conversationElement.scrollHeight;
+  }, [conversation, loading]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,7 +136,10 @@ export default function Home() {
       <h1 className="text-3xl font-bold mt-6">Prepper</h1>
       <p className="text-gray-500">Interview preparation, powered by AI.</p>
 
-      <section className="w-full max-w-3xl border rounded-xl bg-white shadow-sm p-4 h-[50vh] overflow-y-auto">
+      <section
+        ref={conversationRef}
+        className="w-full max-w-3xl border rounded-xl bg-white shadow-sm p-4 h-[50vh] overflow-y-auto"
+      >
         {conversation.length === 0 ? (
           <p className="text-gray-500">
             Start a conversation. Your recent context will be used in follow-up
@@ -87,13 +150,17 @@ export default function Home() {
             {conversation.map((item, index) => (
               <div
                 key={`${item.role}-${index}`}
-                className={`max-w-[80%] rounded-xl px-4 py-3 whitespace-pre-wrap ${
+                className={`max-w-[80%] rounded-xl px-4 py-3 ${
                   item.role === "user"
-                    ? "self-end bg-blue-600 text-white"
+                    ? "self-end bg-blue-600 text-white whitespace-pre-wrap"
                     : "self-start bg-gray-100 text-gray-900"
                 }`}
               >
-                {item.content}
+                {item.role === "assistant" ? (
+                  <MarkdownMessage content={item.content} />
+                ) : (
+                  item.content
+                )}
               </div>
             ))}
             {loading && (
