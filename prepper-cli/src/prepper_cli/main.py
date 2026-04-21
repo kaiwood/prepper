@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from .chat import get_chat_reply
+from .conversation import Conversation
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -18,6 +19,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _run_interactive() -> int:
     print("Interactive mode. Type 'exit' or 'quit' to leave.")
+    conversation = Conversation()
 
     while True:
         try:
@@ -36,7 +38,7 @@ def _run_interactive() -> int:
             return 0
 
         try:
-            reply = get_chat_reply(text)
+            reply = get_chat_reply(text, conversation=conversation)
             print(reply)
         except Exception as exc:  # pragma: no cover - direct CLI safety net
             print(f"Error: {exc}", file=sys.stderr)
