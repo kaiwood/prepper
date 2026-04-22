@@ -16,7 +16,7 @@ def load_default_system_prompt_name() -> str:
     load_dotenv()
 
     default_system_prompt = os.environ.get(
-        "PREPPER_DEFAULT_SYSTEM_PROMPT", "interview_coach"
+        "PREPPER_DEFAULT_SYSTEM_PROMPT", "coding_focus"
     ).strip()
     if not default_system_prompt:
         raise ValueError("PREPPER_DEFAULT_SYSTEM_PROMPT cannot be empty")
