@@ -1,16 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Conversation, {
   type ConversationMessage,
 } from "../components/Conversation";
 import MessageForm from "../components/MessageForm";
+import PromptSelector from "../components/PromptSelector";
+
+type PromptsResponse = {
+  available?: string[];
+  default?: string;
+  error?: string;
+};
 
 export default function Home() {
   const [message, setMessage] = useState("");
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [availablePrompts, setAvailablePrompts] = useState<string[]>([]);
+  const [selectedPrompt, setSelectedPrompt] = useState("");
+  const [promptsLoading, setPromptsLoading] = useState(true);
+  const [promptsError, setPromptsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadPrompts() {
+      setPromptsLoading(true);
+      setPromptsError(null);
+
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/prompts`,
+        );
+        const data: PromptsResponse = await res.json();
+
+        if (!res.ok) {
+          if (!isCancelled) {
+            setPromptsError(data.error ?? "Could not load system prompts.");
+          }
+          return;
+        }
+
+        const prompts = Array.isArray(data.available)
+          ? data.available.filter(
+              (value): value is string => typeof value === "string",
+            )
+          : [];
+        const defaultPrompt =
+          typeof data.default === "string" ? data.default : "";
+
+        if (!isCancelled) {
+          setAvailablePrompts(prompts);
+
+          if (prompts.length > 0) {
+            setSelectedPrompt(
+              prompts.includes(defaultPrompt) ? defaultPrompt : prompts[0],
+            );
+          }
+        }
+      } catch {
+        if (!isCancelled) {
+          setPromptsError("Could not load system prompts.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setPromptsLoading(false);
+        }
+      }
+    }
+
+    void loadPrompts();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,13 +91,23 @@ export default function Home() {
     setError(null);
 
     try {
+      const payload: {
+        message: string;
+        conversation_history: ConversationMessage[];
+        system_prompt_name?: string;
+      } = {
+        message: prompt,
+        conversation_history: history,
+      };
+
+      if (selectedPrompt) {
+        payload.system_prompt_name = selectedPrompt;
+      }
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: prompt,
-          conversation_history: history,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -55,6 +131,14 @@ export default function Home() {
     <main className="min-h-screen flex flex-col items-center p-8 gap-6">
       <h1 className="text-3xl font-bold mt-6">Prepper</h1>
       <p className="text-gray-500">Interview preparation, powered by AI.</p>
+
+      <PromptSelector
+        prompts={availablePrompts}
+        selectedPrompt={selectedPrompt}
+        onPromptChange={setSelectedPrompt}
+        loading={promptsLoading || loading}
+        error={promptsError}
+      />
 
       <Conversation conversation={conversation} loading={loading} />
 
