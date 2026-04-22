@@ -47,10 +47,21 @@ export default function MessageForm({
       textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [message]);
 
+  useEffect(() => {
+    if (!loading && hasStarted) {
+      textareaRef.current?.focus();
+    }
+  }, [hasStarted, loading]);
+
+  const handleSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
+    onSubmit(event);
+    textareaRef.current?.focus();
+  };
+
   return (
     <form
       ref={formRef}
-      onSubmit={onSubmit}
+      onSubmit={handleSubmit}
       className="flex flex-col gap-3 w-full max-w-3xl"
     >
       <textarea
