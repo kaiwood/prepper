@@ -182,6 +182,144 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     assert coding["frequency_penalty"] == 0.2
     assert coding["presence_penalty"] == 0.0
     assert coding["max_tokens"] == 700
+    assert coding["interview_rating_enabled"] is False
+    assert coding["default_question_roundtrips"] == 5
+    assert coding["min_question_roundtrips"] == 1
+    assert coding["max_question_roundtrips"] == 10
+    assert coding["pass_threshold"] == 7.0
+    assert coding["rubric_criteria"] == []
+
+
+def test_chat_rejects_non_integer_max_question_roundtrips(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus"),
+    )
+
+    response = client.post(
+        "/api/chat",
+        json={"message": "hello", "max_question_roundtrips": "five"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "max_question_roundtrips must be an integer"
+    }
+
+
+def test_chat_rejects_out_of_range_max_question_roundtrips(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+            min_question_roundtrips=1,
+            max_question_roundtrips=10,
+        ),
+    )
+
+    response = client.post(
+        "/api/chat",
+        json={"message": "hello", "max_question_roundtrips": 11},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "max_question_roundtrips must be between 1 and 10"
+    }
+
+
+def test_chat_returns_interview_status_when_rating_enabled(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+            default_question_roundtrips=5,
+            pass_threshold=7.0,
+            rubric_criteria=("Problem understanding", "Communication"),
+        ),
+    )
+    monkeypatch.setattr("app.routes.llm._count_scored_questions", lambda *_: 2)
+    monkeypatch.setattr("app.routes.llm._classify_assistant_turn", lambda *_: "question")
+    monkeypatch.setattr("app.routes.llm.get_chat_reply", lambda *args, **kwargs: "What would you optimize next?")
+
+    response = client.post(
+        "/api/chat",
+        json={
+            "message": "I would optimize memory usage",
+            "conversation_history": [
+                {"role": "assistant", "content": "Tell me about your approach?"}
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["reply"] == "What would you optimize next?"
+    assert data["interview_status"]["enabled"] is True
+    assert data["interview_status"]["is_completed"] is False
+    assert data["interview_status"]["counted_question_roundtrips"] == 3
+    assert data["interview_status"]["question_roundtrips_limit"] == 5
+
+
+def test_chat_returns_rating_when_interview_completed(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+            default_question_roundtrips=5,
+            pass_threshold=7.0,
+            rubric_criteria=("Problem understanding", "Communication"),
+        ),
+    )
+    monkeypatch.setattr("app.routes.llm._count_scored_questions", lambda *_: 5)
+    monkeypatch.setattr("app.routes.llm._classify_assistant_turn", lambda *_: "other")
+    monkeypatch.setattr("app.routes.llm.get_chat_reply", lambda *args, **kwargs: "Thanks, that concludes the interview.")
+    monkeypatch.setattr(
+        "app.routes.llm._score_interview",
+        lambda *_: {
+            "overall_score": 8.2,
+            "pass_threshold": 7.0,
+            "passed": True,
+            "criterion_scores": [
+                {"criterion": "Problem understanding", "score": 8.0},
+                {"criterion": "Communication", "score": 8.5},
+            ],
+            "strengths": ["Structured thinking"],
+            "improvements": ["Add more edge cases"],
+            "parse_warning": False,
+        },
+    )
+
+    response = client.post(
+        "/api/chat",
+        json={
+            "message": "Thanks",
+            "conversation_history": [
+                {"role": "assistant", "content": "Question one?"},
+                {"role": "user", "content": "Answer one"},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["interview_status"]["is_completed"] is True
+    assert data["interview_status"]["rating"]["passed"] is True
 
 
 def test_chat_start_uses_default_system_prompt(monkeypatch):
