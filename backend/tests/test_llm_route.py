@@ -330,3 +330,22 @@ def test_chat_start_rejects_non_string_language():
 
     assert response.status_code == 400
     assert response.get_json() == {"error": "language must be a string"}
+
+
+def test_chat_rate_limit_exceeded(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus", name="Coding Interview"),
+    )
+    monkeypatch.setattr("app.routes.llm.get_chat_reply", lambda *args, **kwargs: "ok")
+
+    for _ in range(10):
+        response = client.post("/api/chat", json={"message": "hello"})
+        assert response.status_code == 200
+
+    response = client.post("/api/chat", json={"message": "hello"})
+    assert response.status_code == 429
+    assert response.get_json() == {"error": "rate limit exceeded"}

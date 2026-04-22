@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_cors import cross_origin
+from app import limiter
 from prepper_cli import (
     Conversation,
     PromptDescriptor,
@@ -38,6 +39,7 @@ def chat_start_options():
 
 
 @llm_bp.post("/api/chat")
+@limiter.limit("10 per minute")
 @cross_origin(
     origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_headers=["Content-Type", "Authorization"],
@@ -99,6 +101,7 @@ def chat():
 
 
 @llm_bp.post("/api/chat/start")
+@limiter.limit("10 per minute")
 @cross_origin(
     origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_headers=["Content-Type", "Authorization"],
@@ -143,6 +146,7 @@ def chat_start():
 
 
 @llm_bp.get("/api/prompts")
+@limiter.limit("20 per minute")
 @cross_origin(
     origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_headers=["Content-Type", "Authorization"],
