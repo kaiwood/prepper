@@ -7,8 +7,18 @@ import Conversation, {
 import MessageForm from "../components/MessageForm";
 import PromptSelector from "../components/PromptSelector";
 
+type PromptMetadata = {
+  id: string;
+  name: string;
+  temperature: number;
+  top_p: number;
+  frequency_penalty: number;
+  presence_penalty: number;
+  max_tokens: number;
+};
+
 type PromptsResponse = {
-  available?: string[];
+  prompts?: PromptMetadata[];
   default?: string;
   error?: string;
 };
@@ -18,7 +28,9 @@ export default function Home() {
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [availablePrompts, setAvailablePrompts] = useState<string[]>([]);
+  const [availablePrompts, setAvailablePrompts] = useState<PromptMetadata[]>(
+    [],
+  );
   const [selectedPrompt, setSelectedPrompt] = useState("");
   const [promptsLoading, setPromptsLoading] = useState(true);
   const [promptsError, setPromptsError] = useState<string | null>(null);
@@ -43,9 +55,13 @@ export default function Home() {
           return;
         }
 
-        const prompts = Array.isArray(data.available)
-          ? data.available.filter(
-              (value): value is string => typeof value === "string",
+        const prompts = Array.isArray(data.prompts)
+          ? data.prompts.filter(
+              (p): p is PromptMetadata =>
+                typeof p === "object" &&
+                p !== null &&
+                typeof p.id === "string" &&
+                typeof p.name === "string",
             )
           : [];
         const defaultPrompt =
@@ -55,8 +71,9 @@ export default function Home() {
           setAvailablePrompts(prompts);
 
           if (prompts.length > 0) {
+            const ids = prompts.map((p) => p.id);
             setSelectedPrompt(
-              prompts.includes(defaultPrompt) ? defaultPrompt : prompts[0],
+              ids.includes(defaultPrompt) ? defaultPrompt : ids[0],
             );
           }
         }

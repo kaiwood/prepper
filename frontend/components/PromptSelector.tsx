@@ -1,19 +1,17 @@
 "use client";
 
+type PromptOption = {
+  id: string;
+  name: string;
+};
+
 type PromptSelectorProps = {
-  prompts: string[];
+  prompts: PromptOption[];
   selectedPrompt: string;
   onPromptChange: (value: string) => void;
   loading: boolean;
   error: string | null;
 };
-
-function formatPromptLabel(promptName: string): string {
-  return promptName
-    .split("_")
-    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
-    .join(" ");
-}
 
 export default function PromptSelector({
   prompts,
@@ -44,9 +42,9 @@ export default function PromptSelector({
             {loading ? "Loading prompts..." : "Prompt list unavailable"}
           </option>
         ) : (
-          prompts.map((promptName) => (
-            <option key={promptName} value={promptName}>
-              {formatPromptLabel(promptName)}
+          prompts.map((prompt) => (
+            <option key={prompt.id} value={prompt.id}>
+              {prompt.name}
             </option>
           ))
         )}

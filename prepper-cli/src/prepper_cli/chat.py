@@ -7,6 +7,11 @@ def get_chat_reply(
     conversation: Conversation | None = None,
     history_limit: int = 10,
     system_prompt: str | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    frequency_penalty: float | None = None,
+    presence_penalty: float | None = None,
+    max_tokens: int | None = None,
 ) -> str:
     prompt = message.strip()
     if not prompt:
@@ -25,10 +30,20 @@ def get_chat_reply(
         ]
 
     client, model = get_client()
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-    )
+
+    kwargs: dict = {"model": model, "messages": messages}
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    if top_p is not None:
+        kwargs["top_p"] = top_p
+    if frequency_penalty is not None:
+        kwargs["frequency_penalty"] = frequency_penalty
+    if presence_penalty is not None:
+        kwargs["presence_penalty"] = presence_penalty
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+
+    response = client.chat.completions.create(**kwargs)
 
     reply = response.choices[0].message.content
     normalized_reply = (reply or "").strip()

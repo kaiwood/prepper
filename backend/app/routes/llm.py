@@ -2,18 +2,20 @@ from flask import Blueprint, request, jsonify
 from flask_cors import cross_origin
 from prepper_cli import (
     Conversation,
+    PromptDescriptor,
     get_chat_reply,
     get_default_system_prompt_name,
+    list_prompt_descriptors,
     list_system_prompt_names,
-    load_system_prompt,
+    load_prompt_descriptor,
 )
 
 llm_bp = Blueprint("llm", __name__)
 
 
-def _resolve_system_prompt_text(selected_name: str | None = None) -> str:
+def _resolve_prompt_descriptor(selected_name: str | None = None) -> PromptDescriptor:
     prompt_name = (selected_name or get_default_system_prompt_name()).strip()
-    return load_system_prompt(prompt_name)
+    return load_prompt_descriptor(prompt_name)
 
 
 @llm_bp.route("/api/chat", methods=["OPTIONS"])
@@ -56,7 +58,7 @@ def chat():
             return jsonify({"error": str(exc)}), 400
 
     try:
-        system_prompt_text = _resolve_system_prompt_text(system_prompt_name)
+        descriptor = _resolve_prompt_descriptor(system_prompt_name)
     except ValueError as exc:
         if system_prompt_name is not None:
             return jsonify({"error": str(exc)}), 400
@@ -66,7 +68,12 @@ def chat():
         reply = get_chat_reply(
             message,
             conversation=conversation,
-            system_prompt=system_prompt_text,
+            system_prompt=descriptor.content,
+            temperature=descriptor.temperature,
+            top_p=descriptor.top_p,
+            frequency_penalty=descriptor.frequency_penalty,
+            presence_penalty=descriptor.presence_penalty,
+            max_tokens=descriptor.max_tokens,
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
@@ -82,10 +89,24 @@ def chat():
     allow_headers=["Content-Type", "Authorization"],
 )
 def prompts():
-    available = list_system_prompt_names()
+    available_names = list_system_prompt_names()
     default_prompt = get_default_system_prompt_name().strip()
 
-    if default_prompt not in available:
+    if default_prompt not in available_names:
         return jsonify({"error": f"LLM request failed: Unknown system prompt '{default_prompt}'"}), 502
 
-    return jsonify({"available": available, "default": default_prompt})
+    descriptors = list_prompt_descriptors()
+    prompts_payload = [
+        {
+            "id": d.id,
+            "name": d.name,
+            "temperature": d.temperature,
+            "top_p": d.top_p,
+            "frequency_penalty": d.frequency_penalty,
+            "presence_penalty": d.presence_penalty,
+            "max_tokens": d.max_tokens,
+        }
+        for d in descriptors
+    ]
+
+    return jsonify({"prompts": prompts_payload, "default": default_prompt})
