@@ -4,6 +4,10 @@ from .conversation import Conversation
 _INTERVIEW_OPENER_MESSAGE = (
     "Begin the interview now. Ask the first interview question and wait for the candidate's response."
 )
+_LANGUAGE_NAMES = {
+    "en": "English",
+    "de": "German",
+}
 
 
 def _request_chat_reply(
@@ -34,11 +38,44 @@ def _request_chat_reply(
     return (reply or "").strip()
 
 
+def _build_language_prompt(language: str | None) -> str | None:
+    normalized_language = (language or "").strip().lower()
+    language_name = _LANGUAGE_NAMES.get(normalized_language)
+    if language_name is None:
+        return None
+
+    return (
+        f"Respond in {language_name}. Keep the full response in {language_name} unless "
+        "the user explicitly asks to switch language."
+    )
+
+
+def _prepend_system_prompts(
+    messages: list[dict[str, str]],
+    language: str | None,
+    system_prompt: str | None,
+) -> list[dict[str, str]]:
+    prefixed_messages: list[dict[str, str]] = []
+
+    language_prompt = _build_language_prompt(language)
+    if language_prompt:
+        prefixed_messages.append(
+            {"role": "system", "content": language_prompt})
+
+    normalized_system_prompt = (system_prompt or "").strip()
+    if normalized_system_prompt:
+        prefixed_messages.append(
+            {"role": "system", "content": normalized_system_prompt})
+
+    return prefixed_messages + messages if prefixed_messages else messages
+
+
 def get_chat_reply(
     message: str,
     conversation: Conversation | None = None,
     history_limit: int = 10,
     system_prompt: str | None = None,
+    language: str | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
     frequency_penalty: float | None = None,
@@ -51,15 +88,12 @@ def get_chat_reply(
 
     messages = [{"role": "user", "content": prompt}]
     if conversation is not None and history_limit > 1:
-        context_messages = conversation.get_recent_messages(limit=history_limit - 1)
+        context_messages = conversation.get_recent_messages(
+            limit=history_limit - 1)
         messages = context_messages + messages
 
-    normalized_system_prompt = (system_prompt or "").strip()
-    if normalized_system_prompt:
-        messages = [
-            {"role": "system", "content": normalized_system_prompt},
-            *messages,
-        ]
+    messages = _prepend_system_prompts(
+        messages, language=language, system_prompt=system_prompt)
 
     normalized_reply = _request_chat_reply(
         messages,
@@ -79,6 +113,7 @@ def get_chat_reply(
 
 def get_interview_opener(
     system_prompt: str | None = None,
+    language: str | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
     frequency_penalty: float | None = None,
@@ -86,13 +121,8 @@ def get_interview_opener(
     max_tokens: int | None = None,
 ) -> str:
     messages = [{"role": "user", "content": _INTERVIEW_OPENER_MESSAGE}]
-
-    normalized_system_prompt = (system_prompt or "").strip()
-    if normalized_system_prompt:
-        messages = [
-            {"role": "system", "content": normalized_system_prompt},
-            *messages,
-        ]
+    messages = _prepend_system_prompts(
+        messages, language=language, system_prompt=system_prompt)
 
     return _request_chat_reply(
         messages,

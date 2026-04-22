@@ -48,12 +48,16 @@ def chat():
     message = data.get("message", "").strip()
     conversation_history = data.get("conversation_history")
     system_prompt_name = data.get("system_prompt_name")
+    language = data.get("language")
 
     if "system_prompt" in data:
         return jsonify({"error": "system_prompt is not supported"}), 400
 
     if system_prompt_name is not None and not isinstance(system_prompt_name, str):
         return jsonify({"error": "system_prompt_name must be a string"}), 400
+
+    if language is not None and not isinstance(language, str):
+        return jsonify({"error": "language must be a string"}), 400
 
     if not message:
         return jsonify({"error": "message is required"}), 400
@@ -79,6 +83,7 @@ def chat():
             message,
             conversation=conversation,
             system_prompt=descriptor.content,
+            language=language,
             temperature=descriptor.temperature,
             top_p=descriptor.top_p,
             frequency_penalty=descriptor.frequency_penalty,
@@ -101,12 +106,16 @@ def chat():
 def chat_start():
     data = request.get_json(silent=True) or {}
     system_prompt_name = data.get("system_prompt_name")
+    language = data.get("language")
 
     if "system_prompt" in data:
         return jsonify({"error": "system_prompt is not supported"}), 400
 
     if system_prompt_name is not None and not isinstance(system_prompt_name, str):
         return jsonify({"error": "system_prompt_name must be a string"}), 400
+
+    if language is not None and not isinstance(language, str):
+        return jsonify({"error": "language must be a string"}), 400
 
     try:
         descriptor = _resolve_prompt_descriptor(system_prompt_name)
@@ -118,6 +127,7 @@ def chat_start():
     try:
         reply = get_interview_opener(
             system_prompt=descriptor.content,
+            language=language,
             temperature=descriptor.temperature,
             top_p=descriptor.top_p,
             frequency_penalty=descriptor.frequency_penalty,

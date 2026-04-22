@@ -13,6 +13,13 @@ type MessageFormProps = {
   canStart: boolean;
   hasStarted: boolean;
   error: string | null;
+  placeholderStarted: string;
+  placeholderNotStarted: string;
+  startInterviewText: string;
+  startingText: string;
+  resetConversationText: string;
+  sendText: string;
+  thinkingText: string;
 };
 
 export default function MessageForm({
@@ -26,6 +33,13 @@ export default function MessageForm({
   canStart,
   hasStarted,
   error,
+  placeholderStarted,
+  placeholderNotStarted,
+  startInterviewText,
+  startingText,
+  resetConversationText,
+  sendText,
+  thinkingText,
 }: MessageFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -68,11 +82,7 @@ export default function MessageForm({
         ref={textareaRef}
         rows={1}
         className="border rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-        placeholder={
-          hasStarted
-            ? "Respond to the interviewer..."
-            : "Choose an interview and start to enable your response box..."
-        }
+        placeholder={hasStarted ? placeholderStarted : placeholderNotStarted}
         value={message}
         disabled={!hasStarted || loading}
         onChange={(e) => onMessageChange(e.target.value)}
@@ -94,7 +104,7 @@ export default function MessageForm({
             disabled={loading || hasStarted || !canStart}
             className="bg-gray-900 text-white rounded-lg py-2 px-4 hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading && !hasStarted ? "Starting..." : "Start interview"}
+            {loading && !hasStarted ? startingText : startInterviewText}
           </button>
           <button
             type="button"
@@ -102,7 +112,7 @@ export default function MessageForm({
             disabled={loading || !canClear}
             className="border border-gray-300 text-gray-700 rounded-lg py-2 px-4 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            Reset conversation
+            {resetConversationText}
           </button>
         </div>
 
@@ -111,7 +121,7 @@ export default function MessageForm({
           disabled={!hasStarted || loading || !message.trim()}
           className="bg-blue-600 text-white rounded-lg py-2 px-4 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {loading && hasStarted ? "Thinking..." : "Send"}
+          {loading && hasStarted ? thinkingText : sendText}
         </button>
       </div>
 

@@ -33,6 +33,7 @@ def test_chat_uses_default_system_prompt(monkeypatch):
         conversation=None,
         history_limit=10,
         system_prompt=None,
+        language=None,
         temperature=None,
         top_p=None,
         frequency_penalty=None,
@@ -41,6 +42,7 @@ def test_chat_uses_default_system_prompt(monkeypatch):
     ):
         captured["message"] = message
         captured["system_prompt"] = system_prompt
+        captured["language"] = language
         captured["temperature"] = temperature
         return "ok"
 
@@ -52,6 +54,7 @@ def test_chat_uses_default_system_prompt(monkeypatch):
     assert response.get_json() == {"reply": "ok"}
     assert captured["message"] == "hello"
     assert captured["system_prompt"] == "prompt::coding_focus"
+    assert captured["language"] is None
     assert captured["temperature"] == 0.5
 
 
@@ -70,6 +73,7 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
         conversation=None,
         history_limit=10,
         system_prompt=None,
+        language=None,
         temperature=None,
         top_p=None,
         frequency_penalty=None,
@@ -78,6 +82,7 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
     ):
         captured["message"] = message
         captured["system_prompt"] = system_prompt
+        captured["language"] = language
         return "ok"
 
     monkeypatch.setattr(
@@ -86,7 +91,11 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
 
     response = client.post(
         "/api/chat",
-        json={"message": "hello", "system_prompt_name": "coding_focus"},
+        json={
+            "message": "hello",
+            "system_prompt_name": "coding_focus",
+            "language": "de",
+        },
     )
 
     assert response.status_code == 200
@@ -94,6 +103,7 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
     assert captured["selected_name"] == "coding_focus"
     assert captured["message"] == "hello"
     assert captured["system_prompt"] == "prompt::coding_focus"
+    assert captured["language"] == "de"
 
 
 def test_chat_rejects_invalid_selected_system_prompt(monkeypatch):
@@ -189,6 +199,7 @@ def test_chat_start_uses_default_system_prompt(monkeypatch):
 
     def fake_get_interview_opener(
         system_prompt=None,
+        language=None,
         temperature=None,
         top_p=None,
         frequency_penalty=None,
@@ -196,6 +207,7 @@ def test_chat_start_uses_default_system_prompt(monkeypatch):
         max_tokens=None,
     ):
         captured["system_prompt"] = system_prompt
+        captured["language"] = language
         captured["temperature"] = temperature
         return "opening question"
 
@@ -207,6 +219,7 @@ def test_chat_start_uses_default_system_prompt(monkeypatch):
     assert response.status_code == 200
     assert response.get_json() == {"reply": "opening question"}
     assert captured["system_prompt"] == "prompt::coding_focus"
+    assert captured["language"] is None
     assert captured["temperature"] == 0.5
 
 
@@ -222,6 +235,7 @@ def test_chat_start_accepts_selected_system_prompt(monkeypatch):
 
     def fake_get_interview_opener(
         system_prompt=None,
+        language=None,
         temperature=None,
         top_p=None,
         frequency_penalty=None,
@@ -229,6 +243,7 @@ def test_chat_start_accepts_selected_system_prompt(monkeypatch):
         max_tokens=None,
     ):
         captured["system_prompt"] = system_prompt
+        captured["language"] = language
         return "opening question"
 
     monkeypatch.setattr(
@@ -238,13 +253,14 @@ def test_chat_start_accepts_selected_system_prompt(monkeypatch):
 
     response = client.post(
         "/api/chat/start",
-        json={"system_prompt_name": "coding_focus"},
+        json={"system_prompt_name": "coding_focus", "language": "de"},
     )
 
     assert response.status_code == 200
     assert response.get_json() == {"reply": "opening question"}
     assert captured["selected_name"] == "coding_focus"
     assert captured["system_prompt"] == "prompt::coding_focus"
+    assert captured["language"] == "de"
 
 
 def test_chat_start_rejects_invalid_selected_system_prompt(monkeypatch):
@@ -277,6 +293,7 @@ def test_chat_start_returns_502_when_llm_request_fails(monkeypatch):
 
     def fake_get_interview_opener(
         system_prompt=None,
+        language=None,
         temperature=None,
         top_p=None,
         frequency_penalty=None,
@@ -292,3 +309,24 @@ def test_chat_start_returns_502_when_llm_request_fails(monkeypatch):
 
     assert response.status_code == 502
     assert response.get_json() == {"error": "LLM request failed: boom"}
+
+
+def test_chat_rejects_non_string_language():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/chat", json={"message": "hello", "language": 123})
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "language must be a string"}
+
+
+def test_chat_start_rejects_non_string_language():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post("/api/chat/start", json={"language": 123})
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "language must be a string"}
