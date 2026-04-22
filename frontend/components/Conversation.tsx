@@ -9,11 +9,15 @@ export type ConversationMessage = {
 type ConversationWindowProps = {
   conversation: ConversationMessage[];
   loading: boolean;
+  emptyStateText: string;
+  thinkingText: string;
 };
 
 export default function ConversationWindow({
   conversation,
   loading,
+  emptyStateText,
+  thinkingText,
 }: ConversationWindowProps) {
   const conversationRef = useRef<HTMLElement>(null);
 
@@ -30,10 +34,7 @@ export default function ConversationWindow({
       className="w-full max-w-3xl border rounded-xl bg-white shadow-sm p-4 h-[50vh] overflow-y-auto"
     >
       {conversation.length === 0 && !loading ? (
-        <p className="text-gray-500">
-          Choose an interview type, then start the interview to receive the
-          first question.
-        </p>
+        <p className="text-gray-500">{emptyStateText}</p>
       ) : (
         <div className="flex flex-col gap-3">
           {conversation.map((item, index) => (
@@ -54,7 +55,7 @@ export default function ConversationWindow({
           ))}
           {loading && (
             <div className="self-start bg-gray-100 text-gray-900 rounded-xl px-4 py-3">
-              Thinking...
+              {thinkingText}
             </div>
           )}
         </div>

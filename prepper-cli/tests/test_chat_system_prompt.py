@@ -8,7 +8,8 @@ def _make_fake_client(captured: dict):
     def fake_create(**kwargs):
         captured.update(kwargs)
         return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="assistant reply"))]
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content="assistant reply"))]
         )
 
     return SimpleNamespace(
@@ -22,7 +23,8 @@ def test_get_chat_reply_prepends_system_prompt_and_context(monkeypatch):
     def fake_create(*, model, messages, **kwargs):
         captured_messages.extend(messages)
         return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="assistant reply"))]
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content="assistant reply"))]
         )
 
     fake_client = SimpleNamespace(
@@ -45,10 +47,15 @@ def test_get_chat_reply_prepends_system_prompt_and_context(monkeypatch):
         conversation=conversation,
         history_limit=3,
         system_prompt="You are a coach.",
+        language="de",
     )
 
     assert reply == "assistant reply"
     assert captured_messages == [
+        {
+            "role": "system",
+            "content": "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.",
+        },
         {"role": "system", "content": "You are a coach."},
         {"role": "user", "content": "previous question"},
         {"role": "assistant", "content": "previous answer"},
@@ -123,7 +130,8 @@ def test_get_interview_opener_prepends_system_prompt_and_bootstrap_message(monke
         captured_messages.extend(messages)
         return SimpleNamespace(
             choices=[
-                SimpleNamespace(message=SimpleNamespace(content="  first question?  "))
+                SimpleNamespace(message=SimpleNamespace(
+                    content="  first question?  "))
             ]
         )
 
@@ -135,10 +143,15 @@ def test_get_interview_opener_prepends_system_prompt_and_bootstrap_message(monke
         "prepper_cli.chat.get_client", lambda: (fake_client, "fake-model")
     )
 
-    reply = get_interview_opener(system_prompt="You are an interviewer.")
+    reply = get_interview_opener(
+        system_prompt="You are an interviewer.", language="de")
 
     assert reply == "first question?"
     assert captured_messages == [
+        {
+            "role": "system",
+            "content": "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.",
+        },
         {"role": "system", "content": "You are an interviewer."},
         {
             "role": "user",

@@ -12,6 +12,10 @@ type PromptSelectorProps = {
   loading: boolean;
   locked: boolean;
   error: string | null;
+  label: string;
+  loadingText: string;
+  unavailableText: string;
+  lockedHint: string;
 };
 
 export default function PromptSelector({
@@ -21,6 +25,10 @@ export default function PromptSelector({
   loading,
   locked,
   error,
+  label,
+  loadingText,
+  unavailableText,
+  lockedHint,
 }: PromptSelectorProps) {
   const hasPrompts = prompts.length > 0;
 
@@ -30,7 +38,7 @@ export default function PromptSelector({
         htmlFor="system-prompt"
         className="text-sm font-medium text-gray-700"
       >
-        Interview type
+        {label}
       </label>
       <select
         id="system-prompt"
@@ -40,9 +48,7 @@ export default function PromptSelector({
         className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
       >
         {!hasPrompts ? (
-          <option value="">
-            {loading ? "Loading prompts..." : "Prompt list unavailable"}
-          </option>
+          <option value="">{loading ? loadingText : unavailableText}</option>
         ) : (
           prompts.map((prompt) => (
             <option key={prompt.id} value={prompt.id}>
@@ -51,11 +57,7 @@ export default function PromptSelector({
           ))
         )}
       </select>
-      {locked && (
-        <p className="text-sm text-gray-500">
-          Reset the conversation to choose a different interview.
-        </p>
-      )}
+      {locked && <p className="text-sm text-gray-500">{lockedHint}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </section>
   );
