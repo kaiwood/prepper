@@ -21,12 +21,48 @@ type PromptMetadata = {
   frequency_penalty: number;
   presence_penalty: number;
   max_tokens: number;
+  interview_rating_enabled?: boolean;
+  default_question_roundtrips?: number;
+  min_question_roundtrips?: number;
+  max_question_roundtrips?: number;
+  pass_threshold?: number;
+  rubric_criteria?: string[];
 };
 
 type PromptsResponse = {
   prompts?: PromptMetadata[];
   default?: string;
   error?: string;
+};
+
+type CriterionScore = {
+  criterion: string;
+  score: number;
+};
+
+type InterviewRating = {
+  overall_score: number;
+  pass_threshold: number;
+  passed: boolean;
+  criterion_scores: CriterionScore[];
+  strengths: string[];
+  improvements: string[];
+};
+
+type InterviewStatus = {
+  enabled: boolean;
+  is_completed: boolean;
+  counted_question_roundtrips: number;
+  question_roundtrips_limit: number;
+  pass_threshold: number;
+  current_turn_type: "question" | "other";
+  rating?: InterviewRating;
+};
+
+type ChatResponse = {
+  reply?: string;
+  error?: string;
+  interview_status?: InterviewStatus;
 };
 
 const DEFAULT_LANGUAGE: LanguageCode = "en";
@@ -69,13 +105,50 @@ export default function Home() {
   const [selectedPrompt, setSelectedPrompt] = useState("");
   const [promptsLoading, setPromptsLoading] = useState(true);
   const [promptsError, setPromptsError] = useState<string | null>(null);
+  const [questionRoundtripLimit, setQuestionRoundtripLimit] = useState(5);
+  const [interviewStatus, setInterviewStatus] =
+    useState<InterviewStatus | null>(null);
+
   const language = useSyncExternalStore(
     subscribeLanguageChange,
     readStoredLanguage,
     () => DEFAULT_LANGUAGE,
   );
   const hasStarted = conversation.length > 0;
+  const selectedPromptMetadata = availablePrompts.find(
+    (prompt) => prompt.id === selectedPrompt,
+  );
+  const interviewRatingEnabled = Boolean(
+    selectedPromptMetadata?.interview_rating_enabled,
+  );
+  const interviewCompleted = Boolean(interviewStatus?.is_completed);
   const ui = TRANSLATIONS[language];
+
+  const applyPromptDefaults = (
+    promptId: string,
+    prompts: PromptMetadata[],
+    lockIfStarted: boolean,
+  ) => {
+    setSelectedPrompt(promptId);
+    if (lockIfStarted) {
+      return;
+    }
+
+    const selected = prompts.find((prompt) => prompt.id === promptId);
+    if (!selected?.interview_rating_enabled) {
+      setQuestionRoundtripLimit(5);
+      return;
+    }
+
+    const defaultLimit = selected.default_question_roundtrips;
+    setQuestionRoundtripLimit(
+      typeof defaultLimit === "number" ? defaultLimit : 5,
+    );
+  };
+
+  const handlePromptChange = (promptId: string) => {
+    applyPromptDefaults(promptId, availablePrompts, hasStarted);
+  };
 
   const updateLanguage = (nextLanguage: LanguageCode) => {
     if (typeof window === "undefined") {
@@ -123,9 +196,10 @@ export default function Home() {
 
           if (prompts.length > 0) {
             const ids = prompts.map((p) => p.id);
-            setSelectedPrompt(
-              ids.includes(defaultPrompt) ? defaultPrompt : ids[0],
-            );
+            const initialPrompt = ids.includes(defaultPrompt)
+              ? defaultPrompt
+              : ids[0];
+            applyPromptDefaults(initialPrompt, prompts, false);
           }
         }
       } catch {
@@ -148,7 +222,9 @@ export default function Home() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!hasStarted || !message.trim() || loading) return;
+    if (!hasStarted || !message.trim() || loading || interviewCompleted) {
+      return;
+    }
 
     const prompt = message.trim();
     const history = [...conversation];
@@ -164,6 +240,7 @@ export default function Home() {
         conversation_history: ConversationMessage[];
         system_prompt_name?: string;
         language: LanguageCode;
+        max_question_roundtrips?: number;
       } = {
         message: prompt,
         conversation_history: history,
@@ -174,13 +251,17 @@ export default function Home() {
         payload.system_prompt_name = selectedPrompt;
       }
 
+      if (interviewRatingEnabled) {
+        payload.max_question_roundtrips = questionRoundtripLimit;
+      }
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data: ChatResponse = await res.json();
 
       if (!res.ok) {
         setError(data.error ?? ui.errorFallback);
@@ -189,6 +270,7 @@ export default function Home() {
           ...prev,
           { role: "assistant", content: data.reply ?? "" },
         ]);
+        setInterviewStatus(data.interview_status ?? null);
       }
     } catch {
       setError(ui.errorBackendUnavailable);
@@ -204,6 +286,7 @@ export default function Home() {
 
     setLoading(true);
     setError(null);
+    setInterviewStatus(null);
 
     try {
       const payload: { system_prompt_name?: string; language: LanguageCode } = {
@@ -223,12 +306,13 @@ export default function Home() {
         },
       );
 
-      const data = await res.json();
+      const data: ChatResponse = await res.json();
 
       if (!res.ok) {
         setError(data.error ?? ui.errorFallback);
       } else {
         setConversation([{ role: "assistant", content: data.reply ?? "" }]);
+        setInterviewStatus(null);
       }
     } catch {
       setError(ui.errorBackendUnavailable);
@@ -269,7 +353,7 @@ export default function Home() {
       <PromptSelector
         prompts={availablePrompts}
         selectedPrompt={selectedPrompt}
-        onPromptChange={setSelectedPrompt}
+        onPromptChange={handlePromptChange}
         loading={promptsLoading || loading}
         locked={hasStarted}
         error={promptsError}
@@ -278,6 +362,83 @@ export default function Home() {
         unavailableText={ui.promptUnavailable}
         lockedHint={ui.promptLockedHint}
       />
+
+      {interviewRatingEnabled && (
+        <section className="w-full max-w-3xl flex flex-col gap-2">
+          <label
+            htmlFor="roundtrip-limit"
+            className="text-sm font-medium text-gray-700"
+          >
+            {ui.questionLimitLabel}
+          </label>
+          <input
+            id="roundtrip-limit"
+            type="number"
+            min={selectedPromptMetadata?.min_question_roundtrips ?? 1}
+            max={selectedPromptMetadata?.max_question_roundtrips ?? 10}
+            value={questionRoundtripLimit}
+            disabled={hasStarted || loading}
+            onChange={(event) => {
+              const raw = Number.parseInt(event.target.value, 10);
+              const min = selectedPromptMetadata?.min_question_roundtrips ?? 1;
+              const max = selectedPromptMetadata?.max_question_roundtrips ?? 10;
+              if (Number.isNaN(raw)) {
+                setQuestionRoundtripLimit(min);
+                return;
+              }
+              setQuestionRoundtripLimit(Math.max(min, Math.min(max, raw)));
+            }}
+            className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+          />
+          <p className="text-sm text-gray-500">{ui.questionLimitHint}</p>
+        </section>
+      )}
+
+      {interviewCompleted && interviewStatus?.rating && (
+        <section className="w-full max-w-3xl rounded-xl border border-green-200 bg-green-50 p-4 flex flex-col gap-3">
+          <h2 className="text-xl font-semibold text-green-900">
+            {ui.interviewComplete}
+          </h2>
+          <p className="text-green-900">
+            {ui.scoreLabel}: {interviewStatus.rating.overall_score.toFixed(1)} /
+            10
+          </p>
+          <p className="text-green-900">
+            {interviewStatus.rating.passed ? ui.passLabel : ui.failLabel}
+          </p>
+
+          <div>
+            <h3 className="font-medium text-green-900">{ui.rubricLabel}</h3>
+            <ul className="list-disc list-inside text-green-900">
+              {interviewStatus.rating.criterion_scores.map((criterion) => (
+                <li key={criterion.criterion}>
+                  {criterion.criterion}: {criterion.score.toFixed(1)} / 10
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-medium text-green-900">{ui.strengthsLabel}</h3>
+            <ul className="list-disc list-inside text-green-900">
+              {interviewStatus.rating.strengths.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-medium text-green-900">
+              {ui.improvementsLabel}
+            </h3>
+            <ul className="list-disc list-inside text-green-900">
+              {interviewStatus.rating.improvements.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       <Conversation
         conversation={conversation}
@@ -295,13 +456,19 @@ export default function Home() {
           setConversation([]);
           setMessage("");
           setError(null);
+          setInterviewStatus(null);
         }}
         loading={loading}
         canClear={conversation.length > 0}
         canStart={Boolean(selectedPrompt) && availablePrompts.length > 0}
         hasStarted={hasStarted}
+        disableMessaging={interviewCompleted}
         error={error}
-        placeholderStarted={ui.inputPlaceholderStarted}
+        placeholderStarted={
+          interviewCompleted
+            ? ui.interviewLockedPlaceholder
+            : ui.inputPlaceholderStarted
+        }
         placeholderNotStarted={ui.inputPlaceholderNotStarted}
         startInterviewText={ui.startInterview}
         startingText={ui.starting}

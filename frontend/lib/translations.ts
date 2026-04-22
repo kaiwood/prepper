@@ -28,6 +28,16 @@ type TranslationStrings = {
   errorLoadPrompts: string;
   errorFallback: string;
   errorBackendUnavailable: string;
+  questionLimitLabel: string;
+  questionLimitHint: string;
+  interviewComplete: string;
+  scoreLabel: string;
+  passLabel: string;
+  failLabel: string;
+  strengthsLabel: string;
+  improvementsLabel: string;
+  rubricLabel: string;
+  interviewLockedPlaceholder: string;
 };
 
 export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
@@ -51,6 +61,18 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     errorLoadPrompts: "Could not load system prompts.",
     errorFallback: "Something went wrong.",
     errorBackendUnavailable: "Could not reach the backend.",
+    questionLimitLabel: "Scored question limit",
+    questionLimitHint:
+      "Only new interviewer questions count. Clarifications do not.",
+    interviewComplete: "Interview complete",
+    scoreLabel: "Overall score",
+    passLabel: "Pass",
+    failLabel: "Fail",
+    strengthsLabel: "Strengths",
+    improvementsLabel: "Improvements",
+    rubricLabel: "Rubric scores",
+    interviewLockedPlaceholder:
+      "Interview completed. Reset the conversation to start a new run.",
   },
   de: {
     appTitle: "Prepper",
@@ -74,5 +96,17 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     errorLoadPrompts: "System-Prompts konnten nicht geladen werden.",
     errorFallback: "Etwas ist schiefgelaufen.",
     errorBackendUnavailable: "Backend konnte nicht erreicht werden.",
+    questionLimitLabel: "Limit fuer bewertete Fragen",
+    questionLimitHint:
+      "Nur neue Interviewfragen zaehlen. Rueckfragen zaehlen nicht.",
+    interviewComplete: "Interview abgeschlossen",
+    scoreLabel: "Gesamtpunktzahl",
+    passLabel: "Bestanden",
+    failLabel: "Nicht bestanden",
+    strengthsLabel: "Staerken",
+    improvementsLabel: "Verbesserungen",
+    rubricLabel: "Rubrik-Bewertungen",
+    interviewLockedPlaceholder:
+      "Interview ist abgeschlossen. Setze das Gespraech zurueck, um neu zu starten.",
   },
 };

@@ -12,6 +12,7 @@ type MessageFormProps = {
   canClear: boolean;
   canStart: boolean;
   hasStarted: boolean;
+  disableMessaging?: boolean;
   error: string | null;
   placeholderStarted: string;
   placeholderNotStarted: string;
@@ -32,6 +33,7 @@ export default function MessageForm({
   canClear,
   canStart,
   hasStarted,
+  disableMessaging = false,
   error,
   placeholderStarted,
   placeholderNotStarted,
@@ -84,12 +86,12 @@ export default function MessageForm({
         className="border rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder={hasStarted ? placeholderStarted : placeholderNotStarted}
         value={message}
-        disabled={!hasStarted || loading}
+        disabled={!hasStarted || loading || disableMessaging}
         onChange={(e) => onMessageChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            if (hasStarted && !loading && message.trim()) {
+            if (hasStarted && !loading && !disableMessaging && message.trim()) {
               formRef.current?.requestSubmit();
             }
           }
@@ -118,7 +120,9 @@ export default function MessageForm({
 
         <button
           type="submit"
-          disabled={!hasStarted || loading || !message.trim()}
+          disabled={
+            !hasStarted || loading || disableMessaging || !message.trim()
+          }
           className="bg-blue-600 text-white rounded-lg py-2 px-4 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading && hasStarted ? thinkingText : sendText}

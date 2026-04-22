@@ -47,7 +47,7 @@ def test_default_system_prompt_is_configurable_via_env(monkeypatch):
 
 
 def test_parse_front_matter_extracts_known_fields():
-    raw = "---\nid: my_prompt\nname: My Prompt\ntemperature: 0.3\ntop_p: 0.95\nfrequency_penalty: 0.1\npresence_penalty: 0.0\nmax_tokens: 600\n---\n\nBody text here."
+    raw = "---\nid: my_prompt\nname: My Prompt\ntemperature: 0.3\ntop_p: 0.95\nfrequency_penalty: 0.1\npresence_penalty: 0.0\nmax_tokens: 600\ninterview_rating_enabled: true\ndefault_question_roundtrips: 5\nmin_question_roundtrips: 1\nmax_question_roundtrips: 10\npass_threshold: 7.0\nrubric_criteria: Problem understanding|Technical quality\n---\n\nBody text here."
 
     metadata, body = _parse_front_matter(raw)
 
@@ -58,6 +58,15 @@ def test_parse_front_matter_extracts_known_fields():
     assert metadata["frequency_penalty"] == pytest.approx(0.1)
     assert metadata["presence_penalty"] == pytest.approx(0.0)
     assert metadata["max_tokens"] == 600
+    assert metadata["interview_rating_enabled"] is True
+    assert metadata["default_question_roundtrips"] == 5
+    assert metadata["min_question_roundtrips"] == 1
+    assert metadata["max_question_roundtrips"] == 10
+    assert metadata["pass_threshold"] == pytest.approx(7.0)
+    assert metadata["rubric_criteria"] == (
+        "Problem understanding",
+        "Technical quality",
+    )
     assert body == "Body text here."
 
 
@@ -81,6 +90,16 @@ def test_load_prompt_descriptor_returns_correct_fields():
     assert descriptor.frequency_penalty == pytest.approx(0.2)
     assert descriptor.presence_penalty == pytest.approx(0.0)
     assert descriptor.max_tokens == 700
+    assert descriptor.interview_rating_enabled is True
+    assert descriptor.default_question_roundtrips == 5
+    assert descriptor.min_question_roundtrips == 1
+    assert descriptor.max_question_roundtrips == 10
+    assert descriptor.pass_threshold == pytest.approx(7.0)
+    assert descriptor.rubric_criteria == (
+        "Problem understanding",
+        "Technical quality",
+        "Communication",
+    )
     assert "interviewer" in descriptor.content.lower()
     assert not descriptor.content.startswith("---")
 
@@ -92,6 +111,8 @@ def test_load_prompt_descriptor_behavioral_focus():
     assert descriptor.name == "Behavioral Interview"
     assert descriptor.temperature == pytest.approx(0.5)
     assert descriptor.max_tokens == 700
+    assert descriptor.interview_rating_enabled is True
+    assert descriptor.pass_threshold == pytest.approx(7.0)
 
 
 def test_load_prompt_descriptor_interview_coach():
@@ -101,6 +122,8 @@ def test_load_prompt_descriptor_interview_coach():
     assert descriptor.name == "Interview Coach"
     assert descriptor.temperature == pytest.approx(0.4)
     assert descriptor.max_tokens == 800
+    assert descriptor.interview_rating_enabled is False
+    assert descriptor.rubric_criteria == ()
 
 
 def test_load_prompt_descriptor_rejects_unknown():

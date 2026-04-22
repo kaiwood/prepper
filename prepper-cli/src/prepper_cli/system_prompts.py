@@ -10,9 +10,22 @@ PROMPTS_DIRECTORY = "prompts"
 _FRONT_MATTER_DELIMITER = "---"
 
 # Known numeric fields and their expected Python types.
-_FLOAT_FIELDS = {"temperature", "top_p", "frequency_penalty", "presence_penalty"}
-_INT_FIELDS = {"max_tokens"}
+_FLOAT_FIELDS = {
+    "temperature",
+    "top_p",
+    "frequency_penalty",
+    "presence_penalty",
+    "pass_threshold",
+}
+_INT_FIELDS = {
+    "max_tokens",
+    "default_question_roundtrips",
+    "min_question_roundtrips",
+    "max_question_roundtrips",
+}
 _STR_FIELDS = {"id", "name"}
+_BOOL_FIELDS = {"interview_rating_enabled"}
+_LIST_FIELDS = {"rubric_criteria"}
 
 
 @dataclass(frozen=True)
@@ -27,6 +40,12 @@ class PromptDescriptor:
     presence_penalty: float
     max_tokens: int
     content: str
+    interview_rating_enabled: bool = False
+    default_question_roundtrips: int = 5
+    min_question_roundtrips: int = 1
+    max_question_roundtrips: int = 10
+    pass_threshold: float = 7.0
+    rubric_criteria: tuple[str, ...] = ()
 
 
 def _parse_front_matter(raw: str) -> tuple[dict[str, object], str]:
@@ -63,6 +82,12 @@ def _parse_front_matter(raw: str) -> tuple[dict[str, object], str]:
             metadata[key] = int(value)
         elif key in _STR_FIELDS:
             metadata[key] = value
+        elif key in _BOOL_FIELDS:
+            metadata[key] = value.lower() in {"1", "true", "yes", "on"}
+        elif key in _LIST_FIELDS:
+            metadata[key] = tuple(
+                item.strip() for item in value.split("|") if item.strip()
+            )
 
     return metadata, body
 
@@ -124,6 +149,16 @@ def load_prompt_descriptor(name: str) -> PromptDescriptor:
             presence_penalty=float(metadata.get("presence_penalty", 0.0)),
             max_tokens=int(metadata.get("max_tokens", 800)),
             content=body,
+            interview_rating_enabled=bool(
+                metadata.get("interview_rating_enabled", False)
+            ),
+            default_question_roundtrips=int(
+                metadata.get("default_question_roundtrips", 5)
+            ),
+            min_question_roundtrips=int(metadata.get("min_question_roundtrips", 1)),
+            max_question_roundtrips=int(metadata.get("max_question_roundtrips", 10)),
+            pass_threshold=float(metadata.get("pass_threshold", 7.0)),
+            rubric_criteria=tuple(metadata.get("rubric_criteria", ())),
         )
     except (ValueError, TypeError) as exc:
         raise ValueError(
