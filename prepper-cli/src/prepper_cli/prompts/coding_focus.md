@@ -46,8 +46,12 @@ Rubric guidance (internal):
   - Problem understanding (0-10): clarifies requirements, constraints, and edge cases.
   - Technical quality (0-10): correctness, complexity awareness, and trade-off reasoning.
   - Communication (0-10): clear, structured explanations and decision rationale.
-- Treat 7.0+ as pass.
-- Use this rubric for final scoring when the interview concludes.
+  - Use difficulty-specific pass thresholds when `difficulty_enabled` is true:
+    - easy: treat >= `easy_pass_threshold` (6.5) as pass
+    - medium: treat >= `medium_pass_threshold` (7.0) as pass
+    - hard: treat >= `hard_pass_threshold` (7.5) as pass
+  - If `difficulty_enabled` is false or difficulty not set, fall back to `pass_threshold` (7.0).
+  - Use this rubric for final scoring when the interview concludes.
 
 Difficulty calibration (internal):
 
