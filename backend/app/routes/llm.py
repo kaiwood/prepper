@@ -22,6 +22,7 @@ _ROUNDTRIP_CLASSIFIER_PROMPT = (
     "QUESTION means the interviewer is asking a new substantive interview question. "
     "OTHER means clarification, acknowledgement, recap, or closing statement."
 )
+_VALID_DIFFICULTIES = {"easy", "medium", "hard"}
 
 
 def _extract_json_object(raw: str) -> dict:
@@ -91,6 +92,74 @@ def _resolve_roundtrip_limit(
         )
 
     return requested_limit
+
+
+def _resolve_difficulty(
+    requested_difficulty: object,
+    descriptor: PromptDescriptor,
+) -> str | None:
+    if requested_difficulty is None:
+        if descriptor.difficulty_enabled:
+            return descriptor.default_difficulty
+        return None
+
+    if not isinstance(requested_difficulty, str):
+        raise ValueError("difficulty must be a string")
+
+    normalized = requested_difficulty.strip().lower()
+    if not normalized:
+        if descriptor.difficulty_enabled:
+            return descriptor.default_difficulty
+        return None
+
+    if normalized not in _VALID_DIFFICULTIES:
+        raise ValueError("difficulty must be one of: easy, medium, hard")
+
+    if not descriptor.difficulty_enabled:
+        raise ValueError("difficulty is not supported for this interview type")
+
+    if normalized not in descriptor.difficulty_levels:
+        supported = ", ".join(descriptor.difficulty_levels)
+        raise ValueError(
+            f"difficulty '{normalized}' is not supported for this prompt. Supported: {supported}"
+        )
+
+    return normalized
+
+
+def _resolve_pass_threshold(descriptor: PromptDescriptor, difficulty: str | None) -> float:
+    if difficulty == "easy" and descriptor.easy_pass_threshold is not None:
+        return descriptor.easy_pass_threshold
+    if difficulty == "medium" and descriptor.medium_pass_threshold is not None:
+        return descriptor.medium_pass_threshold
+    if difficulty == "hard" and descriptor.hard_pass_threshold is not None:
+        return descriptor.hard_pass_threshold
+    return descriptor.pass_threshold
+
+
+def _build_difficulty_instruction(difficulty: str) -> str:
+    if difficulty == "easy":
+        return (
+            "\n\nDifficulty mode: Junior-level (easy). "
+            "Favor practical, well-scoped coding problems with lower ambiguity. "
+            "Offer concise hints when the candidate is clearly stuck. "
+            "Keep follow-ups implementation-focused and moderate in depth."
+        )
+
+    if difficulty == "hard":
+        return (
+            "\n\nDifficulty mode: Principal-level (hard). "
+            "Use more ambiguous, open-ended problems and probe system-level trade-offs. "
+            "Push deeper follow-ups on architecture, scaling, reliability, and constraints. "
+            "Keep hints minimal unless explicitly requested."
+        )
+
+    return (
+        "\n\nDifficulty mode: Senior-level (medium). "
+        "Use realistic production-oriented coding challenges with moderate ambiguity. "
+        "Expect strong trade-off reasoning, robust edge-case handling, and clear communication. "
+        "Provide limited hints only when appropriate."
+    )
 
 
 def _build_runtime_interview_instruction(
@@ -189,6 +258,7 @@ def _build_scoring_input(conversation: Conversation) -> str:
 def _parse_scoring_payload(
     raw_response: str,
     descriptor: PromptDescriptor,
+    pass_threshold: float,
 ) -> dict:
     parsed = _extract_json_object(raw_response)
     criterion_map = parsed.get("criterion_scores", {}) if isinstance(parsed, dict) else {}
@@ -214,8 +284,8 @@ def _parse_scoring_payload(
 
     return {
         "overall_score": overall,
-        "pass_threshold": descriptor.pass_threshold,
-        "passed": overall >= descriptor.pass_threshold,
+        "pass_threshold": pass_threshold,
+        "passed": overall >= pass_threshold,
         "criterion_scores": criterion_scores,
         "strengths": strengths,
         "improvements": improvements,
@@ -227,6 +297,7 @@ def _score_interview(
     conversation: Conversation,
     descriptor: PromptDescriptor,
     language: str | None,
+    pass_threshold: float,
 ) -> dict:
     score_raw = get_chat_reply(
         _build_scoring_input(conversation),
@@ -238,7 +309,7 @@ def _score_interview(
         presence_penalty=0.0,
         max_tokens=300,
     )
-    return _parse_scoring_payload(score_raw, descriptor)
+    return _parse_scoring_payload(score_raw, descriptor, pass_threshold)
 
 
 def _resolve_prompt_descriptor(selected_name: str | None = None) -> PromptDescriptor:
@@ -277,6 +348,7 @@ def chat():
     conversation_history = data.get("conversation_history")
     system_prompt_name = data.get("system_prompt_name")
     language = data.get("language")
+    difficulty = data.get("difficulty")
     max_question_roundtrips = data.get("max_question_roundtrips")
 
     if "system_prompt" in data:
@@ -287,6 +359,9 @@ def chat():
 
     if language is not None and not isinstance(language, str):
         return jsonify({"error": "language must be a string"}), 400
+
+    if difficulty is not None and not isinstance(difficulty, str):
+        return jsonify({"error": "difficulty must be a string"}), 400
 
     if not message:
         return jsonify({"error": "message is required"}), 400
@@ -312,11 +387,21 @@ def chat():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    try:
+        resolved_difficulty = _resolve_difficulty(difficulty, descriptor)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    active_pass_threshold = _resolve_pass_threshold(descriptor, resolved_difficulty)
+
     prior_question_count = 0
     system_prompt = descriptor.content
+    if resolved_difficulty is not None:
+        system_prompt += _build_difficulty_instruction(resolved_difficulty)
+
     if descriptor.interview_rating_enabled:
         prior_question_count = _count_scored_questions(conversation, language)
-        system_prompt = descriptor.content + _build_runtime_interview_instruction(
+        system_prompt += _build_runtime_interview_instruction(
             descriptor, prior_question_count, question_limit
         )
 
@@ -348,9 +433,11 @@ def chat():
             "is_completed": interview_complete,
             "counted_question_roundtrips": count_after,
             "question_roundtrips_limit": question_limit,
-            "pass_threshold": descriptor.pass_threshold,
+            "pass_threshold": active_pass_threshold,
             "current_turn_type": current_turn_kind,
         }
+        if resolved_difficulty is not None:
+            interview_status["difficulty"] = resolved_difficulty
 
         if interview_complete:
             try:
@@ -364,6 +451,7 @@ def chat():
                     scoring_conversation,
                     descriptor,
                     language,
+                    active_pass_threshold,
                 )
             except Exception as exc:
                 return jsonify({"error": f"LLM request failed: {exc}"}), 502
@@ -383,6 +471,7 @@ def chat_start():
     data = request.get_json(silent=True) or {}
     system_prompt_name = data.get("system_prompt_name")
     language = data.get("language")
+    difficulty = data.get("difficulty")
 
     if "system_prompt" in data:
         return jsonify({"error": "system_prompt is not supported"}), 400
@@ -393,6 +482,9 @@ def chat_start():
     if language is not None and not isinstance(language, str):
         return jsonify({"error": "language must be a string"}), 400
 
+    if difficulty is not None and not isinstance(difficulty, str):
+        return jsonify({"error": "difficulty must be a string"}), 400
+
     try:
         descriptor = _resolve_prompt_descriptor(system_prompt_name)
     except ValueError as exc:
@@ -401,8 +493,17 @@ def chat_start():
         return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
     try:
+        resolved_difficulty = _resolve_difficulty(difficulty, descriptor)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    system_prompt = descriptor.content
+    if resolved_difficulty is not None:
+        system_prompt += _build_difficulty_instruction(resolved_difficulty)
+
+    try:
         reply = get_interview_opener(
-            system_prompt=descriptor.content,
+            system_prompt=system_prompt,
             language=language,
             temperature=descriptor.temperature,
             top_p=descriptor.top_p,
@@ -447,6 +548,9 @@ def prompts():
             "max_question_roundtrips": d.max_question_roundtrips,
             "pass_threshold": d.pass_threshold,
             "rubric_criteria": list(d.rubric_criteria),
+            "difficulty_enabled": d.difficulty_enabled,
+            "difficulty_levels": list(d.difficulty_levels),
+            "default_difficulty": d.default_difficulty,
         }
         for d in descriptors
     ]

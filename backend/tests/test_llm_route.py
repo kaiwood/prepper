@@ -151,7 +151,9 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
         _make_descriptor("behavioral_focus", name="Behavioral Interview", temperature=0.5,
                          top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=700),
         _make_descriptor("coding_focus", name="Coding Interview", temperature=0.3,
-                         top_p=1.0, frequency_penalty=0.2, presence_penalty=0.0, max_tokens=700),
+                         top_p=1.0, frequency_penalty=0.2, presence_penalty=0.0, max_tokens=700,
+                         difficulty_enabled=True, difficulty_levels=("easy", "medium", "hard"),
+                         default_difficulty="medium"),
         _make_descriptor("interview_coach", name="Interview Coach", temperature=0.4,
                          top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=800),
     ]
@@ -188,6 +190,159 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     assert coding["max_question_roundtrips"] == 10
     assert coding["pass_threshold"] == 7.0
     assert coding["rubric_criteria"] == []
+    assert coding["difficulty_enabled"] is True
+    assert coding["difficulty_levels"] == ["easy", "medium", "hard"]
+    assert coding["default_difficulty"] == "medium"
+
+
+def test_chat_rejects_non_string_difficulty(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus", difficulty_enabled=True),
+    )
+
+    response = client.post("/api/chat", json={"message": "hello", "difficulty": 123})
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "difficulty must be a string"}
+
+
+def test_chat_rejects_invalid_difficulty_value(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus", difficulty_enabled=True),
+    )
+
+    response = client.post(
+        "/api/chat",
+        json={"message": "hello", "difficulty": "expert"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "difficulty must be one of: easy, medium, hard"
+    }
+
+
+def test_chat_rejects_difficulty_for_unsupported_prompt(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("behavioral_focus", difficulty_enabled=False),
+    )
+
+    response = client.post(
+        "/api/chat",
+        json={"message": "hello", "difficulty": "easy"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "difficulty is not supported for this interview type"
+    }
+
+
+def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    descriptor = _make_descriptor(
+        "coding_focus",
+        interview_rating_enabled=True,
+        default_question_roundtrips=1,
+        pass_threshold=7.0,
+        rubric_criteria=("Problem understanding",),
+        difficulty_enabled=True,
+        difficulty_levels=("easy", "medium", "hard"),
+        default_difficulty="medium",
+        easy_pass_threshold=6.5,
+    )
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: descriptor,
+    )
+    monkeypatch.setattr("app.routes.llm._count_scored_questions", lambda *_: 1)
+    monkeypatch.setattr("app.routes.llm._classify_assistant_turn", lambda *_: "other")
+
+    captured = {}
+
+    def fake_get_chat_reply(*args, **kwargs):
+        captured["system_prompt"] = kwargs.get("system_prompt")
+        return "Thanks, that concludes the interview."
+
+    def fake_score_interview(conversation, passed_descriptor, language, pass_threshold):
+        captured["pass_threshold"] = pass_threshold
+        return {
+            "overall_score": 6.8,
+            "pass_threshold": pass_threshold,
+            "passed": 6.8 >= pass_threshold,
+            "criterion_scores": [
+                {"criterion": "Problem understanding", "score": 6.8},
+            ],
+            "strengths": ["Clear structure"],
+            "improvements": ["Deeper edge cases"],
+            "parse_warning": False,
+        }
+
+    monkeypatch.setattr("app.routes.llm.get_chat_reply", fake_get_chat_reply)
+    monkeypatch.setattr("app.routes.llm._score_interview", fake_score_interview)
+
+    response = client.post(
+        "/api/chat",
+        json={"message": "hello", "difficulty": "easy"},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "Difficulty mode: Junior-level (easy)." in captured["system_prompt"]
+    assert data["interview_status"]["difficulty"] == "easy"
+    assert data["interview_status"]["pass_threshold"] == 6.5
+    assert data["interview_status"]["rating"]["pass_threshold"] == 6.5
+    assert captured["pass_threshold"] == 6.5
+
+
+def test_chat_start_includes_difficulty_instruction(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            difficulty_enabled=True,
+            difficulty_levels=("easy", "medium", "hard"),
+            default_difficulty="medium",
+        ),
+    )
+
+    captured = {}
+
+    def fake_get_interview_opener(
+        system_prompt=None,
+        language=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+    ):
+        captured["system_prompt"] = system_prompt
+        return "opening question"
+
+    monkeypatch.setattr("app.routes.llm.get_interview_opener", fake_get_interview_opener)
+
+    response = client.post("/api/chat/start", json={"difficulty": "hard"})
+
+    assert response.status_code == 200
+    assert "Difficulty mode: Principal-level (hard)." in captured["system_prompt"]
 
 
 def test_chat_rejects_non_integer_max_question_roundtrips(monkeypatch):

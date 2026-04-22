@@ -13,6 +13,8 @@ import {
   type LanguageCode,
 } from "../lib/translations";
 
+type DifficultyValue = "easy" | "medium" | "hard";
+
 type PromptMetadata = {
   id: string;
   name: string;
@@ -27,6 +29,9 @@ type PromptMetadata = {
   max_question_roundtrips?: number;
   pass_threshold?: number;
   rubric_criteria?: string[];
+  difficulty_enabled?: boolean;
+  difficulty_levels?: DifficultyValue[];
+  default_difficulty?: DifficultyValue;
 };
 
 type PromptsResponse = {
@@ -106,6 +111,8 @@ export default function Home() {
   const [promptsLoading, setPromptsLoading] = useState(true);
   const [promptsError, setPromptsError] = useState<string | null>(null);
   const [questionRoundtripLimit, setQuestionRoundtripLimit] = useState(5);
+  const [selectedDifficulty, setSelectedDifficulty] =
+    useState<DifficultyValue>("medium");
   const [interviewStatus, setInterviewStatus] =
     useState<InterviewStatus | null>(null);
 
@@ -121,8 +128,19 @@ export default function Home() {
   const interviewRatingEnabled = Boolean(
     selectedPromptMetadata?.interview_rating_enabled,
   );
+  const difficultyEnabled = Boolean(selectedPromptMetadata?.difficulty_enabled);
+  const difficultyLevels = selectedPromptMetadata?.difficulty_levels ?? [
+    "easy",
+    "medium",
+    "hard",
+  ];
   const interviewCompleted = Boolean(interviewStatus?.is_completed);
   const ui = TRANSLATIONS[language];
+  const difficultyLabelByValue: Record<DifficultyValue, string> = {
+    easy: ui.difficultyJunior,
+    medium: ui.difficultySenior,
+    hard: ui.difficultyPrincipal,
+  };
 
   const applyPromptDefaults = (
     promptId: string,
@@ -137,13 +155,26 @@ export default function Home() {
     const selected = prompts.find((prompt) => prompt.id === promptId);
     if (!selected?.interview_rating_enabled) {
       setQuestionRoundtripLimit(5);
-      return;
+    } else {
+      const defaultLimit = selected.default_question_roundtrips;
+      setQuestionRoundtripLimit(
+        typeof defaultLimit === "number" ? defaultLimit : 5,
+      );
     }
 
-    const defaultLimit = selected.default_question_roundtrips;
-    setQuestionRoundtripLimit(
-      typeof defaultLimit === "number" ? defaultLimit : 5,
-    );
+    if (selected?.difficulty_enabled) {
+      const defaultDifficulty = selected.default_difficulty;
+      if (
+        defaultDifficulty &&
+        ["easy", "medium", "hard"].includes(defaultDifficulty)
+      ) {
+        setSelectedDifficulty(defaultDifficulty);
+      } else {
+        setSelectedDifficulty("medium");
+      }
+    } else {
+      setSelectedDifficulty("medium");
+    }
   };
 
   const handlePromptChange = (promptId: string) => {
@@ -241,6 +272,7 @@ export default function Home() {
         system_prompt_name?: string;
         language: LanguageCode;
         max_question_roundtrips?: number;
+        difficulty?: DifficultyValue;
       } = {
         message: prompt,
         conversation_history: history,
@@ -253,6 +285,10 @@ export default function Home() {
 
       if (interviewRatingEnabled) {
         payload.max_question_roundtrips = questionRoundtripLimit;
+      }
+
+      if (difficultyEnabled) {
+        payload.difficulty = selectedDifficulty;
       }
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat`, {
@@ -289,12 +325,20 @@ export default function Home() {
     setInterviewStatus(null);
 
     try {
-      const payload: { system_prompt_name?: string; language: LanguageCode } = {
+      const payload: {
+        system_prompt_name?: string;
+        language: LanguageCode;
+        difficulty?: DifficultyValue;
+      } = {
         language,
       };
 
       if (selectedPrompt) {
         payload.system_prompt_name = selectedPrompt;
+      }
+
+      if (difficultyEnabled) {
+        payload.difficulty = selectedDifficulty;
       }
 
       const res = await fetch(
@@ -394,6 +438,37 @@ export default function Home() {
         </section>
       )}
 
+      {difficultyEnabled && (
+        <section className="w-full max-w-3xl flex flex-col gap-2">
+          <label
+            htmlFor="difficulty-level"
+            className="text-sm font-medium text-gray-700"
+          >
+            {ui.difficultyLabel}
+          </label>
+          <select
+            id="difficulty-level"
+            value={selectedDifficulty}
+            disabled={hasStarted || loading}
+            onChange={(event) =>
+              setSelectedDifficulty(event.target.value as DifficultyValue)
+            }
+            className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+          >
+            {difficultyLevels
+              .filter((level): level is DifficultyValue =>
+                ["easy", "medium", "hard"].includes(level),
+              )
+              .map((level) => (
+                <option key={level} value={level}>
+                  {difficultyLabelByValue[level]}
+                </option>
+              ))}
+          </select>
+          <p className="text-sm text-gray-500">{ui.difficultyHint}</p>
+        </section>
+      )}
+
       {interviewCompleted && interviewStatus?.rating && (
         <section className="w-full max-w-3xl rounded-xl border border-green-200 bg-green-50 p-4 flex flex-col gap-3">
           <h2 className="text-xl font-semibold text-green-900">
@@ -457,6 +532,11 @@ export default function Home() {
           setMessage("");
           setError(null);
           setInterviewStatus(null);
+          setSelectedDifficulty(
+            selectedPromptMetadata?.difficulty_enabled
+              ? (selectedPromptMetadata.default_difficulty ?? "medium")
+              : "medium",
+          );
         }}
         loading={loading}
         canClear={conversation.length > 0}
