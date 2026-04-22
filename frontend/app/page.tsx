@@ -34,6 +34,7 @@ export default function Home() {
   const [selectedPrompt, setSelectedPrompt] = useState("");
   const [promptsLoading, setPromptsLoading] = useState(true);
   const [promptsError, setPromptsError] = useState<string | null>(null);
+  const hasStarted = conversation.length > 0;
 
   useEffect(() => {
     let isCancelled = false;
@@ -97,7 +98,7 @@ export default function Home() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!message.trim() || loading) return;
+    if (!hasStarted || !message.trim() || loading) return;
 
     const prompt = message.trim();
     const history = [...conversation];
@@ -144,6 +145,44 @@ export default function Home() {
     }
   }
 
+  async function handleStart() {
+    if (loading || promptsLoading || hasStarted || !selectedPrompt) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const payload: { system_prompt_name?: string } = {};
+
+      if (selectedPrompt) {
+        payload.system_prompt_name = selectedPrompt;
+      }
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/chat/start`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+      } else {
+        setConversation([{ role: "assistant", content: data.reply ?? "" }]);
+      }
+    } catch {
+      setError("Could not reach the backend.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="min-h-screen flex flex-col items-center p-8 gap-6">
       <h1 className="text-3xl font-bold mt-6">Prepper</h1>
@@ -154,6 +193,7 @@ export default function Home() {
         selectedPrompt={selectedPrompt}
         onPromptChange={setSelectedPrompt}
         loading={promptsLoading || loading}
+        locked={hasStarted}
         error={promptsError}
       />
 
@@ -163,12 +203,16 @@ export default function Home() {
         message={message}
         onMessageChange={setMessage}
         onSubmit={handleSubmit}
+        onStart={handleStart}
         onClear={() => {
           setConversation([]);
+          setMessage("");
           setError(null);
         }}
         loading={loading}
         canClear={conversation.length > 0}
+        canStart={Boolean(selectedPrompt) && availablePrompts.length > 0}
+        hasStarted={hasStarted}
         error={error}
       />
     </main>

@@ -6,9 +6,12 @@ type MessageFormProps = {
   message: string;
   onMessageChange: (value: string) => void;
   onSubmit: React.FormEventHandler<HTMLFormElement>;
+  onStart: () => void;
   onClear: () => void;
   loading: boolean;
   canClear: boolean;
+  canStart: boolean;
+  hasStarted: boolean;
   error: string | null;
 };
 
@@ -16,9 +19,12 @@ export default function MessageForm({
   message,
   onMessageChange,
   onSubmit,
+  onStart,
   onClear,
   loading,
   canClear,
+  canStart,
+  hasStarted,
   error,
 }: MessageFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -51,13 +57,18 @@ export default function MessageForm({
         ref={textareaRef}
         rows={1}
         className="border rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-        placeholder="Ask a question or describe the role you're preparing for…"
+        placeholder={
+          hasStarted
+            ? "Respond to the interviewer..."
+            : "Choose an interview and start to enable your response box..."
+        }
         value={message}
+        disabled={!hasStarted || loading}
         onChange={(e) => onMessageChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            if (!loading && message.trim()) {
+            if (hasStarted && !loading && message.trim()) {
               formRef.current?.requestSubmit();
             }
           }
@@ -66,11 +77,19 @@ export default function MessageForm({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <button
+          type="button"
+          onClick={onStart}
+          disabled={loading || hasStarted || !canStart}
+          className="bg-gray-900 text-white rounded-lg py-2 px-4 hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {loading && !hasStarted ? "Starting..." : "Start interview"}
+        </button>
+        <button
           type="submit"
-          disabled={loading || !message.trim()}
+          disabled={!hasStarted || loading || !message.trim()}
           className="bg-blue-600 text-white rounded-lg py-2 px-4 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {loading ? "Thinking…" : "Send"}
+          {loading && hasStarted ? "Thinking..." : "Send"}
         </button>
         <button
           type="button"

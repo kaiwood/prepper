@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from prepper_cli.chat import get_chat_reply
+from prepper_cli.chat import get_chat_reply, get_interview_opener
 from prepper_cli.conversation import Conversation
 
 
@@ -114,3 +114,57 @@ def test_get_chat_reply_omits_individual_none_tuning_params(monkeypatch):
 
     assert captured["temperature"] == 0.5
     assert "top_p" not in captured
+
+
+def test_get_interview_opener_prepends_system_prompt_and_bootstrap_message(monkeypatch):
+    captured_messages = []
+
+    def fake_create(*, model, messages, **kwargs):
+        captured_messages.extend(messages)
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(message=SimpleNamespace(content="  first question?  "))
+            ]
+        )
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    monkeypatch.setattr(
+        "prepper_cli.chat.get_client", lambda: (fake_client, "fake-model")
+    )
+
+    reply = get_interview_opener(system_prompt="You are an interviewer.")
+
+    assert reply == "first question?"
+    assert captured_messages == [
+        {"role": "system", "content": "You are an interviewer."},
+        {
+            "role": "user",
+            "content": "Begin the interview now. Ask the first interview question and wait for the candidate's response.",
+        },
+    ]
+
+
+def test_get_interview_opener_forwards_tuning_params(monkeypatch):
+    captured: dict = {}
+    fake_client = _make_fake_client(captured)
+
+    monkeypatch.setattr(
+        "prepper_cli.chat.get_client", lambda: (fake_client, "fake-model")
+    )
+
+    get_interview_opener(
+        temperature=0.3,
+        top_p=0.95,
+        frequency_penalty=0.2,
+        presence_penalty=0.1,
+        max_tokens=700,
+    )
+
+    assert captured["temperature"] == 0.3
+    assert captured["top_p"] == 0.95
+    assert captured["frequency_penalty"] == 0.2
+    assert captured["presence_penalty"] == 0.1
+    assert captured["max_tokens"] == 700

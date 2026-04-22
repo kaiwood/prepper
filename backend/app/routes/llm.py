@@ -5,6 +5,7 @@ from prepper_cli import (
     PromptDescriptor,
     get_chat_reply,
     get_default_system_prompt_name,
+    get_interview_opener,
     list_prompt_descriptors,
     list_system_prompt_names,
     load_prompt_descriptor,
@@ -24,6 +25,15 @@ def _resolve_prompt_descriptor(selected_name: str | None = None) -> PromptDescri
     allow_headers=["Content-Type", "Authorization"],
 )
 def chat_options():
+    return "", 204
+
+
+@llm_bp.route("/api/chat/start", methods=["OPTIONS"])
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def chat_start_options():
     return "", 204
 
 
@@ -68,6 +78,45 @@ def chat():
         reply = get_chat_reply(
             message,
             conversation=conversation,
+            system_prompt=descriptor.content,
+            temperature=descriptor.temperature,
+            top_p=descriptor.top_p,
+            frequency_penalty=descriptor.frequency_penalty,
+            presence_penalty=descriptor.presence_penalty,
+            max_tokens=descriptor.max_tokens,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"LLM request failed: {exc}"}), 502
+
+    return jsonify({"reply": reply})
+
+
+@llm_bp.post("/api/chat/start")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def chat_start():
+    data = request.get_json(silent=True) or {}
+    system_prompt_name = data.get("system_prompt_name")
+
+    if "system_prompt" in data:
+        return jsonify({"error": "system_prompt is not supported"}), 400
+
+    if system_prompt_name is not None and not isinstance(system_prompt_name, str):
+        return jsonify({"error": "system_prompt_name must be a string"}), 400
+
+    try:
+        descriptor = _resolve_prompt_descriptor(system_prompt_name)
+    except ValueError as exc:
+        if system_prompt_name is not None:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": f"LLM request failed: {exc}"}), 502
+
+    try:
+        reply = get_interview_opener(
             system_prompt=descriptor.content,
             temperature=descriptor.temperature,
             top_p=descriptor.top_p,
