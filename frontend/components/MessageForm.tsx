@@ -86,29 +86,32 @@ export default function MessageForm({
         }}
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <button
-          type="button"
-          onClick={onStart}
-          disabled={loading || hasStarted || !canStart}
-          className="bg-gray-900 text-white rounded-lg py-2 px-4 hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {loading && !hasStarted ? "Starting..." : "Start interview"}
-        </button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={onStart}
+            disabled={loading || hasStarted || !canStart}
+            className="bg-gray-900 text-white rounded-lg py-2 px-4 hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading && !hasStarted ? "Starting..." : "Start interview"}
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={loading || !canClear}
+            className="border border-gray-300 text-gray-700 rounded-lg py-2 px-4 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Reset conversation
+          </button>
+        </div>
+
         <button
           type="submit"
           disabled={!hasStarted || loading || !message.trim()}
           className="bg-blue-600 text-white rounded-lg py-2 px-4 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading && hasStarted ? "Thinking..." : "Send"}
-        </button>
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={loading || !canClear}
-          className="border border-gray-300 text-gray-700 rounded-lg py-2 px-4 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          Clear conversation
         </button>
       </div>
 
