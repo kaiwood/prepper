@@ -5,7 +5,9 @@ from .chat import get_chat_reply
 from .conversation import Conversation
 from .system_prompts import (
     get_default_system_prompt_name,
+    list_prompt_descriptors,
     list_system_prompt_names,
+    load_prompt_descriptor,
     load_system_prompt,
 )
 
@@ -46,14 +48,15 @@ def _resolve_system_prompt_name(selected_name: str | None) -> str:
 
 
 def _choose_interactive_system_prompt(default_name: str) -> str | None:
-    available = list_system_prompt_names()
-    default_choice = default_name if default_name in available else available[0]
+    descriptors = list_prompt_descriptors()
+    ids = [d.id for d in descriptors]
+    default_choice = default_name if default_name in ids else (ids[0] if ids else None)
 
     print("Select system prompt for this session:")
     print("0) none")
-    for index, name in enumerate(available, start=1):
-        marker = " (default)" if name == default_choice else ""
-        print(f"{index}) {name}{marker}")
+    for index, descriptor in enumerate(descriptors, start=1):
+        marker = " (default)" if descriptor.id == default_choice else ""
+        print(f"{index}) {descriptor.name}{marker}")
 
     while True:
         choice = input(f"Prompt selection [Enter for {default_choice}]: ").strip()
@@ -63,21 +66,22 @@ def _choose_interactive_system_prompt(default_name: str) -> str | None:
             return None
         if choice.isdigit():
             selected_index = int(choice)
-            if 1 <= selected_index <= len(available):
-                return available[selected_index - 1]
+            if 1 <= selected_index <= len(descriptors):
+                return descriptors[selected_index - 1].id
 
         print("Please enter a valid option number.")
 
 
 def _run_interactive(system_prompt: str | None) -> int:
     print("Interactive mode. Type 'exit' or 'quit' to leave.")
-    if system_prompt:
-        print(f"Using system prompt: {system_prompt}")
+
+    descriptor = load_prompt_descriptor(system_prompt) if system_prompt else None
+    if descriptor:
+        print(f"Using system prompt: {descriptor.name}")
     else:
         print("Using system prompt: none")
 
     conversation = Conversation()
-    system_prompt_text = load_system_prompt(system_prompt) if system_prompt else None
 
     while True:
         try:
@@ -99,7 +103,12 @@ def _run_interactive(system_prompt: str | None) -> int:
             reply = get_chat_reply(
                 text,
                 conversation=conversation,
-                system_prompt=system_prompt_text,
+                system_prompt=descriptor.content if descriptor else None,
+                temperature=descriptor.temperature if descriptor else None,
+                top_p=descriptor.top_p if descriptor else None,
+                frequency_penalty=descriptor.frequency_penalty if descriptor else None,
+                presence_penalty=descriptor.presence_penalty if descriptor else None,
+                max_tokens=descriptor.max_tokens if descriptor else None,
             )
             print(reply)
         except Exception as exc:  # pragma: no cover - direct CLI safety net
@@ -129,8 +138,16 @@ def main() -> int:
 
     try:
         prompt_name = _resolve_system_prompt_name(args.system_prompt)
-        system_prompt_text = load_system_prompt(prompt_name)
-        reply = get_chat_reply(args.message, system_prompt=system_prompt_text)
+        descriptor = load_prompt_descriptor(prompt_name)
+        reply = get_chat_reply(
+            args.message,
+            system_prompt=descriptor.content,
+            temperature=descriptor.temperature,
+            top_p=descriptor.top_p,
+            frequency_penalty=descriptor.frequency_penalty,
+            presence_penalty=descriptor.presence_penalty,
+            max_tokens=descriptor.max_tokens,
+        )
     except Exception as exc:  # pragma: no cover - direct CLI safety net
         print(f"Error: {exc}", file=sys.stderr)
         return 1

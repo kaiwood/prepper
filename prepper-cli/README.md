@@ -71,6 +71,37 @@ prepper-cli --list-system-prompts
 
 Type `exit` or `quit` to leave interactive mode. History is kept in memory for the duration of the session and discarded on exit.
 
+## Prompt Front Matter
+
+Each bundled prompt in `src/prepper_cli/prompts/` starts with a YAML front matter block:
+
+```yaml
+---
+id: coding_focus # Stable identifier (matches filename stem)
+name: Coding Interview # User-friendly label in UI and CLI selector
+temperature: 0.3 # Creativity/randomness (0.0–2.0)
+top_p: 1.0 # Nucleus sampling cutoff (0.0–1.0)
+frequency_penalty: 0.2 # Penalty for token repetition (0.0–2.0)
+presence_penalty: 0.0 # Penalty for any previously used token (0.0–2.0)
+max_tokens: 700 # Maximum response length in tokens
+---
+Prompt body goes here…
+```
+
+**Settings explained**
+
+| Field               | Effect                                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `temperature`       | Lower = more deterministic and focused (good for technical questions). Higher = more creative and varied (better for open-ended exploration).              |
+| `top_p`             | Restricts sampling to the top probability mass. `1.0` uses the full vocabulary. Tune this _or_ `temperature`, not both simultaneously.                     |
+| `frequency_penalty` | Reduces repetition of tokens that already appeared often. A small value (`0.2`) keeps responses from looping on the same phrasing.                         |
+| `presence_penalty`  | Encourages the model to introduce topics not yet mentioned. Use a low value (`0.1`) for broader behavioral prompts; keep `0.0` for focused technical ones. |
+| `max_tokens`        | Caps response length. Higher values allow more detailed answers; lower values keep replies concise and reduce API cost.                                    |
+
+> **OpenRouter note:** These parameters are forwarded as-is via the OpenAI-compatible API. Not every model/provider honours all fields — unsupported parameters may be silently ignored.
+
+The `id` field must match the file stem (e.g. `coding_focus.md` → `id: coding_focus`). The `name` field is the display label used in the frontend dropdown and the interactive CLI prompt selector.
+
 ## Conversation History API
 
 The public API now exports a `Conversation` class alongside `get_chat_reply`:

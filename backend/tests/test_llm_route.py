@@ -1,20 +1,46 @@
 from app import create_app
+from prepper_cli.system_prompts import PromptDescriptor
+
+
+def _make_descriptor(id: str, name: str | None = None, **overrides) -> PromptDescriptor:
+    defaults = dict(
+        temperature=0.5,
+        top_p=1.0,
+        frequency_penalty=0.0,
+        presence_penalty=0.0,
+        max_tokens=500,
+        content=f"prompt::{id}",
+    )
+    defaults.update(overrides)
+    return PromptDescriptor(id=id, name=name or id, **defaults)
 
 
 def test_chat_uses_default_system_prompt(monkeypatch):
     app = create_app()
     client = app.test_client()
 
+    default_descriptor = _make_descriptor("coding_focus", name="Coding Interview")
     monkeypatch.setattr(
-        "app.routes.llm._resolve_system_prompt_text",
-        lambda selected_name=None: "default",
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: default_descriptor,
     )
 
     captured = {}
 
-    def fake_get_chat_reply(message, conversation=None, history_limit=10, system_prompt=None):
+    def fake_get_chat_reply(
+        message,
+        conversation=None,
+        history_limit=10,
+        system_prompt=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+    ):
         captured["message"] = message
         captured["system_prompt"] = system_prompt
+        captured["temperature"] = temperature
         return "ok"
 
     monkeypatch.setattr("app.routes.llm.get_chat_reply", fake_get_chat_reply)
@@ -23,7 +49,9 @@ def test_chat_uses_default_system_prompt(monkeypatch):
 
     assert response.status_code == 200
     assert response.get_json() == {"reply": "ok"}
-    assert captured == {"message": "hello", "system_prompt": "default"}
+    assert captured["message"] == "hello"
+    assert captured["system_prompt"] == "prompt::coding_focus"
+    assert captured["temperature"] == 0.5
 
 
 def test_chat_accepts_selected_system_prompt(monkeypatch):
@@ -34,14 +62,24 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
 
     def fake_resolver(selected_name=None):
         captured["selected_name"] = selected_name
-        return "selected"
+        return _make_descriptor(selected_name or "default", content=f"prompt::{selected_name}")
 
-    def fake_get_chat_reply(message, conversation=None, history_limit=10, system_prompt=None):
+    def fake_get_chat_reply(
+        message,
+        conversation=None,
+        history_limit=10,
+        system_prompt=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+    ):
         captured["message"] = message
         captured["system_prompt"] = system_prompt
         return "ok"
 
-    monkeypatch.setattr("app.routes.llm._resolve_system_prompt_text", fake_resolver)
+    monkeypatch.setattr("app.routes.llm._resolve_prompt_descriptor", fake_resolver)
     monkeypatch.setattr("app.routes.llm.get_chat_reply", fake_get_chat_reply)
 
     response = client.post(
@@ -51,21 +89,19 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
 
     assert response.status_code == 200
     assert response.get_json() == {"reply": "ok"}
-    assert captured == {
-        "selected_name": "coding_focus",
-        "message": "hello",
-        "system_prompt": "selected",
-    }
+    assert captured["selected_name"] == "coding_focus"
+    assert captured["message"] == "hello"
+    assert captured["system_prompt"] == "prompt::coding_focus"
 
 
 def test_chat_rejects_invalid_selected_system_prompt(monkeypatch):
     app = create_app()
     client = app.test_client()
 
-    def bad_prompt_resolver(selected_name=None):
+    def bad_resolver(selected_name=None):
         raise ValueError("Unknown system prompt 'missing'")
 
-    monkeypatch.setattr("app.routes.llm._resolve_system_prompt_text", bad_prompt_resolver)
+    monkeypatch.setattr("app.routes.llm._resolve_prompt_descriptor", bad_resolver)
 
     response = client.post(
         "/api/chat",
@@ -80,10 +116,10 @@ def test_chat_returns_502_when_default_prompt_resolution_fails(monkeypatch):
     app = create_app()
     client = app.test_client()
 
-    def bad_prompt_resolver(selected_name=None):
+    def bad_resolver(selected_name=None):
         raise ValueError("Unknown system prompt 'missing'")
 
-    monkeypatch.setattr("app.routes.llm._resolve_system_prompt_text", bad_prompt_resolver)
+    monkeypatch.setattr("app.routes.llm._resolve_prompt_descriptor", bad_resolver)
 
     response = client.post("/api/chat", json={"message": "hello"})
 
@@ -93,10 +129,19 @@ def test_chat_returns_502_when_default_prompt_resolution_fails(monkeypatch):
     }
 
 
-def test_prompts_returns_available_and_default(monkeypatch):
+def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     app = create_app()
     client = app.test_client()
 
+    descriptors = [
+        _make_descriptor("behavioral_focus", name="Behavioral Interview", temperature=0.5, top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=700),
+        _make_descriptor("coding_focus", name="Coding Interview", temperature=0.3, top_p=1.0, frequency_penalty=0.2, presence_penalty=0.0, max_tokens=700),
+        _make_descriptor("interview_coach", name="Interview Coach", temperature=0.4, top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=800),
+    ]
+    monkeypatch.setattr(
+        "app.routes.llm.list_prompt_descriptors",
+        lambda: descriptors,
+    )
     monkeypatch.setattr(
         "app.routes.llm.list_system_prompt_names",
         lambda: ["behavioral_focus", "coding_focus", "interview_coach"],
@@ -109,7 +154,14 @@ def test_prompts_returns_available_and_default(monkeypatch):
     response = client.get("/api/prompts")
 
     assert response.status_code == 200
-    assert response.get_json() == {
-        "available": ["behavioral_focus", "coding_focus", "interview_coach"],
-        "default": "coding_focus",
-    }
+    data = response.get_json()
+    assert data["default"] == "coding_focus"
+    assert len(data["prompts"]) == 3
+
+    coding = next(p for p in data["prompts"] if p["id"] == "coding_focus")
+    assert coding["name"] == "Coding Interview"
+    assert coding["temperature"] == 0.3
+    assert coding["top_p"] == 1.0
+    assert coding["frequency_penalty"] == 0.2
+    assert coding["presence_penalty"] == 0.0
+    assert coding["max_tokens"] == 700
