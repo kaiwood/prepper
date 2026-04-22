@@ -53,7 +53,7 @@ export default function PromptSelector({
       </select>
       {locked && (
         <p className="text-sm text-gray-500">
-          Clear the conversation to choose a different interview.
+          Reset the conversation to choose a different interview.
         </p>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
