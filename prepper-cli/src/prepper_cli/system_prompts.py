@@ -16,6 +16,9 @@ _FLOAT_FIELDS = {
     "frequency_penalty",
     "presence_penalty",
     "pass_threshold",
+    "easy_pass_threshold",
+    "medium_pass_threshold",
+    "hard_pass_threshold",
 }
 _INT_FIELDS = {
     "max_tokens",
@@ -23,9 +26,9 @@ _INT_FIELDS = {
     "min_question_roundtrips",
     "max_question_roundtrips",
 }
-_STR_FIELDS = {"id", "name"}
-_BOOL_FIELDS = {"interview_rating_enabled"}
-_LIST_FIELDS = {"rubric_criteria"}
+_STR_FIELDS = {"id", "name", "default_difficulty"}
+_BOOL_FIELDS = {"interview_rating_enabled", "difficulty_enabled"}
+_LIST_FIELDS = {"rubric_criteria", "difficulty_levels"}
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,12 @@ class PromptDescriptor:
     max_question_roundtrips: int = 10
     pass_threshold: float = 7.0
     rubric_criteria: tuple[str, ...] = ()
+    difficulty_enabled: bool = False
+    difficulty_levels: tuple[str, ...] = ("easy", "medium", "hard")
+    default_difficulty: str = "medium"
+    easy_pass_threshold: float | None = None
+    medium_pass_threshold: float | None = None
+    hard_pass_threshold: float | None = None
 
 
 def _parse_front_matter(raw: str) -> tuple[dict[str, object], str]:
@@ -137,10 +146,11 @@ def load_prompt_descriptor(name: str) -> PromptDescriptor:
             f"Unknown system prompt '{normalized_name}'. Available: {available_text}"
         )
 
-    metadata, body = _parse_front_matter(_load_raw_prompt_text(normalized_name))
+    metadata, body = _parse_front_matter(
+        _load_raw_prompt_text(normalized_name))
 
     try:
-        return PromptDescriptor(
+        descriptor = PromptDescriptor(
             id=str(metadata.get("id", normalized_name)),
             name=str(metadata.get("name", normalized_name)),
             temperature=float(metadata.get("temperature", 0.7)),
@@ -155,11 +165,45 @@ def load_prompt_descriptor(name: str) -> PromptDescriptor:
             default_question_roundtrips=int(
                 metadata.get("default_question_roundtrips", 5)
             ),
-            min_question_roundtrips=int(metadata.get("min_question_roundtrips", 1)),
-            max_question_roundtrips=int(metadata.get("max_question_roundtrips", 10)),
+            min_question_roundtrips=int(
+                metadata.get("min_question_roundtrips", 1)),
+            max_question_roundtrips=int(
+                metadata.get("max_question_roundtrips", 10)),
             pass_threshold=float(metadata.get("pass_threshold", 7.0)),
             rubric_criteria=tuple(metadata.get("rubric_criteria", ())),
+            difficulty_enabled=bool(metadata.get("difficulty_enabled", False)),
+            difficulty_levels=tuple(metadata.get(
+                "difficulty_levels", ("easy", "medium", "hard"))),
+            default_difficulty=str(metadata.get(
+                "default_difficulty", "medium")),
+            easy_pass_threshold=(
+                float(metadata["easy_pass_threshold"])
+                if "easy_pass_threshold" in metadata
+                else None
+            ),
+            medium_pass_threshold=(
+                float(metadata["medium_pass_threshold"])
+                if "medium_pass_threshold" in metadata
+                else None
+            ),
+            hard_pass_threshold=(
+                float(metadata["hard_pass_threshold"])
+                if "hard_pass_threshold" in metadata
+                else None
+            ),
         )
+
+        if descriptor.difficulty_enabled:
+            allowed = set(descriptor.difficulty_levels)
+            if not allowed:
+                raise ValueError(
+                    "difficulty_levels must include at least one value")
+            if descriptor.default_difficulty not in allowed:
+                raise ValueError(
+                    "default_difficulty must be one of difficulty_levels"
+                )
+
+        return descriptor
     except (ValueError, TypeError) as exc:
         raise ValueError(
             f"Invalid front matter in prompt '{normalized_name}': {exc}"

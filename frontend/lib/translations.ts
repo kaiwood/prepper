@@ -30,6 +30,11 @@ type TranslationStrings = {
   errorBackendUnavailable: string;
   questionLimitLabel: string;
   questionLimitHint: string;
+  difficultyLabel: string;
+  difficultyHint: string;
+  difficultyJunior: string;
+  difficultySenior: string;
+  difficultyPrincipal: string;
   interviewComplete: string;
   scoreLabel: string;
   passLabel: string;
@@ -64,6 +69,12 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     questionLimitLabel: "Scored question limit",
     questionLimitHint:
       "Only new interviewer questions count. Clarifications do not.",
+    difficultyLabel: "Interview level",
+    difficultyHint:
+      "Junior = easier scope and more hints. Principal = deeper ambiguity and stricter evaluation.",
+    difficultyJunior: "Junior",
+    difficultySenior: "Senior",
+    difficultyPrincipal: "Principal",
     interviewComplete: "Interview complete",
     scoreLabel: "Overall score",
     passLabel: "Pass",
@@ -99,6 +110,12 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     questionLimitLabel: "Limit fuer bewertete Fragen",
     questionLimitHint:
       "Nur neue Interviewfragen zaehlen. Rueckfragen zaehlen nicht.",
+    difficultyLabel: "Interview-Level",
+    difficultyHint:
+      "Junior = klarer Umfang und mehr Hinweise. Principal = mehr Ambiguitaet und strengere Bewertung.",
+    difficultyJunior: "Junior",
+    difficultySenior: "Senior",
+    difficultyPrincipal: "Principal",
     interviewComplete: "Interview abgeschlossen",
     scoreLabel: "Gesamtpunktzahl",
     passLabel: "Bestanden",

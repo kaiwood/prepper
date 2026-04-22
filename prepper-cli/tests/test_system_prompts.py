@@ -47,7 +47,7 @@ def test_default_system_prompt_is_configurable_via_env(monkeypatch):
 
 
 def test_parse_front_matter_extracts_known_fields():
-    raw = "---\nid: my_prompt\nname: My Prompt\ntemperature: 0.3\ntop_p: 0.95\nfrequency_penalty: 0.1\npresence_penalty: 0.0\nmax_tokens: 600\ninterview_rating_enabled: true\ndefault_question_roundtrips: 5\nmin_question_roundtrips: 1\nmax_question_roundtrips: 10\npass_threshold: 7.0\nrubric_criteria: Problem understanding|Technical quality\n---\n\nBody text here."
+    raw = "---\nid: my_prompt\nname: My Prompt\ntemperature: 0.3\ntop_p: 0.95\nfrequency_penalty: 0.1\npresence_penalty: 0.0\nmax_tokens: 600\ninterview_rating_enabled: true\ndefault_question_roundtrips: 5\nmin_question_roundtrips: 1\nmax_question_roundtrips: 10\npass_threshold: 7.0\nrubric_criteria: Problem understanding|Technical quality\ndifficulty_enabled: true\ndifficulty_levels: easy|medium|hard\ndefault_difficulty: medium\neasy_pass_threshold: 6.5\nmedium_pass_threshold: 7.0\nhard_pass_threshold: 7.5\n---\n\nBody text here."
 
     metadata, body = _parse_front_matter(raw)
 
@@ -67,6 +67,12 @@ def test_parse_front_matter_extracts_known_fields():
         "Problem understanding",
         "Technical quality",
     )
+    assert metadata["difficulty_enabled"] is True
+    assert metadata["difficulty_levels"] == ("easy", "medium", "hard")
+    assert metadata["default_difficulty"] == "medium"
+    assert metadata["easy_pass_threshold"] == pytest.approx(6.5)
+    assert metadata["medium_pass_threshold"] == pytest.approx(7.0)
+    assert metadata["hard_pass_threshold"] == pytest.approx(7.5)
     assert body == "Body text here."
 
 
@@ -100,6 +106,12 @@ def test_load_prompt_descriptor_returns_correct_fields():
         "Technical quality",
         "Communication",
     )
+    assert descriptor.difficulty_enabled is True
+    assert descriptor.difficulty_levels == ("easy", "medium", "hard")
+    assert descriptor.default_difficulty == "medium"
+    assert descriptor.easy_pass_threshold == pytest.approx(6.5)
+    assert descriptor.medium_pass_threshold == pytest.approx(7.0)
+    assert descriptor.hard_pass_threshold == pytest.approx(7.5)
     assert "interviewer" in descriptor.content.lower()
     assert not descriptor.content.startswith("---")
 
@@ -124,11 +136,29 @@ def test_load_prompt_descriptor_interview_coach():
     assert descriptor.max_tokens == 800
     assert descriptor.interview_rating_enabled is False
     assert descriptor.rubric_criteria == ()
+    assert descriptor.difficulty_enabled is False
+    assert descriptor.default_difficulty == "medium"
 
 
 def test_load_prompt_descriptor_rejects_unknown():
     with pytest.raises(ValueError, match="Unknown system prompt"):
         load_prompt_descriptor("does_not_exist")
+
+
+def test_load_prompt_descriptor_rejects_invalid_default_difficulty(monkeypatch):
+    raw = "---\nid: sample\nname: Sample\ndifficulty_enabled: true\ndifficulty_levels: easy|hard\ndefault_difficulty: medium\n---\n\nBody"
+
+    monkeypatch.setattr(
+        "prepper_cli.system_prompts.list_system_prompt_names",
+        lambda: ["sample"],
+    )
+    monkeypatch.setattr(
+        "prepper_cli.system_prompts._load_raw_prompt_text",
+        lambda name: raw,
+    )
+
+    with pytest.raises(ValueError, match="default_difficulty"):
+        load_prompt_descriptor("sample")
 
 
 def test_list_prompt_descriptors_returns_all_bundled():
