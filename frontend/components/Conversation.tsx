@@ -29,10 +29,10 @@ export default function ConversationWindow({
       ref={conversationRef}
       className="w-full max-w-3xl border rounded-xl bg-white shadow-sm p-4 h-[50vh] overflow-y-auto"
     >
-      {conversation.length === 0 ? (
+      {conversation.length === 0 && !loading ? (
         <p className="text-gray-500">
-          Start a conversation. Your recent context will be used in follow-up
-          replies.
+          Choose an interview type, then start the interview to receive the
+          first question.
         </p>
       ) : (
         <div className="flex flex-col gap-3">

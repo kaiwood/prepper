@@ -10,6 +10,7 @@ type PromptSelectorProps = {
   selectedPrompt: string;
   onPromptChange: (value: string) => void;
   loading: boolean;
+  locked: boolean;
   error: string | null;
 };
 
@@ -18,6 +19,7 @@ export default function PromptSelector({
   selectedPrompt,
   onPromptChange,
   loading,
+  locked,
   error,
 }: PromptSelectorProps) {
   const hasPrompts = prompts.length > 0;
@@ -28,13 +30,13 @@ export default function PromptSelector({
         htmlFor="system-prompt"
         className="text-sm font-medium text-gray-700"
       >
-        System prompt
+        Interview type
       </label>
       <select
         id="system-prompt"
         value={selectedPrompt}
         onChange={(e) => onPromptChange(e.target.value)}
-        disabled={loading || !hasPrompts}
+        disabled={loading || locked || !hasPrompts}
         className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
       >
         {!hasPrompts ? (
@@ -49,6 +51,11 @@ export default function PromptSelector({
           ))
         )}
       </select>
+      {locked && (
+        <p className="text-sm text-gray-500">
+          Clear the conversation to choose a different interview.
+        </p>
+      )}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </section>
   );

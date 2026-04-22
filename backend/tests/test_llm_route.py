@@ -19,7 +19,8 @@ def test_chat_uses_default_system_prompt(monkeypatch):
     app = create_app()
     client = app.test_client()
 
-    default_descriptor = _make_descriptor("coding_focus", name="Coding Interview")
+    default_descriptor = _make_descriptor(
+        "coding_focus", name="Coding Interview")
     monkeypatch.setattr(
         "app.routes.llm._resolve_prompt_descriptor",
         lambda selected_name=None: default_descriptor,
@@ -79,7 +80,8 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
         captured["system_prompt"] = system_prompt
         return "ok"
 
-    monkeypatch.setattr("app.routes.llm._resolve_prompt_descriptor", fake_resolver)
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor", fake_resolver)
     monkeypatch.setattr("app.routes.llm.get_chat_reply", fake_get_chat_reply)
 
     response = client.post(
@@ -101,7 +103,8 @@ def test_chat_rejects_invalid_selected_system_prompt(monkeypatch):
     def bad_resolver(selected_name=None):
         raise ValueError("Unknown system prompt 'missing'")
 
-    monkeypatch.setattr("app.routes.llm._resolve_prompt_descriptor", bad_resolver)
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor", bad_resolver)
 
     response = client.post(
         "/api/chat",
@@ -119,7 +122,8 @@ def test_chat_returns_502_when_default_prompt_resolution_fails(monkeypatch):
     def bad_resolver(selected_name=None):
         raise ValueError("Unknown system prompt 'missing'")
 
-    monkeypatch.setattr("app.routes.llm._resolve_prompt_descriptor", bad_resolver)
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor", bad_resolver)
 
     response = client.post("/api/chat", json={"message": "hello"})
 
@@ -134,9 +138,12 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     client = app.test_client()
 
     descriptors = [
-        _make_descriptor("behavioral_focus", name="Behavioral Interview", temperature=0.5, top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=700),
-        _make_descriptor("coding_focus", name="Coding Interview", temperature=0.3, top_p=1.0, frequency_penalty=0.2, presence_penalty=0.0, max_tokens=700),
-        _make_descriptor("interview_coach", name="Interview Coach", temperature=0.4, top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=800),
+        _make_descriptor("behavioral_focus", name="Behavioral Interview", temperature=0.5,
+                         top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=700),
+        _make_descriptor("coding_focus", name="Coding Interview", temperature=0.3,
+                         top_p=1.0, frequency_penalty=0.2, presence_penalty=0.0, max_tokens=700),
+        _make_descriptor("interview_coach", name="Interview Coach", temperature=0.4,
+                         top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=800),
     ]
     monkeypatch.setattr(
         "app.routes.llm.list_prompt_descriptors",
@@ -165,3 +172,123 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     assert coding["frequency_penalty"] == 0.2
     assert coding["presence_penalty"] == 0.0
     assert coding["max_tokens"] == 700
+
+
+def test_chat_start_uses_default_system_prompt(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    default_descriptor = _make_descriptor(
+        "coding_focus", name="Coding Interview")
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: default_descriptor,
+    )
+
+    captured = {}
+
+    def fake_get_interview_opener(
+        system_prompt=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+    ):
+        captured["system_prompt"] = system_prompt
+        captured["temperature"] = temperature
+        return "opening question"
+
+    monkeypatch.setattr("app.routes.llm.get_interview_opener",
+                        fake_get_interview_opener)
+
+    response = client.post("/api/chat/start", json={})
+
+    assert response.status_code == 200
+    assert response.get_json() == {"reply": "opening question"}
+    assert captured["system_prompt"] == "prompt::coding_focus"
+    assert captured["temperature"] == 0.5
+
+
+def test_chat_start_accepts_selected_system_prompt(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    captured = {}
+
+    def fake_resolver(selected_name=None):
+        captured["selected_name"] = selected_name
+        return _make_descriptor(selected_name or "default", content=f"prompt::{selected_name}")
+
+    def fake_get_interview_opener(
+        system_prompt=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+    ):
+        captured["system_prompt"] = system_prompt
+        return "opening question"
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor", fake_resolver)
+    monkeypatch.setattr("app.routes.llm.get_interview_opener",
+                        fake_get_interview_opener)
+
+    response = client.post(
+        "/api/chat/start",
+        json={"system_prompt_name": "coding_focus"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"reply": "opening question"}
+    assert captured["selected_name"] == "coding_focus"
+    assert captured["system_prompt"] == "prompt::coding_focus"
+
+
+def test_chat_start_rejects_invalid_selected_system_prompt(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    def bad_resolver(selected_name=None):
+        raise ValueError("Unknown system prompt 'missing'")
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor", bad_resolver)
+
+    response = client.post(
+        "/api/chat/start",
+        json={"system_prompt_name": "missing"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "Unknown system prompt 'missing'"}
+
+
+def test_chat_start_returns_502_when_llm_request_fails(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus"),
+    )
+
+    def fake_get_interview_opener(
+        system_prompt=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+    ):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("app.routes.llm.get_interview_opener",
+                        fake_get_interview_opener)
+
+    response = client.post("/api/chat/start", json={})
+
+    assert response.status_code == 502
+    assert response.get_json() == {"error": "LLM request failed: boom"}
