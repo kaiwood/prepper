@@ -62,15 +62,24 @@ Always use `jsonify()`; never return raw dicts or strings.
       return jsonify({"error": str(exc)}), 400
   ```
 
-## Testing
+## Python Environment (All Python Commands)
 
-- Tests live in `backend/tests/`.
-- Always run tests from the `backend/` directory (not repo root or `prepper-cli/`).
-- Use the `backend` virtual environment, not any other service environment.
-- Canonical command (preferred over plain `pytest`): `cd backend && .venv/bin/python -m pytest tests -q`.
-- If you prefer activation, run `source .venv/bin/activate` inside `backend/`, then run `python -m pytest tests -q`.
+- For **any Python-related command** in the backend service, first run from `backend/` and use the backend virtual environment (`backend/.venv`).
+- This rule is not just for tests; it also applies to `pip install`, `python run.py`, `python -m ...`, and similar Python tooling commands.
+- Recommended pattern without shell activation:
+  - `cd backend && .venv/bin/python -m <module_or_command>`
+- If you prefer activation:
+  - `cd backend && source .venv/bin/activate`
+  - then run Python commands (`python ...`, `python -m pip ...`, etc.)
 - If `.venv/bin/python` does not exist, create and bootstrap it first:
   - `cd backend && python -m venv .venv`
   - `cd backend && .venv/bin/python -m pip install -r requirements.txt`
   - `cd backend && .venv/bin/python -m pip install -r requirements-dev.txt`
-- If reusing a terminal that previously activated another environment (for example `prepper-cli/.venv`), open a fresh terminal before running the command above.
+- If reusing a terminal that previously activated another environment (for example `prepper-cli/.venv`), open a fresh terminal before running backend Python commands.
+
+## Testing
+
+- Tests live in `backend/tests/`.
+- Follow the Python environment rules above (`backend/` + `backend/.venv`) before running tests.
+- Canonical command (preferred over plain `pytest`): `cd backend && .venv/bin/python -m pytest tests -q`.
+- If you prefer activation, run `source .venv/bin/activate` inside `backend/`, then run `python -m pytest tests -q`.
