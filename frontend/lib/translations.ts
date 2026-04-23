@@ -17,6 +17,13 @@ type TranslationStrings = {
   promptLoading: string;
   promptUnavailable: string;
   promptLockedHint: string;
+  settingsLabel: string;
+  advancedSettingsLabel: string;
+  advancedSettingsHint: string;
+  temperatureLabel: string;
+  topPLabel: string;
+  frequencyPenaltyLabel: string;
+  presencePenaltyLabel: string;
   conversationEmpty: string;
   thinking: string;
   inputPlaceholderStarted: string;
@@ -53,6 +60,14 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     promptLoading: "Loading prompts...",
     promptUnavailable: "Prompt list unavailable",
     promptLockedHint: "Reset the conversation to choose a different interview.",
+    settingsLabel: "Settings",
+    advancedSettingsLabel: "Advanced Settings",
+    advancedSettingsHint:
+      "These controls override the selected prompt defaults for this interview run.",
+    temperatureLabel: "Temperature",
+    topPLabel: "Top P",
+    frequencyPenaltyLabel: "Frequency penalty",
+    presencePenaltyLabel: "Presence penalty",
     conversationEmpty:
       "Choose an interview type, then start the interview to receive the first question.",
     thinking: "Thinking...",
@@ -93,6 +108,14 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     promptUnavailable: "Prompt-Liste nicht verfuegbar",
     promptLockedHint:
       "Setze das Gespraech zurueck, um ein anderes Interview zu waehlen.",
+    settingsLabel: "Einstellungen",
+    advancedSettingsLabel: "Erweiterte Einstellungen",
+    advancedSettingsHint:
+      "Diese Regler ueberschreiben die Standardwerte des ausgewaehlten Prompts fuer diesen Durchlauf.",
+    temperatureLabel: "Temperature",
+    topPLabel: "Top P",
+    frequencyPenaltyLabel: "Frequency Penalty",
+    presencePenaltyLabel: "Presence Penalty",
     conversationEmpty:
       "Waehle zuerst einen Interviewtyp und starte dann das Interview, um die erste Frage zu erhalten.",
     thinking: "Denke nach...",
