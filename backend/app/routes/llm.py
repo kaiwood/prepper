@@ -23,6 +23,12 @@ _ROUNDTRIP_CLASSIFIER_PROMPT = (
     "OTHER means clarification, acknowledgement, recap, or closing statement."
 )
 _VALID_DIFFICULTIES = {"easy", "medium", "hard"}
+_MODEL_SETTING_BOUNDS = {
+    "temperature": (0.0, 2.0),
+    "top_p": (0.0, 1.0),
+    "frequency_penalty": (-2.0, 2.0),
+    "presence_penalty": (-2.0, 2.0),
+}
 
 
 def _extract_json_object(raw: str) -> dict:
@@ -135,6 +141,53 @@ def _resolve_pass_threshold(descriptor: PromptDescriptor, difficulty: str | None
     if difficulty == "hard" and descriptor.hard_pass_threshold is not None:
         return descriptor.hard_pass_threshold
     return descriptor.pass_threshold
+
+
+def _resolve_model_setting_override(name: str, value: object) -> float | None:
+    if value is None:
+        return None
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a number")
+
+    minimum, maximum = _MODEL_SETTING_BOUNDS[name]
+    numeric_value = float(value)
+    if numeric_value < minimum or numeric_value > maximum:
+        raise ValueError(f"{name} must be between {minimum:.1f} and {maximum:.1f}")
+
+    return numeric_value
+
+
+def _resolve_model_settings(
+    data: dict,
+    descriptor: PromptDescriptor,
+) -> dict[str, float | int]:
+    temperature = _resolve_model_setting_override(
+        "temperature", data.get("temperature")
+    )
+    top_p = _resolve_model_setting_override("top_p", data.get("top_p"))
+    frequency_penalty = _resolve_model_setting_override(
+        "frequency_penalty", data.get("frequency_penalty")
+    )
+    presence_penalty = _resolve_model_setting_override(
+        "presence_penalty", data.get("presence_penalty")
+    )
+
+    return {
+        "temperature": descriptor.temperature if temperature is None else temperature,
+        "top_p": descriptor.top_p if top_p is None else top_p,
+        "frequency_penalty": (
+            descriptor.frequency_penalty
+            if frequency_penalty is None
+            else frequency_penalty
+        ),
+        "presence_penalty": (
+            descriptor.presence_penalty
+            if presence_penalty is None
+            else presence_penalty
+        ),
+        "max_tokens": descriptor.max_tokens,
+    }
 
 
 def _build_difficulty_instruction(difficulty: str) -> str:
@@ -392,6 +445,11 @@ def chat():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    try:
+        model_settings = _resolve_model_settings(data, descriptor)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
     active_pass_threshold = _resolve_pass_threshold(descriptor, resolved_difficulty)
 
     prior_question_count = 0
@@ -411,11 +469,11 @@ def chat():
             conversation=conversation,
             system_prompt=system_prompt,
             language=language,
-            temperature=descriptor.temperature,
-            top_p=descriptor.top_p,
-            frequency_penalty=descriptor.frequency_penalty,
-            presence_penalty=descriptor.presence_penalty,
-            max_tokens=descriptor.max_tokens,
+            temperature=model_settings["temperature"],
+            top_p=model_settings["top_p"],
+            frequency_penalty=model_settings["frequency_penalty"],
+            presence_penalty=model_settings["presence_penalty"],
+            max_tokens=model_settings["max_tokens"],
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
@@ -497,6 +555,11 @@ def chat_start():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    try:
+        model_settings = _resolve_model_settings(data, descriptor)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
     system_prompt = descriptor.content
     if resolved_difficulty is not None:
         system_prompt += _build_difficulty_instruction(resolved_difficulty)
@@ -505,11 +568,11 @@ def chat_start():
         reply = get_interview_opener(
             system_prompt=system_prompt,
             language=language,
-            temperature=descriptor.temperature,
-            top_p=descriptor.top_p,
-            frequency_penalty=descriptor.frequency_penalty,
-            presence_penalty=descriptor.presence_penalty,
-            max_tokens=descriptor.max_tokens,
+            temperature=model_settings["temperature"],
+            top_p=model_settings["top_p"],
+            frequency_penalty=model_settings["frequency_penalty"],
+            presence_penalty=model_settings["presence_penalty"],
+            max_tokens=model_settings["max_tokens"],
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400

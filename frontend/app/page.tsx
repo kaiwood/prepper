@@ -70,8 +70,51 @@ type ChatResponse = {
   interview_status?: InterviewStatus;
 };
 
+type AdvancedSettings = {
+  temperature: number;
+  top_p: number;
+  frequency_penalty: number;
+  presence_penalty: number;
+};
+
+type AdvancedSettingField = keyof AdvancedSettings;
+
+type AdvancedSettingConfig = {
+  key: AdvancedSettingField;
+  min: number;
+  max: number;
+  step: number;
+};
+
 const DEFAULT_LANGUAGE: LanguageCode = "en";
 const LANGUAGE_CHANGE_EVENT = "prepper-language-change";
+const ADVANCED_SETTING_CONFIG: AdvancedSettingConfig[] = [
+  { key: "temperature", min: 0, max: 2, step: 0.1 },
+  { key: "top_p", min: 0, max: 1, step: 0.05 },
+  { key: "frequency_penalty", min: -2, max: 2, step: 0.1 },
+  { key: "presence_penalty", min: -2, max: 2, step: 0.1 },
+];
+
+function buildAdvancedSettings(prompt?: PromptMetadata): AdvancedSettings {
+  return {
+    temperature: prompt?.temperature ?? 0.7,
+    top_p: prompt?.top_p ?? 1,
+    frequency_penalty: prompt?.frequency_penalty ?? 0,
+    presence_penalty: prompt?.presence_penalty ?? 0,
+  };
+}
+
+function clampAdvancedSetting(
+  value: number,
+  config: AdvancedSettingConfig,
+): number {
+  return Math.min(config.max, Math.max(config.min, value));
+}
+
+function formatAdvancedSettingValue(value: number, step: number): string {
+  const decimals = step < 0.1 ? 2 : 1;
+  return value.toFixed(decimals);
+}
 
 function readStoredLanguage(): LanguageCode {
   if (typeof window === "undefined") {
@@ -116,6 +159,10 @@ export default function Home() {
   const [interviewStatus, setInterviewStatus] =
     useState<InterviewStatus | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
+  const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>(
+    buildAdvancedSettings(),
+  );
 
   const language = useSyncExternalStore(
     subscribeLanguageChange,
@@ -154,6 +201,8 @@ export default function Home() {
     }
 
     const selected = prompts.find((prompt) => prompt.id === promptId);
+    setAdvancedSettings(buildAdvancedSettings(selected));
+
     if (!selected?.interview_rating_enabled) {
       setQuestionRoundtripLimit(5);
     } else {
@@ -180,6 +229,23 @@ export default function Home() {
 
   const handlePromptChange = (promptId: string) => {
     applyPromptDefaults(promptId, availablePrompts, hasStarted);
+  };
+
+  const updateAdvancedSetting = (
+    key: AdvancedSettingField,
+    rawValue: string,
+  ) => {
+    const config = ADVANCED_SETTING_CONFIG.find((item) => item.key === key);
+    if (!config) {
+      return;
+    }
+
+    const parsed = Number.parseFloat(rawValue);
+    const nextValue = Number.isNaN(parsed)
+      ? config.min
+      : clampAdvancedSetting(parsed, config);
+
+    setAdvancedSettings((prev) => ({ ...prev, [key]: nextValue }));
   };
 
   const updateLanguage = (nextLanguage: LanguageCode) => {
@@ -274,6 +340,10 @@ export default function Home() {
         language: LanguageCode;
         max_question_roundtrips?: number;
         difficulty?: DifficultyValue;
+        temperature?: number;
+        top_p?: number;
+        frequency_penalty?: number;
+        presence_penalty?: number;
       } = {
         message: prompt,
         conversation_history: history,
@@ -290,6 +360,13 @@ export default function Home() {
 
       if (difficultyEnabled) {
         payload.difficulty = selectedDifficulty;
+      }
+
+      if (selectedPromptMetadata) {
+        payload.temperature = advancedSettings.temperature;
+        payload.top_p = advancedSettings.top_p;
+        payload.frequency_penalty = advancedSettings.frequency_penalty;
+        payload.presence_penalty = advancedSettings.presence_penalty;
       }
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat`, {
@@ -330,6 +407,10 @@ export default function Home() {
         system_prompt_name?: string;
         language: LanguageCode;
         difficulty?: DifficultyValue;
+        temperature?: number;
+        top_p?: number;
+        frequency_penalty?: number;
+        presence_penalty?: number;
       } = {
         language,
       };
@@ -340,6 +421,13 @@ export default function Home() {
 
       if (difficultyEnabled) {
         payload.difficulty = selectedDifficulty;
+      }
+
+      if (selectedPromptMetadata) {
+        payload.temperature = advancedSettings.temperature;
+        payload.top_p = advancedSettings.top_p;
+        payload.frequency_penalty = advancedSettings.frequency_penalty;
+        payload.presence_penalty = advancedSettings.presence_penalty;
       }
 
       const res = await fetch(
@@ -408,100 +496,181 @@ export default function Home() {
         lockedHint={ui.promptLockedHint}
       />
 
-      {(interviewRatingEnabled || difficultyEnabled) && (
+      {selectedPromptMetadata && (
         <div className="w-full max-w-3xl flex flex-col">
-          <button
-            type="button"
-            onClick={() => setSettingsOpen((prev) => !prev)}
-            className="flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <span
-              className={`inline-block transition-transform duration-300 text-xs ${
-                settingsOpen ? "rotate-90" : "rotate-0"
+          <div className="flex items-center justify-between gap-3">
+            {interviewRatingEnabled || difficultyEnabled ? (
+              <button
+                type="button"
+                onClick={() => setSettingsOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <span
+                  className={`inline-block transition-transform duration-300 text-xs ${
+                    settingsOpen ? "rotate-90" : "rotate-0"
+                  }`}
+                >
+                  ▶
+                </span>
+                {ui.settingsLabel}
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <button
+              type="button"
+              onClick={() => setAdvancedSettingsOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <span
+                className={`inline-block transition-transform duration-300 text-xs ${
+                  advancedSettingsOpen ? "rotate-90" : "rotate-0"
+                }`}
+              >
+                ▶
+              </span>
+              {ui.advancedSettingsLabel}
+            </button>
+          </div>
+
+          {(interviewRatingEnabled || difficultyEnabled) && (
+            <div
+              className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+                settingsOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
               }`}
             >
-              ▶
-            </span>
-            Settings
-          </button>
+              <div className="overflow-hidden">
+                <div className="flex flex-col gap-6 pt-4">
+                  {interviewRatingEnabled && (
+                    <section className="flex flex-col gap-2">
+                      <label
+                        htmlFor="roundtrip-limit"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        {ui.questionLimitLabel}
+                      </label>
+                      <input
+                        id="roundtrip-limit"
+                        type="number"
+                        min={
+                          selectedPromptMetadata.min_question_roundtrips ?? 1
+                        }
+                        max={
+                          selectedPromptMetadata.max_question_roundtrips ?? 10
+                        }
+                        value={questionRoundtripLimit}
+                        disabled={hasStarted || loading}
+                        onChange={(event) => {
+                          const raw = Number.parseInt(event.target.value, 10);
+                          const min =
+                            selectedPromptMetadata.min_question_roundtrips ?? 1;
+                          const max =
+                            selectedPromptMetadata.max_question_roundtrips ??
+                            10;
+                          if (Number.isNaN(raw)) {
+                            setQuestionRoundtripLimit(min);
+                            return;
+                          }
+                          setQuestionRoundtripLimit(
+                            Math.max(min, Math.min(max, raw)),
+                          );
+                        }}
+                        className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                      />
+                      <p className="text-sm text-gray-500">
+                        {ui.questionLimitHint}
+                      </p>
+                    </section>
+                  )}
+
+                  {difficultyEnabled && (
+                    <section className="flex flex-col gap-2">
+                      <label
+                        htmlFor="difficulty-level"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        {ui.difficultyLabel}
+                      </label>
+                      <select
+                        id="difficulty-level"
+                        value={selectedDifficulty}
+                        disabled={hasStarted || loading}
+                        onChange={(event) =>
+                          setSelectedDifficulty(
+                            event.target.value as DifficultyValue,
+                          )
+                        }
+                        className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                      >
+                        {difficultyLevels
+                          .filter((level): level is DifficultyValue =>
+                            ["easy", "medium", "hard"].includes(level),
+                          )
+                          .map((level) => (
+                            <option key={level} value={level}>
+                              {difficultyLabelByValue[level]}
+                            </option>
+                          ))}
+                      </select>
+                      <p className="text-sm text-gray-500">
+                        {ui.difficultyHint}
+                      </p>
+                    </section>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div
             className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
-              settingsOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+              advancedSettingsOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
             }`}
           >
             <div className="overflow-hidden">
-              <div className="flex flex-col gap-6 pt-4">
-                {interviewRatingEnabled && (
-                  <section className="flex flex-col gap-2">
-                    <label
-                      htmlFor="roundtrip-limit"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      {ui.questionLimitLabel}
-                    </label>
-                    <input
-                      id="roundtrip-limit"
-                      type="number"
-                      min={selectedPromptMetadata?.min_question_roundtrips ?? 1}
-                      max={
-                        selectedPromptMetadata?.max_question_roundtrips ?? 10
-                      }
-                      value={questionRoundtripLimit}
-                      disabled={hasStarted || loading}
-                      onChange={(event) => {
-                        const raw = Number.parseInt(event.target.value, 10);
-                        const min =
-                          selectedPromptMetadata?.min_question_roundtrips ?? 1;
-                        const max =
-                          selectedPromptMetadata?.max_question_roundtrips ?? 10;
-                        if (Number.isNaN(raw)) {
-                          setQuestionRoundtripLimit(min);
-                          return;
-                        }
-                        setQuestionRoundtripLimit(
-                          Math.max(min, Math.min(max, raw)),
-                        );
-                      }}
-                      className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                    />
-                    <p className="text-sm text-gray-500">
-                      {ui.questionLimitHint}
-                    </p>
-                  </section>
-                )}
+              <div className="flex flex-col gap-4 pt-4">
+                <p className="text-sm text-gray-500">
+                  {ui.advancedSettingsHint}
+                </p>
+                {ADVANCED_SETTING_CONFIG.map((config) => {
+                  const value = advancedSettings[config.key];
+                  const labelByKey: Record<AdvancedSettingField, string> = {
+                    temperature: ui.temperatureLabel,
+                    top_p: ui.topPLabel,
+                    frequency_penalty: ui.frequencyPenaltyLabel,
+                    presence_penalty: ui.presencePenaltyLabel,
+                  };
 
-                {difficultyEnabled && (
-                  <section className="flex flex-col gap-2">
-                    <label
-                      htmlFor="difficulty-level"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      {ui.difficultyLabel}
-                    </label>
-                    <select
-                      id="difficulty-level"
-                      value={selectedDifficulty}
-                      disabled={hasStarted || loading}
-                      onChange={(event) =>
-                        setSelectedDifficulty(
-                          event.target.value as DifficultyValue,
-                        )
-                      }
-                      className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                    >
-                      {difficultyLevels
-                        .filter((level): level is DifficultyValue =>
-                          ["easy", "medium", "hard"].includes(level),
-                        )
-                        .map((level) => (
-                          <option key={level} value={level}>
-                            {difficultyLabelByValue[level]}
-                          </option>
-                        ))}
-                    </select>
-                    <p className="text-sm text-gray-500">{ui.difficultyHint}</p>
-                  </section>
-                )}
+                  return (
+                    <section key={config.key} className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <label
+                          htmlFor={`advanced-${config.key}`}
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          {labelByKey[config.key]}
+                        </label>
+                        <span className="text-sm tabular-nums text-gray-500">
+                          {formatAdvancedSettingValue(value, config.step)}
+                        </span>
+                      </div>
+                      <input
+                        id={`advanced-${config.key}`}
+                        type="range"
+                        min={config.min}
+                        max={config.max}
+                        step={config.step}
+                        value={value}
+                        disabled={hasStarted || loading}
+                        onChange={(event) =>
+                          updateAdvancedSetting(config.key, event.target.value)
+                        }
+                        className="w-full accent-blue-600 disabled:accent-gray-300"
+                      />
+                    </section>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -571,6 +740,7 @@ export default function Home() {
           setMessage("");
           setError(null);
           setInterviewStatus(null);
+          setAdvancedSettings(buildAdvancedSettings(selectedPromptMetadata));
           setSelectedDifficulty(
             selectedPromptMetadata?.difficulty_enabled
               ? (selectedPromptMetadata.default_difficulty ?? "medium")

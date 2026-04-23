@@ -106,6 +106,57 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
     assert captured["language"] == "de"
 
 
+def test_chat_allows_model_setting_overrides(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus"),
+    )
+
+    captured = {}
+
+    def fake_get_chat_reply(
+        message,
+        conversation=None,
+        history_limit=10,
+        system_prompt=None,
+        language=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+    ):
+        captured["temperature"] = temperature
+        captured["top_p"] = top_p
+        captured["frequency_penalty"] = frequency_penalty
+        captured["presence_penalty"] = presence_penalty
+        captured["max_tokens"] = max_tokens
+        return "ok"
+
+    monkeypatch.setattr("app.routes.llm.get_chat_reply", fake_get_chat_reply)
+
+    response = client.post(
+        "/api/chat",
+        json={
+            "message": "hello",
+            "temperature": 1.2,
+            "top_p": 0.6,
+            "frequency_penalty": -0.4,
+            "presence_penalty": 0.8,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["temperature"] == 1.2
+    assert captured["top_p"] == 0.6
+    assert captured["frequency_penalty"] == -0.4
+    assert captured["presence_penalty"] == 0.8
+    assert captured["max_tokens"] == 500
+
+
 def test_chat_rejects_invalid_selected_system_prompt(monkeypatch):
     app = create_app()
     client = app.test_client()
@@ -123,6 +174,24 @@ def test_chat_rejects_invalid_selected_system_prompt(monkeypatch):
 
     assert response.status_code == 400
     assert response.get_json() == {"error": "Unknown system prompt 'missing'"}
+
+
+def test_chat_rejects_invalid_model_setting(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus"),
+    )
+
+    response = client.post(
+        "/api/chat",
+        json={"message": "hello", "temperature": 2.5},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "temperature must be between 0.0 and 2.0"}
 
 
 def test_chat_returns_502_when_default_prompt_resolution_fails(monkeypatch):
@@ -554,6 +623,71 @@ def test_chat_start_accepts_selected_system_prompt(monkeypatch):
     assert captured["selected_name"] == "coding_focus"
     assert captured["system_prompt"] == "prompt::coding_focus"
     assert captured["language"] == "de"
+
+
+def test_chat_start_allows_model_setting_overrides(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus"),
+    )
+
+    captured = {}
+
+    def fake_get_interview_opener(
+        system_prompt=None,
+        language=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+    ):
+        captured["temperature"] = temperature
+        captured["top_p"] = top_p
+        captured["frequency_penalty"] = frequency_penalty
+        captured["presence_penalty"] = presence_penalty
+        captured["max_tokens"] = max_tokens
+        return "opening question"
+
+    monkeypatch.setattr("app.routes.llm.get_interview_opener", fake_get_interview_opener)
+
+    response = client.post(
+        "/api/chat/start",
+        json={
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "frequency_penalty": 0.3,
+            "presence_penalty": -0.2,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["temperature"] == 0.2
+    assert captured["top_p"] == 0.9
+    assert captured["frequency_penalty"] == 0.3
+    assert captured["presence_penalty"] == -0.2
+    assert captured["max_tokens"] == 500
+
+
+def test_chat_start_rejects_non_numeric_model_setting(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.llm._resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus"),
+    )
+
+    response = client.post(
+        "/api/chat/start",
+        json={"top_p": "high"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "top_p must be a number"}
 
 
 def test_chat_start_rejects_invalid_selected_system_prompt(monkeypatch):
