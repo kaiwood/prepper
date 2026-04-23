@@ -29,6 +29,8 @@ Services run **independently** — no Docker, no orchestration layer.
 
 ## Python (backend + prepper-cli)
 
+- ALWAYS change to the subfolder where the Python code lives before running commands. For example, `cd backend` or `cd prepper-cli` before `python`, `pip`, or `pytest`.
+- NEVER create a new virtual environment at the root of the monorepo or in the wrong subfolder. For example, do not run `python -m venv .venv` from the root `prepper/` folder. Always `cd` into the correct subfolder first, then create the venv there.
 - Use `pip` + `venv`; commit `requirements.txt` (runtime) and `requirements-dev.txt` (dev/test).
 - `prepper-cli` is installed as a local editable package (`pip install -e ../prepper-cli`).
 - Never hard-code API keys or base URLs.
