@@ -115,6 +115,7 @@ export default function Home() {
     useState<DifficultyValue>("medium");
   const [interviewStatus, setInterviewStatus] =
     useState<InterviewStatus | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const language = useSyncExternalStore(
     subscribeLanguageChange,
@@ -407,66 +408,104 @@ export default function Home() {
         lockedHint={ui.promptLockedHint}
       />
 
-      {interviewRatingEnabled && (
-        <section className="w-full max-w-3xl flex flex-col gap-2">
-          <label
-            htmlFor="roundtrip-limit"
-            className="text-sm font-medium text-gray-700"
+      {(interviewRatingEnabled || difficultyEnabled) && (
+        <div className="w-full max-w-3xl flex flex-col">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((prev) => !prev)}
+            className="flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
           >
-            {ui.questionLimitLabel}
-          </label>
-          <input
-            id="roundtrip-limit"
-            type="number"
-            min={selectedPromptMetadata?.min_question_roundtrips ?? 1}
-            max={selectedPromptMetadata?.max_question_roundtrips ?? 10}
-            value={questionRoundtripLimit}
-            disabled={hasStarted || loading}
-            onChange={(event) => {
-              const raw = Number.parseInt(event.target.value, 10);
-              const min = selectedPromptMetadata?.min_question_roundtrips ?? 1;
-              const max = selectedPromptMetadata?.max_question_roundtrips ?? 10;
-              if (Number.isNaN(raw)) {
-                setQuestionRoundtripLimit(min);
-                return;
-              }
-              setQuestionRoundtripLimit(Math.max(min, Math.min(max, raw)));
-            }}
-            className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-          />
-          <p className="text-sm text-gray-500">{ui.questionLimitHint}</p>
-        </section>
-      )}
+            <span
+              className={`inline-block transition-transform duration-300 text-xs ${
+                settingsOpen ? "rotate-90" : "rotate-0"
+              }`}
+            >
+              ▶
+            </span>
+            Settings
+          </button>
+          <div
+            className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+              settingsOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            }`}
+          >
+            <div className="overflow-hidden">
+              <div className="flex flex-col gap-6 pt-4">
+                {interviewRatingEnabled && (
+                  <section className="flex flex-col gap-2">
+                    <label
+                      htmlFor="roundtrip-limit"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      {ui.questionLimitLabel}
+                    </label>
+                    <input
+                      id="roundtrip-limit"
+                      type="number"
+                      min={selectedPromptMetadata?.min_question_roundtrips ?? 1}
+                      max={
+                        selectedPromptMetadata?.max_question_roundtrips ?? 10
+                      }
+                      value={questionRoundtripLimit}
+                      disabled={hasStarted || loading}
+                      onChange={(event) => {
+                        const raw = Number.parseInt(event.target.value, 10);
+                        const min =
+                          selectedPromptMetadata?.min_question_roundtrips ?? 1;
+                        const max =
+                          selectedPromptMetadata?.max_question_roundtrips ?? 10;
+                        if (Number.isNaN(raw)) {
+                          setQuestionRoundtripLimit(min);
+                          return;
+                        }
+                        setQuestionRoundtripLimit(
+                          Math.max(min, Math.min(max, raw)),
+                        );
+                      }}
+                      className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                    />
+                    <p className="text-sm text-gray-500">
+                      {ui.questionLimitHint}
+                    </p>
+                  </section>
+                )}
 
-      {difficultyEnabled && (
-        <section className="w-full max-w-3xl flex flex-col gap-2">
-          <label
-            htmlFor="difficulty-level"
-            className="text-sm font-medium text-gray-700"
-          >
-            {ui.difficultyLabel}
-          </label>
-          <select
-            id="difficulty-level"
-            value={selectedDifficulty}
-            disabled={hasStarted || loading}
-            onChange={(event) =>
-              setSelectedDifficulty(event.target.value as DifficultyValue)
-            }
-            className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-          >
-            {difficultyLevels
-              .filter((level): level is DifficultyValue =>
-                ["easy", "medium", "hard"].includes(level),
-              )
-              .map((level) => (
-                <option key={level} value={level}>
-                  {difficultyLabelByValue[level]}
-                </option>
-              ))}
-          </select>
-          <p className="text-sm text-gray-500">{ui.difficultyHint}</p>
-        </section>
+                {difficultyEnabled && (
+                  <section className="flex flex-col gap-2">
+                    <label
+                      htmlFor="difficulty-level"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      {ui.difficultyLabel}
+                    </label>
+                    <select
+                      id="difficulty-level"
+                      value={selectedDifficulty}
+                      disabled={hasStarted || loading}
+                      onChange={(event) =>
+                        setSelectedDifficulty(
+                          event.target.value as DifficultyValue,
+                        )
+                      }
+                      className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                    >
+                      {difficultyLevels
+                        .filter((level): level is DifficultyValue =>
+                          ["easy", "medium", "hard"].includes(level),
+                        )
+                        .map((level) => (
+                          <option key={level} value={level}>
+                            {difficultyLabelByValue[level]}
+                          </option>
+                        ))}
+                    </select>
+                    <p className="text-sm text-gray-500">{ui.difficultyHint}</p>
+                  </section>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {interviewCompleted && interviewStatus?.rating && (
