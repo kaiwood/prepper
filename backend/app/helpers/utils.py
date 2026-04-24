@@ -23,7 +23,7 @@ _MODEL_SETTING_BOUNDS = {
 }
 
 
-def _extract_json_object(raw: str) -> dict:
+def extract_json_object(raw: str) -> dict:
     text = (raw or "").strip()
     if not text:
         return {}
@@ -42,7 +42,7 @@ def _extract_json_object(raw: str) -> dict:
             return {}
 
 
-def _clamp_score(value: object) -> float:
+def clamp_score(value: object) -> float:
     try:
         score = float(value)
     except (TypeError, ValueError):
@@ -51,7 +51,7 @@ def _clamp_score(value: object) -> float:
     return max(0.0, min(10.0, score))
 
 
-def _coerce_string_list(value: object, max_items: int = 3) -> list[str]:
+def coerce_string_list(value: object, max_items: int = 3) -> list[str]:
     if not isinstance(value, list):
         return []
 
@@ -67,7 +67,7 @@ def _coerce_string_list(value: object, max_items: int = 3) -> list[str]:
     return normalized
 
 
-def _resolve_roundtrip_limit(
+def resolve_roundtrip_limit(
     requested_limit: object,
     descriptor: PromptDescriptor,
 ) -> int:
@@ -92,7 +92,7 @@ def _resolve_roundtrip_limit(
     return requested_limit
 
 
-def _resolve_difficulty(
+def resolve_difficulty(
     requested_difficulty: object,
     descriptor: PromptDescriptor,
 ) -> str | None:
@@ -125,7 +125,7 @@ def _resolve_difficulty(
     return normalized
 
 
-def _resolve_pass_threshold(descriptor: PromptDescriptor, difficulty: str | None) -> float:
+def resolve_pass_threshold(descriptor: PromptDescriptor, difficulty: str | None) -> float:
     if difficulty == "easy" and descriptor.easy_pass_threshold is not None:
         return descriptor.easy_pass_threshold
     if difficulty == "medium" and descriptor.medium_pass_threshold is not None:
@@ -135,7 +135,7 @@ def _resolve_pass_threshold(descriptor: PromptDescriptor, difficulty: str | None
     return descriptor.pass_threshold
 
 
-def _resolve_model_setting_override(name: str, value: object) -> float | None:
+def resolve_model_setting_override(name: str, value: object) -> float | None:
     if value is None:
         return None
 
@@ -150,18 +150,18 @@ def _resolve_model_setting_override(name: str, value: object) -> float | None:
     return numeric_value
 
 
-def _resolve_model_settings(
+def resolve_model_settings(
     data: dict,
     descriptor: PromptDescriptor,
 ) -> dict[str, float | int]:
-    temperature = _resolve_model_setting_override(
+    temperature = resolve_model_setting_override(
         "temperature", data.get("temperature")
     )
-    top_p = _resolve_model_setting_override("top_p", data.get("top_p"))
-    frequency_penalty = _resolve_model_setting_override(
+    top_p = resolve_model_setting_override("top_p", data.get("top_p"))
+    frequency_penalty = resolve_model_setting_override(
         "frequency_penalty", data.get("frequency_penalty")
     )
-    presence_penalty = _resolve_model_setting_override(
+    presence_penalty = resolve_model_setting_override(
         "presence_penalty", data.get("presence_penalty")
     )
 
@@ -182,7 +182,7 @@ def _resolve_model_settings(
     }
 
 
-def _build_difficulty_instruction(difficulty: str) -> str:
+def build_difficulty_instruction(difficulty: str) -> str:
     if difficulty == "easy":
         return (
             "\n\nDifficulty mode: Junior-level (easy). "
@@ -207,7 +207,7 @@ def _build_difficulty_instruction(difficulty: str) -> str:
     )
 
 
-def _build_runtime_interview_instruction(
+def build_runtime_interview_instruction(
     descriptor: PromptDescriptor,
     question_count: int,
     question_limit: int,
@@ -228,7 +228,7 @@ def _build_runtime_interview_instruction(
     )
 
 
-def _classify_assistant_turn(message: str, language: str | None) -> str:
+def classify_assistant_turn(message: str, language: str | None) -> str:
     text = (message or "").strip()
     if not text or "?" not in text:
         return "other"
@@ -260,7 +260,7 @@ def _classify_assistant_turn(message: str, language: str | None) -> str:
     return "question" if normalized.startswith("QUESTION") else "other"
 
 
-def _count_scored_questions(
+def count_scored_questions(
     conversation: Conversation | None,
     language: str | None,
 ) -> int:
@@ -271,13 +271,13 @@ def _count_scored_questions(
     for message in conversation.get_messages():
         if message["role"] != "assistant":
             continue
-        if _classify_assistant_turn(message["content"], language) == "question":
+        if classify_assistant_turn(message["content"], language) == "question":
             count += 1
 
     return count
 
 
-def _build_scoring_system_prompt(descriptor: PromptDescriptor) -> str:
+def build_scoring_system_prompt(descriptor: PromptDescriptor) -> str:
     rubric_items = "\n".join(
         f"- {criterion}: score 0 to 10"
         for criterion in descriptor.rubric_criteria
@@ -291,7 +291,7 @@ def _build_scoring_system_prompt(descriptor: PromptDescriptor) -> str:
     )
 
 
-def _build_scoring_input(conversation: Conversation) -> str:
+def build_scoring_input(conversation: Conversation) -> str:
     lines = [
         f"{message['role'].upper()}: {message['content']}"
         for message in conversation.get_messages()
@@ -300,12 +300,12 @@ def _build_scoring_input(conversation: Conversation) -> str:
     return f"Score this interview transcript:\n\n{transcript}"
 
 
-def _parse_scoring_payload(
+def parse_scoring_payload(
     raw_response: str,
     descriptor: PromptDescriptor,
     pass_threshold: float,
 ) -> dict:
-    parsed = _extract_json_object(raw_response)
+    parsed = extract_json_object(raw_response)
     criterion_map = parsed.get("criterion_scores", {}) if isinstance(parsed, dict) else {}
 
     criterion_scores = []
@@ -314,16 +314,16 @@ def _parse_scoring_payload(
             criterion_scores.append(
                 {
                     "criterion": criterion,
-                    "score": _clamp_score(criterion_map.get(criterion)),
+                    "score": clamp_score(criterion_map.get(criterion)),
                 }
             )
     else:
         for criterion in descriptor.rubric_criteria:
             criterion_scores.append({"criterion": criterion, "score": 0.0})
 
-    overall = _clamp_score(parsed.get("overall_score") if isinstance(parsed, dict) else None)
-    strengths = _coerce_string_list(parsed.get("strengths") if isinstance(parsed, dict) else None)
-    improvements = _coerce_string_list(
+    overall = clamp_score(parsed.get("overall_score") if isinstance(parsed, dict) else None)
+    strengths = coerce_string_list(parsed.get("strengths") if isinstance(parsed, dict) else None)
+    improvements = coerce_string_list(
         parsed.get("improvements") if isinstance(parsed, dict) else None
     )
 
@@ -338,15 +338,15 @@ def _parse_scoring_payload(
     }
 
 
-def _score_interview(
+def score_interview(
     conversation: Conversation,
     descriptor: PromptDescriptor,
     language: str | None,
     pass_threshold: float,
 ) -> dict:
     score_raw = get_chat_reply(
-        _build_scoring_input(conversation),
-        system_prompt=_build_scoring_system_prompt(descriptor),
+        build_scoring_input(conversation),
+        system_prompt=build_scoring_system_prompt(descriptor),
         language=language,
         temperature=0.0,
         top_p=1.0,
@@ -354,9 +354,9 @@ def _score_interview(
         presence_penalty=0.0,
         max_tokens=300,
     )
-    return _parse_scoring_payload(score_raw, descriptor, pass_threshold)
+    return parse_scoring_payload(score_raw, descriptor, pass_threshold)
 
 
-def _resolve_prompt_descriptor(selected_name: str | None = None) -> PromptDescriptor:
+def resolve_prompt_descriptor(selected_name: str | None = None) -> PromptDescriptor:
     prompt_name = (selected_name or get_default_system_prompt_name()).strip()
     return load_prompt_descriptor(prompt_name)
