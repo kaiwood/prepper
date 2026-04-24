@@ -19,6 +19,7 @@ _FLOAT_FIELDS = {
     "easy_pass_threshold",
     "medium_pass_threshold",
     "hard_pass_threshold",
+    "interviewer_pass_threshold",
 }
 _INT_FIELDS = {
     "max_tokens",
@@ -28,7 +29,7 @@ _INT_FIELDS = {
 }
 _STR_FIELDS = {"id", "name", "default_difficulty"}
 _BOOL_FIELDS = {"interview_rating_enabled", "difficulty_enabled"}
-_LIST_FIELDS = {"rubric_criteria", "difficulty_levels"}
+_LIST_FIELDS = {"rubric_criteria", "difficulty_levels", "interviewer_rubric_criteria"}
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,8 @@ class PromptDescriptor:
     easy_pass_threshold: float | None = None
     medium_pass_threshold: float | None = None
     hard_pass_threshold: float | None = None
+    interviewer_pass_threshold: float = 7.0
+    interviewer_rubric_criteria: tuple[str, ...] = ()
 
 
 def _parse_front_matter(raw: str) -> tuple[dict[str, object], str]:
@@ -191,6 +194,8 @@ def load_prompt_descriptor(name: str) -> PromptDescriptor:
                 if "hard_pass_threshold" in metadata
                 else None
             ),
+            interviewer_pass_threshold=float(metadata.get("interviewer_pass_threshold", 7.0)),
+            interviewer_rubric_criteria=tuple(metadata.get("interviewer_rubric_criteria", ())),
         )
 
         if descriptor.difficulty_enabled:
