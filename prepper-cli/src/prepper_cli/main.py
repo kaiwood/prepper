@@ -39,10 +39,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Run benchmark mode with simulated candidate responses",
     )
     parser.add_argument(
-        "--candidate-system-prompt",
-        help="System prompt name for the simulated candidate in benchmark mode",
-    )
-    parser.add_argument(
         "--difficulty",
         choices=["easy", "medium", "hard"],
         help="Interview difficulty override for benchmark mode",
@@ -201,21 +197,13 @@ def _run_interactive(system_prompt: str | None) -> int:
 def _run_benchmark(args: argparse.Namespace) -> int:
     interviewer_prompt_name = _resolve_system_prompt_name(args.system_prompt)
 
-    candidate_prompt_name = args.candidate_system_prompt
-    if candidate_prompt_name is None:
-        candidate_prompt_name = interviewer_prompt_name
-    else:
-        candidate_prompt_name = _resolve_system_prompt_name(candidate_prompt_name)
-
     interviewer_descriptor = load_prompt_descriptor(interviewer_prompt_name)
-    candidate_descriptor = load_prompt_descriptor(candidate_prompt_name)
 
     if args.question_limit is not None and args.question_limit <= 0:
         raise ValueError("question_limit must be greater than 0")
 
     result = run_benchmark_interview(
         interviewer_descriptor=interviewer_descriptor,
-        candidate_descriptor=candidate_descriptor,
         difficulty=args.difficulty,
         language=args.language,
         question_limit_override=args.question_limit,

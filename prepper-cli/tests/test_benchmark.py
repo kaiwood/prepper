@@ -35,7 +35,6 @@ def _make_descriptor(
 
 def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
     interviewer = _make_descriptor("behavioral_focus")
-    candidate = _make_descriptor("interview_coach", difficulty_enabled=False)
 
     calls = {"run_turn": 0, "candidate_reply": 0}
 
@@ -112,13 +111,13 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
         calls["candidate_reply"] += 1
         assert "Interviewer question:" in message
         assert "candidate" in message.lower()
-        assert system_prompt is not None and "You are the candidate" in system_prompt
+        assert system_prompt is not None and "You are a candidate" in system_prompt
         assert language == "de"
-        assert temperature == candidate.temperature
-        assert top_p == candidate.top_p
-        assert frequency_penalty == candidate.frequency_penalty
-        assert presence_penalty == candidate.presence_penalty
-        assert max_tokens == candidate.max_tokens
+        assert temperature == interviewer.temperature
+        assert top_p == interviewer.top_p
+        assert frequency_penalty == interviewer.frequency_penalty
+        assert presence_penalty == interviewer.presence_penalty
+        assert max_tokens == interviewer.max_tokens
         return "I handled a production incident by coordinating rollback and communication."
 
     monkeypatch.setattr(benchmark, "run_interview_turn", fake_run_interview_turn)
@@ -126,7 +125,6 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
 
     result = benchmark.run_benchmark_interview(
         interviewer_descriptor=interviewer,
-        candidate_descriptor=candidate,
         language="de",
     )
 
@@ -142,12 +140,10 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
 
 def test_run_benchmark_interview_rejects_invalid_difficulty():
     interviewer = _make_descriptor("coding_focus")
-    candidate = _make_descriptor("interview_coach", difficulty_enabled=False)
 
     try:
         benchmark.run_benchmark_interview(
             interviewer_descriptor=interviewer,
-            candidate_descriptor=candidate,
             difficulty="invalid",
         )
         assert False, "Expected ValueError"
