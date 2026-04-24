@@ -104,3 +104,59 @@ def test_list_system_prompts_option_prints_prompt_names(monkeypatch, capsys):
     assert exit_code == 0
     captured = capsys.readouterr()
     assert captured.out == "a\nb\n"
+
+
+def test_interactive_rating_prompt_stops_when_interview_completes(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["prepper-cli", "--interactive", "--system-prompt", "coding_focus"])
+    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["coding_focus"])
+    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "coding_focus")
+    monkeypatch.setattr(
+        main,
+        "load_prompt_descriptor",
+        lambda name: PromptDescriptor(
+            id=name,
+            name="Coding Interview",
+            temperature=0.3,
+            top_p=1.0,
+            frequency_penalty=0.0,
+            presence_penalty=0.0,
+            max_tokens=600,
+            content="prompt::coding_focus",
+            interview_rating_enabled=True,
+            default_question_roundtrips=1,
+            pass_threshold=7.0,
+            rubric_criteria=("Problem understanding",),
+        ),
+    )
+
+    inputs = iter(["answer", "quit"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    monkeypatch.setattr(
+        main,
+        "run_interview_turn",
+        lambda **kwargs: {
+            "reply": "Thanks for your answer.",
+            "turn_type": "other",
+            "question_count": 1,
+            "question_limit": 1,
+            "interview_complete": True,
+            "pass_threshold": 7.0,
+            "metadata_warning": False,
+            "final_result": {
+                "overall_score": 8.0,
+                "pass_threshold": 7.0,
+                "passed": True,
+                "criterion_scores": [{"criterion": "Problem understanding", "score": 8.0}],
+                "strengths": ["Structured"],
+                "improvements": ["Deeper examples"],
+                "parse_warning": False,
+            },
+        },
+    )
+
+    exit_code = main.main()
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "Interview is now over." in captured.out
+    assert '"final_result"' in captured.out

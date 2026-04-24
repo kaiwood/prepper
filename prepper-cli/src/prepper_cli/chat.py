@@ -81,6 +81,7 @@ def get_chat_reply(
     frequency_penalty: float | None = None,
     presence_penalty: float | None = None,
     max_tokens: int | None = None,
+    conversation_reply_override: str | None = None,
 ) -> str:
     prompt = message.strip()
     if not prompt:
@@ -106,7 +107,11 @@ def get_chat_reply(
 
     if conversation is not None:
         conversation.add_user_message(prompt)
-        conversation.add_assistant_reply(normalized_reply)
+        conversation.add_assistant_reply(
+            conversation_reply_override
+            if conversation_reply_override is not None
+            else normalized_reply
+        )
 
     return normalized_reply
 

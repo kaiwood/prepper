@@ -40,6 +40,16 @@ class Conversation:
                 }
             )
 
+    def replace_last_assistant_reply(self, content: str) -> None:
+        normalized = _normalize_content(content, allow_empty=True)
+        if not normalized:
+            return
+
+        for index in range(len(self._messages) - 1, -1, -1):
+            if self._messages[index]["role"] == "assistant":
+                self._messages[index]["content"] = normalized
+                return
+
     def get_messages(self) -> list[ChatMessage]:
         return [
             {
