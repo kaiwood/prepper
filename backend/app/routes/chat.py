@@ -1,6 +1,7 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_cors import cross_origin
 from app import limiter
+from app.helpers.debug import debug_enabled, debug_request_context, format_debug_json
 from app.helpers.utils import (
     build_difficulty_instruction,
     resolve_difficulty,
@@ -46,6 +47,7 @@ def chat_start_options():
 )
 def chat():
     data = request.get_json(silent=True) or {}
+    debug_mode = debug_enabled()
 
     message = data.get("message", "").strip()
     conversation_history = data.get("conversation_history")
@@ -100,24 +102,43 @@ def chat():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    if debug_mode:
+        current_app.logger.debug(
+            "prepper_cli request context:\n%s",
+            format_debug_json(debug_request_context(data, "/api/chat")),
+        )
+        current_app.logger.debug(
+            "prepper_cli model settings:\n%s",
+            format_debug_json(model_settings),
+        )
+
     active_pass_threshold = resolve_pass_threshold(descriptor, resolved_difficulty)
 
     if descriptor.interview_rating_enabled:
         try:
-            turn_result = run_interview_turn(
-                message=message,
-                conversation=conversation,
-                descriptor=descriptor,
-                language=language,
-                question_limit=question_limit,
-                pass_threshold=active_pass_threshold,
-                model_settings=model_settings,
-                difficulty=resolved_difficulty,
-            )
+            interview_kwargs = {
+                "message": message,
+                "conversation": conversation,
+                "descriptor": descriptor,
+                "language": language,
+                "question_limit": question_limit,
+                "pass_threshold": active_pass_threshold,
+                "model_settings": model_settings,
+                "difficulty": resolved_difficulty,
+            }
+            if debug_mode:
+                interview_kwargs["include_diagnostics"] = True
+            turn_result = run_interview_turn(**interview_kwargs)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except Exception as exc:
             return jsonify({"error": f"LLM request failed: {exc}"}), 502
+
+        if debug_mode:
+            current_app.logger.debug(
+                "prepper_cli interview diagnostics:\n%s",
+                format_debug_json(turn_result.get("debug", {})),
+            )
 
         response_payload = {
             "reply": turn_result["reply"],
@@ -129,6 +150,7 @@ def chat():
             "current_turn_type": turn_result["turn_type"],
             "metadata_warning": turn_result["metadata_warning"],
         }
+        turn_result.pop("debug", None)
         if resolved_difficulty is not None:
             response_payload["difficulty"] = resolved_difficulty
         if turn_result["final_result"] is not None:
@@ -139,21 +161,41 @@ def chat():
             system_prompt += build_difficulty_instruction(resolved_difficulty)
 
         try:
-            reply = get_chat_reply(
-                message,
-                conversation=conversation,
-                system_prompt=system_prompt,
-                language=language,
-                temperature=model_settings["temperature"],
-                top_p=model_settings["top_p"],
-                frequency_penalty=model_settings["frequency_penalty"],
-                presence_penalty=model_settings["presence_penalty"],
-                max_tokens=model_settings["max_tokens"],
-            )
+            if debug_mode:
+                reply, chat_diagnostics = get_chat_reply(
+                    message,
+                    conversation=conversation,
+                    system_prompt=system_prompt,
+                    language=language,
+                    temperature=model_settings["temperature"],
+                    top_p=model_settings["top_p"],
+                    frequency_penalty=model_settings["frequency_penalty"],
+                    presence_penalty=model_settings["presence_penalty"],
+                    max_tokens=model_settings["max_tokens"],
+                    include_diagnostics=True,
+                )
+            else:
+                reply = get_chat_reply(
+                    message,
+                    conversation=conversation,
+                    system_prompt=system_prompt,
+                    language=language,
+                    temperature=model_settings["temperature"],
+                    top_p=model_settings["top_p"],
+                    frequency_penalty=model_settings["frequency_penalty"],
+                    presence_penalty=model_settings["presence_penalty"],
+                    max_tokens=model_settings["max_tokens"],
+                )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except Exception as exc:
             return jsonify({"error": f"LLM request failed: {exc}"}), 502
+
+        if debug_mode:
+            current_app.logger.debug(
+                "prepper_cli chat diagnostics:\n%s",
+                format_debug_json(chat_diagnostics),
+            )
 
         response_payload = {"reply": reply}
 
@@ -168,6 +210,7 @@ def chat():
 )
 def chat_start():
     data = request.get_json(silent=True) or {}
+    debug_mode = debug_enabled()
     system_prompt_name = data.get("system_prompt_name")
     language = data.get("language")
     difficulty = data.get("difficulty")
@@ -201,24 +244,52 @@ def chat_start():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    if debug_mode:
+        current_app.logger.debug(
+            "prepper_cli request context:\n%s",
+            format_debug_json(debug_request_context(data, "/api/chat/start")),
+        )
+        current_app.logger.debug(
+            "prepper_cli model settings:\n%s",
+            format_debug_json(model_settings),
+        )
+
     system_prompt = descriptor.content
     if resolved_difficulty is not None:
         system_prompt += build_difficulty_instruction(resolved_difficulty)
 
     try:
-        reply = get_interview_opener(
-            system_prompt=system_prompt,
-            language=language,
-            temperature=model_settings["temperature"],
-            top_p=model_settings["top_p"],
-            frequency_penalty=model_settings["frequency_penalty"],
-            presence_penalty=model_settings["presence_penalty"],
-            max_tokens=model_settings["max_tokens"],
-        )
+        if debug_mode:
+            reply, chat_diagnostics = get_interview_opener(
+                system_prompt=system_prompt,
+                language=language,
+                temperature=model_settings["temperature"],
+                top_p=model_settings["top_p"],
+                frequency_penalty=model_settings["frequency_penalty"],
+                presence_penalty=model_settings["presence_penalty"],
+                max_tokens=model_settings["max_tokens"],
+                include_diagnostics=True,
+            )
+        else:
+            reply = get_interview_opener(
+                system_prompt=system_prompt,
+                language=language,
+                temperature=model_settings["temperature"],
+                top_p=model_settings["top_p"],
+                frequency_penalty=model_settings["frequency_penalty"],
+                presence_penalty=model_settings["presence_penalty"],
+                max_tokens=model_settings["max_tokens"],
+            )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         return jsonify({"error": f"LLM request failed: {exc}"}), 502
+
+    if debug_mode:
+        current_app.logger.debug(
+            "prepper_cli opener diagnostics:\n%s",
+            format_debug_json(chat_diagnostics),
+        )
 
     parsed = parse_reply_metadata(reply)
     return jsonify({"reply": parsed["reply"]})

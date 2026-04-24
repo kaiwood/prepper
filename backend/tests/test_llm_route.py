@@ -759,6 +759,60 @@ def test_chat_start_rejects_invalid_selected_system_prompt(monkeypatch):
     assert response.get_json() == {"error": "Unknown system prompt 'missing'"}
 
 
+def test_chat_uses_diagnostics_in_debug_mode(monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.chat.resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+            default_question_roundtrips=2,
+            pass_threshold=7.0,
+            rubric_criteria=("Problem understanding",),
+        ),
+    )
+
+    captured = {}
+
+    def fake_run_interview_turn(
+        message,
+        conversation,
+        descriptor,
+        language,
+        question_limit,
+        pass_threshold,
+        model_settings,
+        difficulty=None,
+        include_diagnostics=False,
+    ):
+        captured["include_diagnostics"] = include_diagnostics
+        return {
+            "reply": "Follow-up question",
+            "turn_type": "question",
+            "question_count": 1,
+            "question_limit": question_limit,
+            "interview_complete": False,
+            "pass_threshold": pass_threshold,
+            "metadata_warning": False,
+            "final_result": None,
+            "debug": {"raw_turn_reply": "raw model output"},
+        }
+
+    monkeypatch.setattr("app.routes.chat.run_interview_turn", fake_run_interview_turn)
+
+    response = client.post("/api/chat", json={"message": "hello"})
+
+    assert response.status_code == 200
+    assert captured["include_diagnostics"] is True
+    data = response.get_json()
+    assert data["reply"] == "Follow-up question"
+    assert "debug" not in data
+
+
 def test_chat_start_returns_502_when_llm_request_fails(monkeypatch):
     app = create_app()
     client = app.test_client()

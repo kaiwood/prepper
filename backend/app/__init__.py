@@ -4,15 +4,29 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 import os
 
 load_dotenv()
 
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+class StripAnsiFormatter(logging.Formatter):
+    def format(self, record):
+        rendered = super().format(record)
+        return _ANSI_ESCAPE_RE.sub("", rendered)
+
 
 def configure_logging(app):
-    app.logger.setLevel(logging.INFO)
+    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, level_name, logging.INFO)
+    app.logger.setLevel(log_level)
     formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s [in %(pathname)s:%(lineno)d]"
+    )
+    file_formatter = StripAnsiFormatter(
         "%(asctime)s %(levelname)s %(name)s: %(message)s [in %(pathname)s:%(lineno)d]"
     )
 
@@ -23,9 +37,15 @@ def configure_logging(app):
     )
     if not has_stream:
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(log_level)
         console_handler.setFormatter(formatter)
         app.logger.addHandler(console_handler)
+    else:
+        for handler in app.logger.handlers:
+            if isinstance(handler, logging.StreamHandler) and not isinstance(
+                handler, RotatingFileHandler
+            ):
+                handler.setLevel(log_level)
 
     has_file = any(isinstance(handler, RotatingFileHandler) for handler in app.logger.handlers)
     if not has_file:
@@ -38,9 +58,13 @@ def configure_logging(app):
             backupCount=3,
             encoding="utf-8",
         )
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(formatter)
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(file_formatter)
         app.logger.addHandler(file_handler)
+    else:
+        for handler in app.logger.handlers:
+            if isinstance(handler, RotatingFileHandler):
+                handler.setLevel(log_level)
 
 limiter = Limiter(key_func=get_remote_address, headers_enabled=True)
 

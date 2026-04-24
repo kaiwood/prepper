@@ -131,3 +131,51 @@ def test_run_interview_turn_strips_metadata_and_includes_final_result(monkeypatc
     messages = conversation.get_messages()
     assert messages[-1]["role"] == "assistant"
     assert "[PREPPER_JSON]" not in messages[-1]["content"]
+
+
+def test_run_interview_turn_returns_debug_diagnostics_when_enabled(monkeypatch):
+    descriptor = _descriptor(default_question_roundtrips=2)
+    conversation = Conversation.from_messages([])
+
+    def fake_get_chat_reply(*args, **kwargs):
+        if kwargs.get("include_diagnostics"):
+            return (
+                "First question\n"
+                "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}",
+                {
+                    "request": {"model": "mock-model"},
+                    "raw_response": {"id": "resp-1"},
+                    "raw_reply": "First question\\n[PREPPER_JSON] {...}",
+                    "normalized_reply": "First question\\n[PREPPER_JSON] {...}",
+                },
+            )
+
+        return (
+            "First question\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        )
+
+    monkeypatch.setattr("prepper_cli.interview.get_chat_reply", fake_get_chat_reply)
+
+    result = run_interview_turn(
+        message="Here is my answer",
+        conversation=conversation,
+        descriptor=descriptor,
+        language=None,
+        question_limit=2,
+        pass_threshold=7.0,
+        model_settings={
+            "temperature": 0.3,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 300,
+        },
+        include_diagnostics=True,
+    )
+
+    assert result["turn_type"] == "question"
+    assert result["interview_complete"] is False
+    assert "debug" in result
+    assert "turn_chat" in result["debug"]
+    assert "raw_turn_reply" in result["debug"]
