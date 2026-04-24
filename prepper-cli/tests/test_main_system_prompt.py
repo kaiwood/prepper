@@ -346,3 +346,37 @@ def test_benchmark_mode_rejects_conflicting_candidate_flags(monkeypatch):
         main.main()
 
     assert exc.value.code == 2
+
+
+def test_candidate_flags_require_benchmark(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--good-candidate",
+            "hello",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        main.main()
+
+    assert exc.value.code == 2
+
+
+def test_help_makes_candidate_flags_benchmark_only_clear():
+    help_text = main._build_parser().format_help()
+
+    assert "Benchmark-only: use a strong candidate simulation" in help_text
+    assert "Benchmark-only: use a weak candidate simulation" in help_text
+    assert "required for benchmark-only options" in help_text
+
+
+def test_help_lists_benchmark_right_before_candidate_flags():
+    help_text = main._build_parser().format_help()
+
+    benchmark_index = help_text.index("--benchmark")
+    good_index = help_text.index("--good-candidate")
+    bad_index = help_text.index("--bad-candidate")
+
+    assert benchmark_index < good_index < bad_index
