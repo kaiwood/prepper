@@ -1,44 +1,12 @@
 from __future__ import annotations
 
-import sys
 from typing import TextIO
 
 from .chat import get_chat_reply
+from .cli_output import print_final_result, print_turn, write_line
 from .conversation import Conversation
 from .interview import resolve_pass_threshold, run_interview_turn
 from .system_prompts import PromptDescriptor
-
-
-_ANSI_RESET = "\033[0m"
-_ANSI_WHITE = "\033[37m"
-_ANSI_YELLOW = "\033[33m"
-_ANSI_GREEN = "\033[32m"
-
-
-def _resolve_stream(output: TextIO | None) -> TextIO:
-    return output if output is not None else sys.stdout
-
-
-def _supports_color(stream: TextIO) -> bool:
-    is_tty = getattr(stream, "isatty", None)
-    return bool(callable(is_tty) and is_tty())
-
-
-def _colorize(text: str, color: str, stream: TextIO, enable_color: bool = False) -> str:
-    if not enable_color or not _supports_color(stream):
-        return text
-    return f"{color}{text}{_ANSI_RESET}"
-
-
-def _write_line(
-    output: TextIO | None,
-    text: str = "",
-    color: str = _ANSI_WHITE,
-    *,
-    enable_color: bool = False,
-) -> None:
-    stream = _resolve_stream(output)
-    stream.write(f"{_colorize(text, color, stream, enable_color=enable_color)}\n")
 
 
 def _build_model_settings(descriptor: PromptDescriptor) -> dict[str, float | int]:
@@ -128,80 +96,22 @@ def _print_header(
     language: str | None,
     enable_color: bool = False,
 ) -> None:
-    _write_line(output, "=== Benchmark Mock Interview ===", enable_color=enable_color)
-    _write_line(
+    write_line(output, "=== Benchmark Mock Interview ===", enable_color=enable_color)
+    write_line(
         output,
         f"Interviewer prompt: {interviewer_descriptor.name} ({interviewer_descriptor.id})",
         enable_color=enable_color,
     )
-    _write_line(
+    write_line(
         output,
         f"Candidate prompt: benchmark_candidate_{candidate_profile}",
         enable_color=enable_color,
     )
-    _write_line(output, f"Difficulty: {difficulty or 'default'}", enable_color=enable_color)
-    _write_line(output, f"Language: {language or 'default'}", enable_color=enable_color)
-    _write_line(output, f"Question limit: {question_limit}", enable_color=enable_color)
-    _write_line(output, f"Pass threshold: {pass_threshold:.2f}", enable_color=enable_color)
-    _write_line(output, enable_color=enable_color)
-
-
-def _print_turn(
-    output: TextIO | None,
-    turn_number: int,
-    speaker: str,
-    content: str,
-    enable_color: bool = False,
-) -> None:
-    color = _ANSI_WHITE
-    if speaker == "Interviewer":
-        color = _ANSI_YELLOW
-    elif speaker == "Candidate":
-        color = _ANSI_GREEN
-
-    _write_line(output, f"Turn {turn_number:02d} | {speaker}", color=color, enable_color=enable_color)
-    _write_line(output, content, color=color, enable_color=enable_color)
-    _write_line(output, enable_color=enable_color)
-
-
-def _print_final_result(
-    output: TextIO | None,
-    final_result: dict | None,
-    enable_color: bool = False,
-) -> None:
-    if final_result is None:
-        _write_line(output, "Final score: unavailable", enable_color=enable_color)
-        return
-
-    _write_line(output, "=== Final Score ===", enable_color=enable_color)
-    _write_line(
-        output,
-        f"Overall: {final_result['overall_score']:.2f} / 10.00 | "
-        f"Threshold: {final_result['pass_threshold']:.2f} | "
-        f"Passed: {str(final_result['passed']).lower()}",
-        enable_color=enable_color,
-    )
-
-    _write_line(output, "Rubric:", enable_color=enable_color)
-    for row in final_result.get("criterion_scores", []):
-        _write_line(output, f"- {row['criterion']}: {row['score']:.2f}", enable_color=enable_color)
-
-    strengths = final_result.get("strengths", [])
-    improvements = final_result.get("improvements", [])
-
-    _write_line(output, "Strengths:", enable_color=enable_color)
-    if strengths:
-        for item in strengths:
-            _write_line(output, f"- {item}", enable_color=enable_color)
-    else:
-        _write_line(output, "- none", enable_color=enable_color)
-
-    _write_line(output, "Improvements:", enable_color=enable_color)
-    if improvements:
-        for item in improvements:
-            _write_line(output, f"- {item}", enable_color=enable_color)
-    else:
-        _write_line(output, "- none", enable_color=enable_color)
+    write_line(output, f"Difficulty: {difficulty or 'default'}", enable_color=enable_color)
+    write_line(output, f"Language: {language or 'default'}", enable_color=enable_color)
+    write_line(output, f"Question limit: {question_limit}", enable_color=enable_color)
+    write_line(output, f"Pass threshold: {pass_threshold:.2f}", enable_color=enable_color)
+    write_line(output, enable_color=enable_color)
 
 
 def run_benchmark_interview(
@@ -256,7 +166,7 @@ def run_benchmark_interview(
         difficulty=resolved_difficulty,
     )
 
-    _print_turn(output, turn_index, "Interviewer", result["reply"], enable_color=enable_color)
+    print_turn(output, "Interviewer", result["reply"], enable_color=enable_color)
 
     max_steps = max(12, question_limit * 4)
     step_count = 0
@@ -273,7 +183,7 @@ def run_benchmark_interview(
             candidate_profile=candidate_profile,
         )
 
-        _print_turn(output, turn_index, "Candidate", candidate_reply, enable_color=enable_color)
+        print_turn(output, "Candidate", candidate_reply, enable_color=enable_color)
 
         turn_index += 1
         result = run_interview_turn(
@@ -287,10 +197,11 @@ def run_benchmark_interview(
             difficulty=resolved_difficulty,
         )
 
-        _print_turn(output, turn_index, "Interviewer", result["reply"], enable_color=enable_color)
+        print_turn(output, "Interviewer", result["reply"], enable_color=enable_color)
 
-    _write_line(output, "Interview complete.", enable_color=enable_color)
-    _print_final_result(output, result.get("final_result"), enable_color=enable_color)
+    write_line(output, "Interview complete.", enable_color=enable_color)
+    write_line(output, "=== Final Score ===", enable_color=enable_color)
+    print_final_result(output, result.get("final_result"), enable_color=enable_color)
 
     summary_json = {
         "mode": "benchmark",

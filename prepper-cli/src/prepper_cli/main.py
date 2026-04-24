@@ -1,9 +1,9 @@
 import argparse
-import json
 import sys
 
 from .benchmark import run_benchmark_interview
 from .chat import get_chat_reply
+from .cli_output import print_final_result, print_turn
 from .conversation import Conversation
 from .interview import resolve_pass_threshold, run_interview_turn
 from .system_prompts import (
@@ -11,19 +11,11 @@ from .system_prompts import (
     list_prompt_descriptors,
     list_system_prompt_names,
     load_prompt_descriptor,
-    load_system_prompt,
 )
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Send prompts to OpenRouter")
-    parser.add_argument("message", nargs="?", help="Prompt to send")
-    parser.add_argument(
-        "-i",
-        "--interactive",
-        action="store_true",
-        help="Start interactive chat mode",
-    )
     parser.add_argument(
         "--system-prompt",
         help="System prompt name from the prompts folder",
@@ -34,34 +26,34 @@ def _build_parser() -> argparse.ArgumentParser:
         help="List available system prompts and exit",
     )
     parser.add_argument(
-        "--benchmark",
-        action="store_true",
-        help="Run benchmark mode with simulated candidate responses (required for benchmark-only options)",
-    )
-    parser.add_argument(
         "--difficulty",
         choices=["easy", "medium", "hard"],
-        help="Benchmark-only: interview difficulty override",
+        help="Interview difficulty override",
     )
     parser.add_argument(
         "--language",
         choices=["en", "de"],
-        help="Benchmark-only: response language code (default: en)",
+        help="Response language code",
     )
     parser.add_argument(
         "--pass-threshold",
         type=float,
-        help="Benchmark-only: pass threshold override",
+        help="Interview pass threshold override",
     )
     parser.add_argument(
         "--question-limit",
         type=int,
-        help="Benchmark-only: question roundtrip limit override",
+        help="Interview question roundtrip limit override",
     )
     parser.add_argument(
         "--color",
         action="store_true",
-        help="Benchmark-only: enable colorized benchmark transcript output",
+        help="Enable colorized transcript output",
+    )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run benchmark mode with simulated candidate responses (required for benchmark-only options)",
     )
     candidate_group = parser.add_mutually_exclusive_group()
     candidate_group.add_argument(
@@ -83,10 +75,6 @@ def _validate_benchmark_candidate_flags(
 ) -> None:
     if (args.good_candidate or args.bad_candidate) and not args.benchmark:
         parser.error("--good-candidate/--bad-candidate require --benchmark")
-    if args.color and not args.benchmark:
-        parser.error("--color requires --benchmark")
-    if args.language is not None and not args.benchmark:
-        parser.error("--language requires --benchmark")
 
 
 def _resolve_system_prompt_name(selected_name: str | None) -> str:
@@ -128,7 +116,47 @@ def _choose_interactive_system_prompt(default_name: str) -> str | None:
         print("Please enter a valid option number.")
 
 
-def _run_interactive(system_prompt: str | None) -> int:
+def _resolve_interview_settings(
+    descriptor,
+    difficulty_override: str | None,
+    question_limit_override: int | None,
+    pass_threshold_override: float | None,
+) -> tuple[str | None, int, float]:
+    difficulty = None
+    if descriptor and descriptor.difficulty_enabled:
+        difficulty = difficulty_override or descriptor.default_difficulty
+        if difficulty not in descriptor.difficulty_levels:
+            options = ", ".join(descriptor.difficulty_levels)
+            raise ValueError(
+                f"difficulty '{difficulty}' is not valid for prompt '{descriptor.id}'. Available: {options}"
+            )
+
+    question_limit = (
+        question_limit_override
+        if question_limit_override is not None
+        else (descriptor.default_question_roundtrips if descriptor else 5)
+    )
+    if question_limit <= 0:
+        raise ValueError("question_limit must be greater than 0")
+
+    resolved_pass_threshold = (
+        pass_threshold_override
+        if pass_threshold_override is not None
+        else (resolve_pass_threshold(descriptor, difficulty) if descriptor else 7.0)
+    )
+
+    return difficulty, question_limit, resolved_pass_threshold
+
+
+def _run_interactive(
+    system_prompt: str | None,
+    *,
+    language: str | None,
+    enable_color: bool,
+    difficulty_override: str | None,
+    question_limit_override: int | None,
+    pass_threshold_override: float | None,
+) -> int:
     print("Interactive mode. Type 'exit' or 'quit' to leave.")
 
     descriptor = load_prompt_descriptor(system_prompt) if system_prompt else None
@@ -138,9 +166,13 @@ def _run_interactive(system_prompt: str | None) -> int:
         print("Using system prompt: none")
 
     conversation = Conversation()
-    question_limit = descriptor.default_question_roundtrips if descriptor else 5
-    difficulty = descriptor.default_difficulty if descriptor and descriptor.difficulty_enabled else None
-    pass_threshold = resolve_pass_threshold(descriptor, difficulty) if descriptor else 7.0
+    opener_message = "I am ready for the interview. Please begin."
+    difficulty, question_limit, pass_threshold = _resolve_interview_settings(
+        descriptor,
+        difficulty_override,
+        question_limit_override,
+        pass_threshold_override,
+    )
     model_settings = (
         {
             "temperature": descriptor.temperature,
@@ -158,6 +190,39 @@ def _run_interactive(system_prompt: str | None) -> int:
             "max_tokens": 800,
         }
     )
+
+    try:
+        if descriptor and descriptor.interview_rating_enabled:
+            result = run_interview_turn(
+                message=opener_message,
+                conversation=conversation,
+                descriptor=descriptor,
+                language=language,
+                question_limit=question_limit,
+                pass_threshold=pass_threshold,
+                model_settings=model_settings,
+                difficulty=difficulty,
+            )
+            print_turn(None, "Interviewer", result["reply"], enable_color=enable_color)
+            if result["interview_complete"]:
+                print_final_result(None, result["final_result"], enable_color=enable_color)
+                return 0
+        elif descriptor:
+            reply = get_chat_reply(
+                opener_message,
+                conversation=conversation,
+                system_prompt=descriptor.content,
+                language=language,
+                temperature=descriptor.temperature,
+                top_p=descriptor.top_p,
+                frequency_penalty=descriptor.frequency_penalty,
+                presence_penalty=descriptor.presence_penalty,
+                max_tokens=descriptor.max_tokens,
+            )
+            print_turn(None, "Assistant", reply, enable_color=enable_color)
+    except Exception as exc:  # pragma: no cover - direct CLI safety net
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
     while True:
         try:
@@ -181,42 +246,29 @@ def _run_interactive(system_prompt: str | None) -> int:
                     message=text,
                     conversation=conversation,
                     descriptor=descriptor,
-                    language=None,
+                    language=language,
                     question_limit=question_limit,
                     pass_threshold=pass_threshold,
                     model_settings=model_settings,
                     difficulty=difficulty,
                 )
-                print(result["reply"])
+                print_turn(None, "Interviewer", result["reply"], enable_color=enable_color)
                 if result["interview_complete"]:
-                    print("Interview is now over.")
-                    print(
-                        json.dumps(
-                            {
-                                "reply": result["reply"],
-                                "interview_complete": result["interview_complete"],
-                                "counted_question_roundtrips": result["question_count"],
-                                "question_roundtrips_limit": result["question_limit"],
-                                "current_turn_type": result["turn_type"],
-                                "pass_threshold": result["pass_threshold"],
-                                "final_result": result["final_result"],
-                            },
-                            ensure_ascii=True,
-                        )
-                    )
+                    print_final_result(None, result["final_result"], enable_color=enable_color)
                     return 0
             else:
                 reply = get_chat_reply(
                     text,
                     conversation=conversation,
                     system_prompt=descriptor.content if descriptor else None,
+                    language=language,
                     temperature=descriptor.temperature if descriptor else None,
                     top_p=descriptor.top_p if descriptor else None,
                     frequency_penalty=descriptor.frequency_penalty if descriptor else None,
                     presence_penalty=descriptor.presence_penalty if descriptor else None,
                     max_tokens=descriptor.max_tokens if descriptor else None,
                 )
-                print(reply)
+                print_turn(None, "Assistant", reply, enable_color=enable_color)
         except Exception as exc:  # pragma: no cover - direct CLI safety net
             print(f"Error: {exc}", file=sys.stderr)
             return 1
@@ -265,35 +317,23 @@ def main() -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 
-    if args.interactive:
+    try:
         selected = args.system_prompt
         if selected is None:
             selected = _choose_interactive_system_prompt(get_default_system_prompt_name())
         elif selected:
             selected = _resolve_system_prompt_name(selected)
-        return _run_interactive(selected)
-
-    if not args.message:
-        parser.error("message is required unless --interactive is set")
-
-    try:
-        prompt_name = _resolve_system_prompt_name(args.system_prompt)
-        descriptor = load_prompt_descriptor(prompt_name)
-        reply = get_chat_reply(
-            args.message,
-            system_prompt=descriptor.content,
-            temperature=descriptor.temperature,
-            top_p=descriptor.top_p,
-            frequency_penalty=descriptor.frequency_penalty,
-            presence_penalty=descriptor.presence_penalty,
-            max_tokens=descriptor.max_tokens,
+        return _run_interactive(
+            selected,
+            language=args.language,
+            enable_color=args.color,
+            difficulty_override=args.difficulty,
+            question_limit_override=args.question_limit,
+            pass_threshold_override=args.pass_threshold,
         )
     except Exception as exc:  # pragma: no cover - direct CLI safety net
         print(f"Error: {exc}", file=sys.stderr)
         return 1
-
-    print(reply)
-    return 0
 
 
 if __name__ == "__main__":
