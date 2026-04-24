@@ -65,20 +65,34 @@ def _resolve_difficulty(
     return difficulty_override
 
 
-def _build_candidate_system_prompt() -> str:
-    return (
-        "You are a candidate in a mock interview benchmark. "
-        "Answer the interviewer's prompts naturally and concisely as a human candidate would. "
-        "Do not act like an interviewer, coach, or evaluator. "
-        "Do not include control tags, metadata blocks, JSON, or special suffixes. "
-        "Only provide the candidate's spoken answer."
-    )
+def _build_candidate_system_prompt(candidate_profile: str) -> str:
+    if candidate_profile == "good":
+        return (
+            "You are a candidate in a mock interview benchmark. "
+            "Answer the interviewer's prompts naturally and concisely as a human candidate would. "
+            "Do not act like an interviewer, coach, or evaluator. "
+            "Do not include control tags, metadata blocks, JSON, or special suffixes. "
+            "Only provide the candidate's spoken answer."
+        )
+
+    if candidate_profile == "bad":
+        return (
+            "You are a weak candidate in a mock interview benchmark. "
+            "Give short, vague, and minimally helpful answers that often omit concrete actions, outcomes, and metrics. "
+            "Avoid structured STAR storytelling, provide little ownership detail, and sound uncertain when possible. "
+            "Do not act like an interviewer, coach, or evaluator. "
+            "Do not include control tags, metadata blocks, JSON, or special suffixes. "
+            "Only provide the candidate's spoken answer."
+        )
+
+    raise ValueError(f"Unsupported candidate_profile: {candidate_profile}")
 
 
 def _generate_candidate_reply(
     interviewer_message: str,
     interviewer_descriptor: PromptDescriptor,
     language: str | None,
+    candidate_profile: str,
 ) -> str:
     candidate_input = (
         "Interviewer question:\n"
@@ -88,7 +102,7 @@ def _generate_candidate_reply(
 
     return get_chat_reply(
         candidate_input,
-        system_prompt=_build_candidate_system_prompt(),
+        system_prompt=_build_candidate_system_prompt(candidate_profile),
         language=language,
         temperature=interviewer_descriptor.temperature,
         top_p=interviewer_descriptor.top_p,
@@ -101,6 +115,7 @@ def _generate_candidate_reply(
 def _print_header(
     output: TextIO | None,
     interviewer_descriptor: PromptDescriptor,
+    candidate_profile: str,
     difficulty: str | None,
     question_limit: int,
     pass_threshold: float,
@@ -108,7 +123,7 @@ def _print_header(
 ) -> None:
     _write_line(output, "=== Benchmark Mock Interview ===")
     _write_line(output, f"Interviewer prompt: {interviewer_descriptor.name} ({interviewer_descriptor.id})")
-    _write_line(output, "Candidate prompt: benchmark_candidate_default")
+    _write_line(output, f"Candidate prompt: benchmark_candidate_{candidate_profile}")
     _write_line(output, f"Difficulty: {difficulty or 'default'}")
     _write_line(output, f"Language: {language or 'default'}")
     _write_line(output, f"Question limit: {question_limit}")
@@ -169,6 +184,7 @@ def run_benchmark_interview(
     language: str | None = None,
     question_limit_override: int | None = None,
     pass_threshold_override: float | None = None,
+    candidate_profile: str = "good",
     output: TextIO | None = None,
 ) -> dict:
     conversation = Conversation()
@@ -192,6 +208,7 @@ def run_benchmark_interview(
     _print_header(
         output,
         interviewer_descriptor,
+        candidate_profile,
         resolved_difficulty,
         question_limit,
         pass_threshold,
@@ -225,6 +242,7 @@ def run_benchmark_interview(
             interviewer_message=result["reply"],
             interviewer_descriptor=interviewer_descriptor,
             language=language,
+            candidate_profile=candidate_profile,
         )
 
         _print_turn(output, turn_index, "Candidate", candidate_reply)
@@ -249,6 +267,7 @@ def run_benchmark_interview(
     summary_json = {
         "mode": "benchmark",
         "interviewer_system_prompt": interviewer_descriptor.id,
+        "candidate_system_prompt": f"benchmark_candidate_{candidate_profile}",
         "difficulty": resolved_difficulty,
         "language": language,
         "question_roundtrips_limit": question_limit,
