@@ -160,3 +160,125 @@ def test_interactive_rating_prompt_stops_when_interview_completes(monkeypatch, c
     captured = capsys.readouterr()
     assert "Interview is now over." in captured.out
     assert '"final_result"' in captured.out
+
+
+def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--benchmark",
+            "--system-prompt",
+            "coding_focus",
+            "--candidate-system-prompt",
+            "interview_coach",
+            "--difficulty",
+            "hard",
+            "--language",
+            "de",
+            "--question-limit",
+            "3",
+            "--pass-threshold",
+            "7.2",
+        ],
+    )
+
+    descriptors = {
+        "coding_focus": _make_descriptor("coding_focus", name="Coding Interview"),
+        "interview_coach": _make_descriptor("interview_coach", name="Interview Coach"),
+    }
+
+    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["coding_focus", "interview_coach"])
+    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "coding_focus")
+    monkeypatch.setattr(main, "load_prompt_descriptor", lambda name: descriptors[name])
+
+    called = {}
+
+    def fake_run_benchmark_interview(
+        interviewer_descriptor,
+        candidate_descriptor,
+        difficulty=None,
+        language=None,
+        question_limit_override=None,
+        pass_threshold_override=None,
+        output=None,
+    ):
+        called["interviewer"] = interviewer_descriptor.id
+        called["candidate"] = candidate_descriptor.id
+        called["difficulty"] = difficulty
+        called["language"] = language
+        called["question_limit_override"] = question_limit_override
+        called["pass_threshold_override"] = pass_threshold_override
+        return {
+            "summary_json": {
+                "mode": "benchmark",
+                "interviewer_system_prompt": interviewer_descriptor.id,
+                "candidate_system_prompt": candidate_descriptor.id,
+            },
+            "conversation": [],
+        }
+
+    monkeypatch.setattr(main, "run_benchmark_interview", fake_run_benchmark_interview)
+
+    exit_code = main.main()
+
+    assert exit_code == 0
+    assert called["interviewer"] == "coding_focus"
+    assert called["candidate"] == "interview_coach"
+    assert called["difficulty"] == "hard"
+    assert called["language"] == "de"
+    assert called["question_limit_override"] == 3
+    assert called["pass_threshold_override"] == 7.2
+
+    captured = capsys.readouterr()
+    assert '"mode": "benchmark"' in captured.out
+
+
+def test_benchmark_mode_defaults_candidate_prompt_to_interviewer(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--benchmark",
+            "--system-prompt",
+            "behavioral_focus",
+        ],
+    )
+
+    descriptor = _make_descriptor("behavioral_focus", name="Behavioral Interview")
+    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["behavioral_focus"])
+    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "behavioral_focus")
+    monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: descriptor)
+
+    called = {}
+
+    def fake_run_benchmark_interview(
+        interviewer_descriptor,
+        candidate_descriptor,
+        difficulty=None,
+        language=None,
+        question_limit_override=None,
+        pass_threshold_override=None,
+        output=None,
+    ):
+        called["interviewer"] = interviewer_descriptor.id
+        called["candidate"] = candidate_descriptor.id
+        return {
+            "summary_json": {
+                "mode": "benchmark",
+                "interviewer_system_prompt": interviewer_descriptor.id,
+                "candidate_system_prompt": candidate_descriptor.id,
+            },
+            "conversation": [],
+        }
+
+    monkeypatch.setattr(main, "run_benchmark_interview", fake_run_benchmark_interview)
+
+    exit_code = main.main()
+
+    assert exit_code == 0
+    assert called["interviewer"] == "behavioral_focus"
+    assert called["candidate"] == "behavioral_focus"
+
+    captured = capsys.readouterr()
+    assert '"candidate_system_prompt": "behavioral_focus"' in captured.out
