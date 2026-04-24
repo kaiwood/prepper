@@ -33,6 +33,25 @@ The API runs at `http://127.0.0.1:5000`.
 
 The backend uses the local `prepper-cli` package for all OpenRouter calls.
 
+## Backend Debug Mode
+
+The backend supports a debug logging mode that captures detailed request/response diagnostics from `prepper-cli`, including raw model output traces.
+
+Enable it by setting `LOG_LEVEL=DEBUG` before starting the backend:
+
+```bash
+cd backend
+LOG_LEVEL=DEBUG python run.py
+```
+
+With debug mode enabled:
+
+- Debug logs are written to `backend/logs/backend.log`.
+- The same debug entries are emitted to the console stream.
+- API response payloads are unchanged (debug diagnostics are logged, not returned to clients).
+
+When `LOG_LEVEL` is not set, the backend defaults to `INFO` logging.
+
 ## Prompt Tuning Settings
 
 Every bundled system prompt file includes a YAML front matter block that controls how the LLM responds. These settings are applied automatically when a prompt is selected — no manual tuning is required.

@@ -1,3 +1,5 @@
+from typing import Any
+
 from .client import get_client
 from .conversation import Conversation
 
@@ -17,7 +19,8 @@ def _request_chat_reply(
     frequency_penalty: float | None = None,
     presence_penalty: float | None = None,
     max_tokens: int | None = None,
-) -> str:
+    include_diagnostics: bool = False,
+) -> str | tuple[str, dict[str, Any]]:
     client, model = get_client()
 
     kwargs: dict = {"model": model, "messages": messages}
@@ -34,8 +37,42 @@ def _request_chat_reply(
 
     response = client.chat.completions.create(**kwargs)
 
-    reply = response.choices[0].message.content
-    return (reply or "").strip()
+    raw_reply = response.choices[0].message.content or ""
+    normalized_reply = raw_reply.strip()
+
+    if not include_diagnostics:
+        return normalized_reply
+
+    return normalized_reply, {
+        "request": {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "top_p": top_p,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
+            "max_tokens": max_tokens,
+        },
+        "raw_response": _serialize_response(response),
+        "raw_reply": raw_reply,
+        "normalized_reply": normalized_reply,
+    }
+
+
+def _serialize_response(response: Any) -> Any:
+    if hasattr(response, "model_dump") and callable(response.model_dump):
+        try:
+            return response.model_dump()
+        except Exception:
+            pass
+
+    if hasattr(response, "dict") and callable(response.dict):
+        try:
+            return response.dict()
+        except Exception:
+            pass
+
+    return str(response)
 
 
 def _build_language_prompt(language: str | None) -> str | None:
@@ -82,7 +119,8 @@ def get_chat_reply(
     presence_penalty: float | None = None,
     max_tokens: int | None = None,
     conversation_reply_override: str | None = None,
-) -> str:
+    include_diagnostics: bool = False,
+) -> str | tuple[str, dict[str, Any]]:
     prompt = message.strip()
     if not prompt:
         raise ValueError("message is required")
@@ -96,14 +134,21 @@ def get_chat_reply(
     messages = _prepend_system_prompts(
         messages, language=language, system_prompt=system_prompt)
 
-    normalized_reply = _request_chat_reply(
+    chat_result = _request_chat_reply(
         messages,
         temperature=temperature,
         top_p=top_p,
         frequency_penalty=frequency_penalty,
         presence_penalty=presence_penalty,
         max_tokens=max_tokens,
+        include_diagnostics=include_diagnostics,
     )
+
+    diagnostics = None
+    if include_diagnostics:
+        normalized_reply, diagnostics = chat_result
+    else:
+        normalized_reply = chat_result
 
     if conversation is not None:
         conversation.add_user_message(prompt)
@@ -112,6 +157,10 @@ def get_chat_reply(
             if conversation_reply_override is not None
             else normalized_reply
         )
+
+    if include_diagnostics and diagnostics is not None:
+        diagnostics["conversation_updated"] = conversation is not None
+        return normalized_reply, diagnostics
 
     return normalized_reply
 
@@ -124,7 +173,8 @@ def get_interview_opener(
     frequency_penalty: float | None = None,
     presence_penalty: float | None = None,
     max_tokens: int | None = None,
-) -> str:
+    include_diagnostics: bool = False,
+) -> str | tuple[str, dict[str, Any]]:
     messages = [{"role": "user", "content": _INTERVIEW_OPENER_MESSAGE}]
     messages = _prepend_system_prompts(
         messages, language=language, system_prompt=system_prompt)
@@ -136,4 +186,5 @@ def get_interview_opener(
         frequency_penalty=frequency_penalty,
         presence_penalty=presence_penalty,
         max_tokens=max_tokens,
+        include_diagnostics=include_diagnostics,
     )

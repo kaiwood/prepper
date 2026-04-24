@@ -186,6 +186,52 @@ def classify_assistant_turn(message: str, language: str | None) -> str:
     return "question" if normalized.startswith("QUESTION") else "other"
 
 
+def classify_assistant_turn_with_diagnostics(
+    message: str,
+    language: str | None,
+) -> tuple[str, dict[str, Any]]:
+    text = (message or "").strip()
+    if not text:
+        return "other", {"reason": "empty_message", "fallback": "rule_based"}
+
+    classifier_input = (
+        "Interviewer message:\n"
+        f"{text}\n\n"
+        "Answer with one token only: QUESTION or OTHER."
+    )
+
+    try:
+        result, chat_diagnostics = get_chat_reply(
+            classifier_input,
+            system_prompt=_ROUNDTRIP_CLASSIFIER_PROMPT,
+            language=language,
+            temperature=0.0,
+            top_p=1.0,
+            frequency_penalty=0.0,
+            presence_penalty=0.0,
+            max_tokens=8,
+            include_diagnostics=True,
+        )
+    except Exception as exc:
+        lowered = text.lower()
+        fallback = "question" if lowered.startswith(
+            ("can you", "what", "how", "why", "tell me", "walk me")
+        ) or ":" in lowered else "other"
+        return fallback, {
+            "reason": "classifier_exception",
+            "fallback": "rule_based",
+            "error": str(exc),
+        }
+
+    normalized = result.strip().upper()
+    classification = "question" if normalized.startswith("QUESTION") else "other"
+    return classification, {
+        "classifier_reply": result,
+        "classification": classification,
+        "llm": chat_diagnostics,
+    }
+
+
 def count_scored_questions(
     conversation: Conversation | None,
     language: str | None,
@@ -294,6 +340,31 @@ def score_interview(
     return parse_scoring_payload(score_raw, descriptor, pass_threshold)
 
 
+def score_interview_with_diagnostics(
+    conversation: Conversation,
+    descriptor: PromptDescriptor,
+    language: str | None,
+    pass_threshold: float,
+) -> tuple[dict, dict[str, Any]]:
+    score_raw, chat_diagnostics = get_chat_reply(
+        build_scoring_input(conversation),
+        system_prompt=build_scoring_system_prompt(descriptor),
+        language=language,
+        temperature=0.0,
+        top_p=1.0,
+        frequency_penalty=0.0,
+        presence_penalty=0.0,
+        max_tokens=300,
+        include_diagnostics=True,
+    )
+    parsed = parse_scoring_payload(score_raw, descriptor, pass_threshold)
+    return parsed, {
+        "raw_reply": score_raw,
+        "llm": chat_diagnostics,
+        "parsed": parsed,
+    }
+
+
 def run_interview_turn(
     message: str,
     conversation: Conversation | None,
@@ -303,7 +374,10 @@ def run_interview_turn(
     pass_threshold: float,
     model_settings: dict[str, float | int],
     difficulty: str | None = None,
+    include_diagnostics: bool = False,
 ) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {}
+
     prior_question_count = count_scored_questions(conversation, language)
 
     system_prompt = descriptor.content + build_metadata_contract_instruction()
@@ -315,20 +389,37 @@ def run_interview_turn(
         question_limit,
     )
 
-    raw_reply = get_chat_reply(
-        message,
-        conversation=conversation,
-        system_prompt=system_prompt,
-        language=language,
-        temperature=model_settings["temperature"],
-        top_p=model_settings["top_p"],
-        frequency_penalty=model_settings["frequency_penalty"],
-        presence_penalty=model_settings["presence_penalty"],
-        max_tokens=model_settings["max_tokens"],
-    )
+    if include_diagnostics:
+        raw_reply, chat_diagnostics = get_chat_reply(
+            message,
+            conversation=conversation,
+            system_prompt=system_prompt,
+            language=language,
+            temperature=model_settings["temperature"],
+            top_p=model_settings["top_p"],
+            frequency_penalty=model_settings["frequency_penalty"],
+            presence_penalty=model_settings["presence_penalty"],
+            max_tokens=model_settings["max_tokens"],
+            include_diagnostics=True,
+        )
+        diagnostics["turn_chat"] = chat_diagnostics
+    else:
+        raw_reply = get_chat_reply(
+            message,
+            conversation=conversation,
+            system_prompt=system_prompt,
+            language=language,
+            temperature=model_settings["temperature"],
+            top_p=model_settings["top_p"],
+            frequency_penalty=model_settings["frequency_penalty"],
+            presence_penalty=model_settings["presence_penalty"],
+            max_tokens=model_settings["max_tokens"],
+        )
 
     parsed_reply = parse_reply_metadata(raw_reply)
     clean_reply = parsed_reply["reply"]
+    diagnostics["raw_turn_reply"] = raw_reply
+    diagnostics["parsed_turn_reply"] = parsed_reply
     if conversation is not None:
         # Persist clean assistant text to conversation history so metadata does not leak into context.
         conversation.replace_last_assistant_reply(clean_reply)
@@ -341,7 +432,14 @@ def run_interview_turn(
         turn_type = "question" if raw_turn_type.upper() == "QUESTION" else "other"
 
     if turn_type is None:
-        turn_type = classify_assistant_turn(clean_reply, language)
+        if include_diagnostics:
+            turn_type, classify_diagnostics = classify_assistant_turn_with_diagnostics(
+                clean_reply,
+                language,
+            )
+            diagnostics["turn_classifier"] = classify_diagnostics
+        else:
+            turn_type = classify_assistant_turn(clean_reply, language)
 
     count_after = prior_question_count + (1 if turn_type == "question" else 0)
 
@@ -361,14 +459,23 @@ def run_interview_turn(
             ]
         )
 
-        final_result = score_interview(
-            scoring_conversation,
-            descriptor,
-            language,
-            pass_threshold,
-        )
+        if include_diagnostics:
+            final_result, score_diagnostics = score_interview_with_diagnostics(
+                scoring_conversation,
+                descriptor,
+                language,
+                pass_threshold,
+            )
+            diagnostics["final_scoring"] = score_diagnostics
+        else:
+            final_result = score_interview(
+                scoring_conversation,
+                descriptor,
+                language,
+                pass_threshold,
+            )
 
-    return {
+    result = {
         "reply": clean_reply,
         "turn_type": turn_type,
         "question_count": count_after,
@@ -378,3 +485,8 @@ def run_interview_turn(
         "metadata_warning": not parsed_reply["metadata_valid"],
         "final_result": final_result,
     }
+
+    if include_diagnostics:
+        result["debug"] = diagnostics
+
+    return result
