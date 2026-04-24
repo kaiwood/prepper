@@ -63,7 +63,7 @@ def create_app():
     limiter.init_app(app)
 
     from .routes.health import health_bp
-    from .routes.llm import llm_bp
+    from .routes.chat import llm_bp
     from .routes.prompts import prompts_bp
 
     app.register_blueprint(health_bp)

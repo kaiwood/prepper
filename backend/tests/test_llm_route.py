@@ -22,7 +22,7 @@ def test_chat_uses_default_system_prompt(monkeypatch):
     default_descriptor = _make_descriptor(
         "coding_focus", name="Coding Interview")
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: default_descriptor,
     )
 
@@ -46,7 +46,7 @@ def test_chat_uses_default_system_prompt(monkeypatch):
         captured["temperature"] = temperature
         return "ok"
 
-    monkeypatch.setattr("app.routes.llm.get_chat_reply", fake_get_chat_reply)
+    monkeypatch.setattr("app.routes.chat.get_chat_reply", fake_get_chat_reply)
 
     response = client.post("/api/chat", json={"message": "hello"})
 
@@ -86,8 +86,8 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
         return "ok"
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor", fake_resolver)
-    monkeypatch.setattr("app.routes.llm.get_chat_reply", fake_get_chat_reply)
+        "app.routes.chat.resolve_prompt_descriptor", fake_resolver)
+    monkeypatch.setattr("app.routes.chat.get_chat_reply", fake_get_chat_reply)
 
     response = client.post(
         "/api/chat",
@@ -111,7 +111,7 @@ def test_chat_allows_model_setting_overrides(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("coding_focus"),
     )
 
@@ -136,7 +136,7 @@ def test_chat_allows_model_setting_overrides(monkeypatch):
         captured["max_tokens"] = max_tokens
         return "ok"
 
-    monkeypatch.setattr("app.routes.llm.get_chat_reply", fake_get_chat_reply)
+    monkeypatch.setattr("app.routes.chat.get_chat_reply", fake_get_chat_reply)
 
     response = client.post(
         "/api/chat",
@@ -165,7 +165,7 @@ def test_chat_rejects_invalid_selected_system_prompt(monkeypatch):
         raise ValueError("Unknown system prompt 'missing'")
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor", bad_resolver)
+        "app.routes.chat.resolve_prompt_descriptor", bad_resolver)
 
     response = client.post(
         "/api/chat",
@@ -181,7 +181,7 @@ def test_chat_rejects_invalid_model_setting(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("coding_focus"),
     )
 
@@ -202,7 +202,7 @@ def test_chat_returns_502_when_default_prompt_resolution_fails(monkeypatch):
         raise ValueError("Unknown system prompt 'missing'")
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor", bad_resolver)
+        "app.routes.chat.resolve_prompt_descriptor", bad_resolver)
 
     response = client.post("/api/chat", json={"message": "hello"})
 
@@ -269,7 +269,7 @@ def test_chat_rejects_non_string_difficulty(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("coding_focus", difficulty_enabled=True),
     )
 
@@ -284,7 +284,7 @@ def test_chat_rejects_invalid_difficulty_value(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("coding_focus", difficulty_enabled=True),
     )
 
@@ -304,7 +304,7 @@ def test_chat_rejects_difficulty_for_unsupported_prompt(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("behavioral_focus", difficulty_enabled=False),
     )
 
@@ -335,11 +335,11 @@ def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
         easy_pass_threshold=6.5,
     )
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: descriptor,
     )
-    monkeypatch.setattr("app.routes.llm.count_scored_questions", lambda *_: 1)
-    monkeypatch.setattr("app.routes.llm.classify_assistant_turn", lambda *_: "other")
+    monkeypatch.setattr("app.routes.chat.count_scored_questions", lambda *_: 1)
+    monkeypatch.setattr("app.routes.chat.classify_assistant_turn", lambda *_: "other")
 
     captured = {}
 
@@ -361,8 +361,8 @@ def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
             "parse_warning": False,
         }
 
-    monkeypatch.setattr("app.routes.llm.get_chat_reply", fake_get_chat_reply)
-    monkeypatch.setattr("app.routes.llm.score_interview", fakescore_interview)
+    monkeypatch.setattr("app.routes.chat.get_chat_reply", fake_get_chat_reply)
+    monkeypatch.setattr("app.routes.chat.score_interview", fakescore_interview)
 
     response = client.post(
         "/api/chat",
@@ -383,7 +383,7 @@ def test_chat_start_includes_difficulty_instruction(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor(
             "coding_focus",
             difficulty_enabled=True,
@@ -406,7 +406,7 @@ def test_chat_start_includes_difficulty_instruction(monkeypatch):
         captured["system_prompt"] = system_prompt
         return "opening question"
 
-    monkeypatch.setattr("app.routes.llm.get_interview_opener", fake_get_interview_opener)
+    monkeypatch.setattr("app.routes.chat.get_interview_opener", fake_get_interview_opener)
 
     response = client.post("/api/chat/start", json={"difficulty": "hard"})
 
@@ -419,7 +419,7 @@ def test_chat_rejects_non_integer_max_question_roundtrips(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("coding_focus"),
     )
 
@@ -439,7 +439,7 @@ def test_chat_rejects_out_of_range_max_question_roundtrips(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor(
             "coding_focus",
             interview_rating_enabled=True,
@@ -464,7 +464,7 @@ def test_chat_returns_interview_status_when_rating_enabled(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor(
             "coding_focus",
             interview_rating_enabled=True,
@@ -473,9 +473,9 @@ def test_chat_returns_interview_status_when_rating_enabled(monkeypatch):
             rubric_criteria=("Problem understanding", "Communication"),
         ),
     )
-    monkeypatch.setattr("app.routes.llm.count_scored_questions", lambda *_: 2)
-    monkeypatch.setattr("app.routes.llm.classify_assistant_turn", lambda *_: "question")
-    monkeypatch.setattr("app.routes.llm.get_chat_reply", lambda *args, **kwargs: "What would you optimize next?")
+    monkeypatch.setattr("app.routes.chat.count_scored_questions", lambda *_: 2)
+    monkeypatch.setattr("app.routes.chat.classify_assistant_turn", lambda *_: "question")
+    monkeypatch.setattr("app.routes.chat.get_chat_reply", lambda *args, **kwargs: "What would you optimize next?")
 
     response = client.post(
         "/api/chat",
@@ -501,7 +501,7 @@ def test_chat_returns_rating_when_interview_completed(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor(
             "coding_focus",
             interview_rating_enabled=True,
@@ -510,11 +510,11 @@ def test_chat_returns_rating_when_interview_completed(monkeypatch):
             rubric_criteria=("Problem understanding", "Communication"),
         ),
     )
-    monkeypatch.setattr("app.routes.llm.count_scored_questions", lambda *_: 5)
-    monkeypatch.setattr("app.routes.llm.classify_assistant_turn", lambda *_: "other")
-    monkeypatch.setattr("app.routes.llm.get_chat_reply", lambda *args, **kwargs: "Thanks, that concludes the interview.")
+    monkeypatch.setattr("app.routes.chat.count_scored_questions", lambda *_: 5)
+    monkeypatch.setattr("app.routes.chat.classify_assistant_turn", lambda *_: "other")
+    monkeypatch.setattr("app.routes.chat.get_chat_reply", lambda *args, **kwargs: "Thanks, that concludes the interview.")
     monkeypatch.setattr(
-        "app.routes.llm.score_interview",
+        "app.routes.chat.score_interview",
         lambda *_: {
             "overall_score": 8.2,
             "pass_threshold": 7.0,
@@ -553,7 +553,7 @@ def test_chat_start_uses_default_system_prompt(monkeypatch):
     default_descriptor = _make_descriptor(
         "coding_focus", name="Coding Interview")
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: default_descriptor,
     )
 
@@ -573,7 +573,7 @@ def test_chat_start_uses_default_system_prompt(monkeypatch):
         captured["temperature"] = temperature
         return "opening question"
 
-    monkeypatch.setattr("app.routes.llm.get_interview_opener",
+    monkeypatch.setattr("app.routes.chat.get_interview_opener",
                         fake_get_interview_opener)
 
     response = client.post("/api/chat/start", json={})
@@ -609,8 +609,8 @@ def test_chat_start_accepts_selected_system_prompt(monkeypatch):
         return "opening question"
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor", fake_resolver)
-    monkeypatch.setattr("app.routes.llm.get_interview_opener",
+        "app.routes.chat.resolve_prompt_descriptor", fake_resolver)
+    monkeypatch.setattr("app.routes.chat.get_interview_opener",
                         fake_get_interview_opener)
 
     response = client.post(
@@ -630,7 +630,7 @@ def test_chat_start_allows_model_setting_overrides(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("coding_focus"),
     )
 
@@ -652,7 +652,7 @@ def test_chat_start_allows_model_setting_overrides(monkeypatch):
         captured["max_tokens"] = max_tokens
         return "opening question"
 
-    monkeypatch.setattr("app.routes.llm.get_interview_opener", fake_get_interview_opener)
+    monkeypatch.setattr("app.routes.chat.get_interview_opener", fake_get_interview_opener)
 
     response = client.post(
         "/api/chat/start",
@@ -677,7 +677,7 @@ def test_chat_start_rejects_non_numeric_model_setting(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("coding_focus"),
     )
 
@@ -698,7 +698,7 @@ def test_chat_start_rejects_invalid_selected_system_prompt(monkeypatch):
         raise ValueError("Unknown system prompt 'missing'")
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor", bad_resolver)
+        "app.routes.chat.resolve_prompt_descriptor", bad_resolver)
 
     response = client.post(
         "/api/chat/start",
@@ -714,7 +714,7 @@ def test_chat_start_returns_502_when_llm_request_fails(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("coding_focus"),
     )
 
@@ -729,7 +729,7 @@ def test_chat_start_returns_502_when_llm_request_fails(monkeypatch):
     ):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("app.routes.llm.get_interview_opener",
+    monkeypatch.setattr("app.routes.chat.get_interview_opener",
                         fake_get_interview_opener)
 
     response = client.post("/api/chat/start", json={})
@@ -764,10 +764,10 @@ def test_chat_rate_limit_exceeded(monkeypatch):
     client = app.test_client()
 
     monkeypatch.setattr(
-        "app.routes.llm.resolve_prompt_descriptor",
+        "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: _make_descriptor("coding_focus", name="Coding Interview"),
     )
-    monkeypatch.setattr("app.routes.llm.get_chat_reply", lambda *args, **kwargs: "ok")
+    monkeypatch.setattr("app.routes.chat.get_chat_reply", lambda *args, **kwargs: "ok")
 
     for _ in range(10):
         response = client.post("/api/chat", json={"message": "hello"})
