@@ -227,15 +227,15 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
                          top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=800),
     ]
     monkeypatch.setattr(
-        "app.routes.llm.list_prompt_descriptors",
+        "app.routes.prompts.list_prompt_descriptors",
         lambda: descriptors,
     )
     monkeypatch.setattr(
-        "app.routes.llm.list_system_prompt_names",
+        "app.routes.prompts.list_system_prompt_names",
         lambda: ["behavioral_focus", "coding_focus", "interview_coach"],
     )
     monkeypatch.setattr(
-        "app.routes.llm.get_default_system_prompt_name",
+        "app.routes.prompts.get_default_system_prompt_name",
         lambda: "coding_focus",
     )
 
