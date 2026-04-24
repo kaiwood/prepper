@@ -181,7 +181,7 @@ def test_run_interview_turn_returns_debug_diagnostics_when_enabled(monkeypatch):
     assert "raw_turn_reply" in result["debug"]
 
 
-def test_run_interview_turn_forces_goodbye_when_limit_reached_without_valid_closing(
+def test_run_interview_turn_preserves_final_question_before_closing(
     monkeypatch,
 ):
     descriptor = _descriptor(default_question_roundtrips=1)
@@ -219,6 +219,10 @@ def test_run_interview_turn_forces_goodbye_when_limit_reached_without_valid_clos
         )
 
     monkeypatch.setattr("prepper_cli.interview.get_chat_reply", fake_get_chat_reply)
+    monkeypatch.setattr(
+        "prepper_cli.interview.classify_assistant_turn",
+        lambda *_: "question",
+    )
 
     result = run_interview_turn(
         message="Here is my answer",
@@ -236,19 +240,39 @@ def test_run_interview_turn_forces_goodbye_when_limit_reached_without_valid_clos
         },
     )
 
-    assert result["interview_complete"] is True
-    assert result["turn_type"] == "other"
-    assert result["reply"].startswith("Thanks for your time today")
+    assert result["interview_complete"] is False
+    assert result["turn_type"] == "question"
+    assert result["reply"].startswith("Can you explain your approach")
     assert result["question_count"] == 1
     assert result["metadata_warning"] is False
 
     messages = conversation.get_messages()
     assert messages[-1]["role"] == "assistant"
-    assert messages[-1]["content"].startswith("Thanks for your time today")
+    assert messages[-1]["content"].startswith("Can you explain your approach")
     assert "[PREPPER_JSON]" not in messages[-1]["content"]
 
+    closing_result = run_interview_turn(
+        message="My answer to that final question",
+        conversation=conversation,
+        descriptor=descriptor,
+        language=None,
+        question_limit=1,
+        pass_threshold=7.0,
+        model_settings={
+            "temperature": 0.3,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 300,
+        },
+    )
 
-def test_run_interview_turn_uses_fallback_goodbye_when_forced_close_metadata_invalid(
+    assert closing_result["interview_complete"] is True
+    assert closing_result["turn_type"] == "other"
+    assert closing_result["reply"].startswith("Thanks for your time today")
+
+
+def test_run_interview_turn_uses_fallback_goodbye_when_post_limit_close_metadata_invalid(
     monkeypatch,
 ):
     descriptor = _descriptor(default_question_roundtrips=1)
@@ -283,6 +307,10 @@ def test_run_interview_turn_uses_fallback_goodbye_when_forced_close_metadata_inv
         return "Closing without metadata"
 
     monkeypatch.setattr("prepper_cli.interview.get_chat_reply", fake_get_chat_reply)
+    monkeypatch.setattr(
+        "prepper_cli.interview.classify_assistant_turn",
+        lambda *_: "question",
+    )
 
     result = run_interview_turn(
         message="Here is my answer",
@@ -300,10 +328,31 @@ def test_run_interview_turn_uses_fallback_goodbye_when_forced_close_metadata_inv
         },
     )
 
-    assert result["interview_complete"] is True
-    assert result["turn_type"] == "other"
-    assert result["reply"] == "Thank you for your time today. The interview is now over."
-    assert result["metadata_warning"] is True
+    assert result["interview_complete"] is False
+    assert result["turn_type"] == "question"
+    assert result["reply"] == "Follow-up question"
+    assert result["metadata_warning"] is False
+
+    result_after_final_answer = run_interview_turn(
+        message="Final answer",
+        conversation=conversation,
+        descriptor=descriptor,
+        language=None,
+        question_limit=1,
+        pass_threshold=7.0,
+        model_settings={
+            "temperature": 0.3,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 300,
+        },
+    )
+
+    assert result_after_final_answer["interview_complete"] is True
+    assert result_after_final_answer["turn_type"] == "other"
+    assert result_after_final_answer["reply"] == "Thank you for your time today. The interview is now over."
+    assert result_after_final_answer["metadata_warning"] is True
 
     messages = conversation.get_messages()
     assert messages[-1]["content"] == "Thank you for your time today. The interview is now over."
