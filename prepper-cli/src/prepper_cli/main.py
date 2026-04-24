@@ -58,6 +58,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run benchmark mode with simulated candidate responses (required for benchmark-only options)",
     )
+    parser.add_argument(
+        "--color",
+        action="store_true",
+        help="Benchmark-only: enable colorized benchmark transcript output",
+    )
     candidate_group = parser.add_mutually_exclusive_group()
     candidate_group.add_argument(
         "--good-candidate",
@@ -78,6 +83,8 @@ def _validate_benchmark_candidate_flags(
 ) -> None:
     if (args.good_candidate or args.bad_candidate) and not args.benchmark:
         parser.error("--good-candidate/--bad-candidate require --benchmark")
+    if args.color and not args.benchmark:
+        parser.error("--color requires --benchmark")
 
 
 def _resolve_system_prompt_name(selected_name: str | None) -> str:
@@ -229,9 +236,12 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         question_limit_override=args.question_limit,
         pass_threshold_override=args.pass_threshold,
         candidate_profile=candidate_profile,
+        enable_color=args.color,
     )
 
-    print(json.dumps(result["summary_json"], ensure_ascii=True))
+    # Benchmark mode prints the conversational transcript/final score from the
+    # benchmark runner; keep the machine-readable summary internal.
+    _ = result["summary_json"]
     return 0
 
 
