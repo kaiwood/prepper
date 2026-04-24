@@ -179,3 +179,132 @@ def test_run_interview_turn_returns_debug_diagnostics_when_enabled(monkeypatch):
     assert "debug" in result
     assert "turn_chat" in result["debug"]
     assert "raw_turn_reply" in result["debug"]
+
+
+def test_run_interview_turn_forces_goodbye_when_limit_reached_without_valid_closing(
+    monkeypatch,
+):
+    descriptor = _descriptor(default_question_roundtrips=1)
+    conversation = Conversation.from_messages([])
+    calls = {"count": 0}
+
+    def fake_get_chat_reply(*args, **kwargs):
+        message = args[0]
+        calls["count"] += 1
+
+        if "Score this interview transcript" in message:
+            return (
+                "{\"overall_score\":8.2,\"criterion_scores\":{\"Problem understanding\":8.0,"
+                "\"Communication\":8.4},\"strengths\":[\"Clear reasoning\"],"
+                "\"improvements\":[\"More edge cases\"]}"
+            )
+
+        if calls["count"] == 1:
+            active_conversation = kwargs.get("conversation")
+            if active_conversation is not None:
+                active_conversation.add_user_message(message)
+                active_conversation.add_assistant_reply(
+                    "Can you explain your approach in more detail?\n"
+                    "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+                )
+            return (
+                "Can you explain your approach in more detail?\n"
+                "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+            )
+
+        assert kwargs.get("conversation") is None
+        return (
+            "Thanks for your time today. The interview is now over.\n"
+            "[PREPPER_JSON] {\"turn_type\":\"OTHER\",\"interview_complete\":true}"
+        )
+
+    monkeypatch.setattr("prepper_cli.interview.get_chat_reply", fake_get_chat_reply)
+
+    result = run_interview_turn(
+        message="Here is my answer",
+        conversation=conversation,
+        descriptor=descriptor,
+        language=None,
+        question_limit=1,
+        pass_threshold=7.0,
+        model_settings={
+            "temperature": 0.3,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 300,
+        },
+    )
+
+    assert result["interview_complete"] is True
+    assert result["turn_type"] == "other"
+    assert result["reply"].startswith("Thanks for your time today")
+    assert result["question_count"] == 1
+    assert result["metadata_warning"] is False
+
+    messages = conversation.get_messages()
+    assert messages[-1]["role"] == "assistant"
+    assert messages[-1]["content"].startswith("Thanks for your time today")
+    assert "[PREPPER_JSON]" not in messages[-1]["content"]
+
+
+def test_run_interview_turn_uses_fallback_goodbye_when_forced_close_metadata_invalid(
+    monkeypatch,
+):
+    descriptor = _descriptor(default_question_roundtrips=1)
+    conversation = Conversation.from_messages([])
+    calls = {"count": 0}
+
+    def fake_get_chat_reply(*args, **kwargs):
+        message = args[0]
+        calls["count"] += 1
+
+        if "Score this interview transcript" in message:
+            return (
+                "{\"overall_score\":7.0,\"criterion_scores\":{\"Problem understanding\":7.0,"
+                "\"Communication\":7.0},\"strengths\":[\"Structured\"],"
+                "\"improvements\":[\"Depth\"]}"
+            )
+
+        if calls["count"] == 1:
+            active_conversation = kwargs.get("conversation")
+            if active_conversation is not None:
+                active_conversation.add_user_message(message)
+                active_conversation.add_assistant_reply(
+                    "Follow-up question\n"
+                    "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+                )
+            return (
+                "Follow-up question\n"
+                "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+            )
+
+        assert kwargs.get("conversation") is None
+        return "Closing without metadata"
+
+    monkeypatch.setattr("prepper_cli.interview.get_chat_reply", fake_get_chat_reply)
+
+    result = run_interview_turn(
+        message="Here is my answer",
+        conversation=conversation,
+        descriptor=descriptor,
+        language=None,
+        question_limit=1,
+        pass_threshold=7.0,
+        model_settings={
+            "temperature": 0.3,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 300,
+        },
+    )
+
+    assert result["interview_complete"] is True
+    assert result["turn_type"] == "other"
+    assert result["reply"] == "Thank you for your time today. The interview is now over."
+    assert result["metadata_warning"] is True
+
+    messages = conversation.get_messages()
+    assert messages[-1]["content"] == "Thank you for your time today. The interview is now over."
+    assert "[PREPPER_JSON]" not in messages[-1]["content"]

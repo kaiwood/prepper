@@ -13,6 +13,7 @@ _ROUNDTRIP_CLASSIFIER_PROMPT = (
 )
 _METADATA_PREFIX = "[PREPPER_JSON]"
 _VALID_TURN_TYPES = {"QUESTION", "OTHER"}
+_FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
 
 
 def extract_json_object(raw: str) -> dict:
@@ -124,6 +125,19 @@ def build_runtime_interview_instruction(
     )
 
 
+def build_forced_closing_instruction(
+    question_count: int,
+    question_limit: int,
+) -> str:
+    return (
+        "\n\nRuntime override: The interview must end now because the scored question "
+        f"roundtrip limit has been reached ({question_count}/{question_limit}). "
+        "Do not ask any new question. Provide a brief closing statement that clearly says "
+        "the interview is now over and thanks the candidate. "
+        "End with metadata using turn_type OTHER and interview_complete true."
+    )
+
+
 def parse_reply_metadata(raw_reply: str) -> dict[str, Any]:
     text = (raw_reply or "").strip()
     if not text:
@@ -149,6 +163,103 @@ def parse_reply_metadata(raw_reply: str) -> dict[str, Any]:
         "reply": reply_text,
         "metadata": metadata,
         "metadata_valid": bool(metadata),
+    }
+
+
+def _resolve_turn_type(
+    metadata: dict[str, Any],
+    reply: str,
+    language: str | None,
+    include_diagnostics: bool,
+) -> tuple[str, dict[str, Any] | None]:
+    raw_turn_type = metadata.get("turn_type")
+    if isinstance(raw_turn_type, str) and raw_turn_type.upper() in _VALID_TURN_TYPES:
+        turn_type = "question" if raw_turn_type.upper() == "QUESTION" else "other"
+        return turn_type, None
+
+    if include_diagnostics:
+        turn_type, classify_diagnostics = classify_assistant_turn_with_diagnostics(
+            reply,
+            language,
+        )
+        return turn_type, classify_diagnostics
+
+    return classify_assistant_turn(reply, language), None
+
+
+def request_forced_closing_turn(
+    descriptor: PromptDescriptor,
+    language: str | None,
+    model_settings: dict[str, float | int],
+    question_count: int,
+    question_limit: int,
+    difficulty: str | None = None,
+    include_diagnostics: bool = False,
+) -> dict[str, Any]:
+    system_prompt = descriptor.content + build_metadata_contract_instruction()
+    if difficulty is not None:
+        system_prompt += build_difficulty_instruction(difficulty)
+    system_prompt += build_forced_closing_instruction(question_count, question_limit)
+
+    override_message = (
+        "Runtime override: end the interview now and provide the final closing statement."
+    )
+
+    diagnostics: dict[str, Any] = {}
+    if include_diagnostics:
+        raw_reply, chat_diagnostics = get_chat_reply(
+            override_message,
+            conversation=None,
+            system_prompt=system_prompt,
+            language=language,
+            temperature=model_settings["temperature"],
+            top_p=model_settings["top_p"],
+            frequency_penalty=model_settings["frequency_penalty"],
+            presence_penalty=model_settings["presence_penalty"],
+            max_tokens=model_settings["max_tokens"],
+            include_diagnostics=True,
+        )
+        diagnostics["turn_chat"] = chat_diagnostics
+    else:
+        raw_reply = get_chat_reply(
+            override_message,
+            conversation=None,
+            system_prompt=system_prompt,
+            language=language,
+            temperature=model_settings["temperature"],
+            top_p=model_settings["top_p"],
+            frequency_penalty=model_settings["frequency_penalty"],
+            presence_penalty=model_settings["presence_penalty"],
+            max_tokens=model_settings["max_tokens"],
+        )
+
+    parsed_reply = parse_reply_metadata(raw_reply)
+    clean_reply = parsed_reply["reply"] or _FALLBACK_CLOSING_REPLY
+    metadata = parsed_reply["metadata"] if isinstance(parsed_reply["metadata"], dict) else {}
+
+    if not parsed_reply["metadata_valid"]:
+        clean_reply = _FALLBACK_CLOSING_REPLY
+        turn_type = "other"
+    else:
+        turn_type, classify_diagnostics = _resolve_turn_type(
+            metadata,
+            clean_reply,
+            language,
+            include_diagnostics,
+        )
+        if include_diagnostics and classify_diagnostics is not None:
+            diagnostics["turn_classifier"] = classify_diagnostics
+
+    if include_diagnostics:
+        diagnostics["raw_turn_reply"] = raw_reply
+        diagnostics["parsed_turn_reply"] = parsed_reply
+
+    return {
+        "reply": clean_reply,
+        "turn_type": turn_type,
+        "metadata_valid": parsed_reply["metadata_valid"],
+        "metadata": metadata,
+        "diagnostics": diagnostics,
     }
 
 
@@ -426,29 +537,55 @@ def run_interview_turn(
 
     metadata = parsed_reply["metadata"] if isinstance(parsed_reply["metadata"], dict) else {}
 
-    turn_type = None
-    raw_turn_type = metadata.get("turn_type")
-    if isinstance(raw_turn_type, str) and raw_turn_type.upper() in _VALID_TURN_TYPES:
-        turn_type = "question" if raw_turn_type.upper() == "QUESTION" else "other"
-
-    if turn_type is None:
-        if include_diagnostics:
-            turn_type, classify_diagnostics = classify_assistant_turn_with_diagnostics(
-                clean_reply,
-                language,
-            )
-            diagnostics["turn_classifier"] = classify_diagnostics
-        else:
-            turn_type = classify_assistant_turn(clean_reply, language)
+    turn_type, classify_diagnostics = _resolve_turn_type(
+        metadata,
+        clean_reply,
+        language,
+        include_diagnostics,
+    )
+    if include_diagnostics and classify_diagnostics is not None:
+        diagnostics["turn_classifier"] = classify_diagnostics
 
     count_after = prior_question_count + (1 if turn_type == "question" else 0)
+    count_after = min(count_after, question_limit)
 
-    interview_complete = metadata.get("interview_complete")
-    if not isinstance(interview_complete, bool):
-        interview_complete = count_after >= question_limit
+    metadata_interview_complete = metadata.get("interview_complete")
+    metadata_complete = (
+        metadata_interview_complete if isinstance(metadata_interview_complete, bool) else None
+    )
+
+    reached_limit = count_after >= question_limit
+    model_provided_valid_closing = metadata_complete is True and turn_type == "other"
+    needs_forced_closing = reached_limit and not model_provided_valid_closing
+
+    metadata_warning = not parsed_reply["metadata_valid"]
+
+    if needs_forced_closing:
+        forced_turn = request_forced_closing_turn(
+            descriptor=descriptor,
+            language=language,
+            model_settings=model_settings,
+            question_count=count_after,
+            question_limit=question_limit,
+            difficulty=difficulty,
+            include_diagnostics=include_diagnostics,
+        )
+
+        clean_reply = forced_turn["reply"]
+        turn_type = forced_turn["turn_type"]
+        metadata_warning = not forced_turn["metadata_valid"]
+
+        if include_diagnostics:
+            diagnostics["forced_closing"] = forced_turn["diagnostics"]
+
+        if conversation is not None:
+            conversation.replace_last_assistant_reply(clean_reply)
+
+        interview_complete = True
     else:
+        interview_complete = metadata_complete if metadata_complete is not None else reached_limit
         # Safety guard: completion must not disagree with reached limit.
-        interview_complete = interview_complete or count_after >= question_limit
+        interview_complete = bool(interview_complete or reached_limit)
 
     final_result = None
     if interview_complete:
@@ -482,7 +619,7 @@ def run_interview_turn(
         "question_limit": question_limit,
         "interview_complete": interview_complete,
         "pass_threshold": pass_threshold,
-        "metadata_warning": not parsed_reply["metadata_valid"],
+        "metadata_warning": metadata_warning,
         "final_result": final_result,
     }
 
