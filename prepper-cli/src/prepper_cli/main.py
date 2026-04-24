@@ -2,6 +2,7 @@ import argparse
 import json
 import sys
 
+from .benchmark import run_benchmark_interview
 from .chat import get_chat_reply
 from .conversation import Conversation
 from .interview import resolve_pass_threshold, run_interview_turn
@@ -31,6 +32,35 @@ def _build_parser() -> argparse.ArgumentParser:
         "--list-system-prompts",
         action="store_true",
         help="List available system prompts and exit",
+    )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run benchmark mode with simulated candidate responses",
+    )
+    parser.add_argument(
+        "--candidate-system-prompt",
+        help="System prompt name for the simulated candidate in benchmark mode",
+    )
+    parser.add_argument(
+        "--difficulty",
+        choices=["easy", "medium", "hard"],
+        help="Interview difficulty override for benchmark mode",
+    )
+    parser.add_argument(
+        "--language",
+        choices=["en", "de"],
+        help="Language code for benchmark mode",
+    )
+    parser.add_argument(
+        "--question-limit",
+        type=int,
+        help="Question roundtrip limit override for benchmark mode",
+    )
+    parser.add_argument(
+        "--pass-threshold",
+        type=float,
+        help="Pass threshold override for benchmark mode",
     )
     return parser
 
@@ -168,6 +198,34 @@ def _run_interactive(system_prompt: str | None) -> int:
             return 1
 
 
+def _run_benchmark(args: argparse.Namespace) -> int:
+    interviewer_prompt_name = _resolve_system_prompt_name(args.system_prompt)
+
+    candidate_prompt_name = args.candidate_system_prompt
+    if candidate_prompt_name is None:
+        candidate_prompt_name = interviewer_prompt_name
+    else:
+        candidate_prompt_name = _resolve_system_prompt_name(candidate_prompt_name)
+
+    interviewer_descriptor = load_prompt_descriptor(interviewer_prompt_name)
+    candidate_descriptor = load_prompt_descriptor(candidate_prompt_name)
+
+    if args.question_limit is not None and args.question_limit <= 0:
+        raise ValueError("question_limit must be greater than 0")
+
+    result = run_benchmark_interview(
+        interviewer_descriptor=interviewer_descriptor,
+        candidate_descriptor=candidate_descriptor,
+        difficulty=args.difficulty,
+        language=args.language,
+        question_limit_override=args.question_limit,
+        pass_threshold_override=args.pass_threshold,
+    )
+
+    print(json.dumps(result["summary_json"], ensure_ascii=True))
+    return 0
+
+
 def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
@@ -176,6 +234,13 @@ def main() -> int:
         for name in list_system_prompt_names():
             print(name)
         return 0
+
+    if args.benchmark:
+        try:
+            return _run_benchmark(args)
+        except Exception as exc:  # pragma: no cover - direct CLI safety net
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
 
     if args.interactive:
         selected = args.system_prompt
