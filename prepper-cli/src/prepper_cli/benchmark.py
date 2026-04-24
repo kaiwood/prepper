@@ -65,20 +65,19 @@ def _resolve_difficulty(
     return difficulty_override
 
 
-def _build_candidate_system_prompt(candidate_prompt: str) -> str:
-    candidate_role_instruction = (
-        "You are the candidate in this mock interview benchmark. "
-        "Answer naturally as a human candidate would in an interview. "
-        "Do not act like an interviewer or coach. "
-        "Keep answers realistic, concise, and context-aware."
+def _build_candidate_system_prompt() -> str:
+    return (
+        "You are a candidate in a mock interview benchmark. "
+        "Answer the interviewer's prompts naturally and concisely as a human candidate would. "
+        "Do not act like an interviewer, coach, or evaluator. "
+        "Do not include control tags, metadata blocks, JSON, or special suffixes. "
+        "Only provide the candidate's spoken answer."
     )
-
-    return f"{candidate_prompt.strip()}\n\n{candidate_role_instruction}"
 
 
 def _generate_candidate_reply(
     interviewer_message: str,
-    candidate_descriptor: PromptDescriptor,
+    interviewer_descriptor: PromptDescriptor,
     language: str | None,
 ) -> str:
     candidate_input = (
@@ -89,20 +88,19 @@ def _generate_candidate_reply(
 
     return get_chat_reply(
         candidate_input,
-        system_prompt=_build_candidate_system_prompt(candidate_descriptor.content),
+        system_prompt=_build_candidate_system_prompt(),
         language=language,
-        temperature=candidate_descriptor.temperature,
-        top_p=candidate_descriptor.top_p,
-        frequency_penalty=candidate_descriptor.frequency_penalty,
-        presence_penalty=candidate_descriptor.presence_penalty,
-        max_tokens=candidate_descriptor.max_tokens,
+        temperature=interviewer_descriptor.temperature,
+        top_p=interviewer_descriptor.top_p,
+        frequency_penalty=interviewer_descriptor.frequency_penalty,
+        presence_penalty=interviewer_descriptor.presence_penalty,
+        max_tokens=interviewer_descriptor.max_tokens,
     )
 
 
 def _print_header(
     output: TextIO | None,
     interviewer_descriptor: PromptDescriptor,
-    candidate_descriptor: PromptDescriptor,
     difficulty: str | None,
     question_limit: int,
     pass_threshold: float,
@@ -110,7 +108,7 @@ def _print_header(
 ) -> None:
     _write_line(output, "=== Benchmark Mock Interview ===")
     _write_line(output, f"Interviewer prompt: {interviewer_descriptor.name} ({interviewer_descriptor.id})")
-    _write_line(output, f"Candidate prompt: {candidate_descriptor.name} ({candidate_descriptor.id})")
+    _write_line(output, "Candidate prompt: benchmark_candidate_default")
     _write_line(output, f"Difficulty: {difficulty or 'default'}")
     _write_line(output, f"Language: {language or 'default'}")
     _write_line(output, f"Question limit: {question_limit}")
@@ -167,7 +165,6 @@ def _print_final_result(output: TextIO | None, final_result: dict | None) -> Non
 
 def run_benchmark_interview(
     interviewer_descriptor: PromptDescriptor,
-    candidate_descriptor: PromptDescriptor,
     difficulty: str | None = None,
     language: str | None = None,
     question_limit_override: int | None = None,
@@ -195,7 +192,6 @@ def run_benchmark_interview(
     _print_header(
         output,
         interviewer_descriptor,
-        candidate_descriptor,
         resolved_difficulty,
         question_limit,
         pass_threshold,
@@ -227,7 +223,7 @@ def run_benchmark_interview(
 
         candidate_reply = _generate_candidate_reply(
             interviewer_message=result["reply"],
-            candidate_descriptor=candidate_descriptor,
+            interviewer_descriptor=interviewer_descriptor,
             language=language,
         )
 
@@ -253,7 +249,6 @@ def run_benchmark_interview(
     summary_json = {
         "mode": "benchmark",
         "interviewer_system_prompt": interviewer_descriptor.id,
-        "candidate_system_prompt": candidate_descriptor.id,
         "difficulty": resolved_difficulty,
         "language": language,
         "question_roundtrips_limit": question_limit,

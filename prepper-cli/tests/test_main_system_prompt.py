@@ -170,8 +170,6 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
             "--benchmark",
             "--system-prompt",
             "coding_focus",
-            "--candidate-system-prompt",
-            "interview_coach",
             "--difficulty",
             "hard",
             "--language",
@@ -185,10 +183,9 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
 
     descriptors = {
         "coding_focus": _make_descriptor("coding_focus", name="Coding Interview"),
-        "interview_coach": _make_descriptor("interview_coach", name="Interview Coach"),
     }
 
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["coding_focus", "interview_coach"])
+    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["coding_focus"])
     monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "coding_focus")
     monkeypatch.setattr(main, "load_prompt_descriptor", lambda name: descriptors[name])
 
@@ -196,7 +193,6 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
 
     def fake_run_benchmark_interview(
         interviewer_descriptor,
-        candidate_descriptor,
         difficulty=None,
         language=None,
         question_limit_override=None,
@@ -204,7 +200,6 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         output=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
-        called["candidate"] = candidate_descriptor.id
         called["difficulty"] = difficulty
         called["language"] = language
         called["question_limit_override"] = question_limit_override
@@ -213,7 +208,6 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
             "summary_json": {
                 "mode": "benchmark",
                 "interviewer_system_prompt": interviewer_descriptor.id,
-                "candidate_system_prompt": candidate_descriptor.id,
             },
             "conversation": [],
         }
@@ -224,7 +218,6 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
 
     assert exit_code == 0
     assert called["interviewer"] == "coding_focus"
-    assert called["candidate"] == "interview_coach"
     assert called["difficulty"] == "hard"
     assert called["language"] == "de"
     assert called["question_limit_override"] == 3
@@ -234,7 +227,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
     assert '"mode": "benchmark"' in captured.out
 
 
-def test_benchmark_mode_defaults_candidate_prompt_to_interviewer(monkeypatch, capsys):
+def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -254,7 +247,6 @@ def test_benchmark_mode_defaults_candidate_prompt_to_interviewer(monkeypatch, ca
 
     def fake_run_benchmark_interview(
         interviewer_descriptor,
-        candidate_descriptor,
         difficulty=None,
         language=None,
         question_limit_override=None,
@@ -262,12 +254,10 @@ def test_benchmark_mode_defaults_candidate_prompt_to_interviewer(monkeypatch, ca
         output=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
-        called["candidate"] = candidate_descriptor.id
         return {
             "summary_json": {
                 "mode": "benchmark",
                 "interviewer_system_prompt": interviewer_descriptor.id,
-                "candidate_system_prompt": candidate_descriptor.id,
             },
             "conversation": [],
         }
@@ -278,7 +268,6 @@ def test_benchmark_mode_defaults_candidate_prompt_to_interviewer(monkeypatch, ca
 
     assert exit_code == 0
     assert called["interviewer"] == "behavioral_focus"
-    assert called["candidate"] == "behavioral_focus"
 
     captured = capsys.readouterr()
-    assert '"candidate_system_prompt": "behavioral_focus"' in captured.out
+    assert '"interviewer_system_prompt": "behavioral_focus"' in captured.out
