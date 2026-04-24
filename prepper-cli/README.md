@@ -43,25 +43,37 @@ PREPPER_DEFAULT_SYSTEM_PROMPT=interview_coach
 
 ## Usage
 
-One-shot:
+Interactive mode is the default and maintains full conversation context across all prompts in the session:
 
 ```bash
-prepper-cli "How should I prepare for a backend interview?"
+prepper-cli
 ```
 
-One-shot with an explicit system prompt:
+Interactive mode with an explicit system prompt:
 
 ```bash
-prepper-cli --system-prompt coding_focus "Give me a DSA prep plan"
+prepper-cli --system-prompt coding_focus
 ```
 
-Interactive mode — maintains full conversation context across all prompts in the session:
+Interactive mode with color and language:
 
 ```bash
-prepper-cli --interactive
+prepper-cli --color --language de --system-prompt behavioral_focus
 ```
 
-Interactive mode starts with a prompt selector so you can choose which coaching style to use for that session.
+Interactive mode supports interview tuning flags when the selected prompt uses interview scoring:
+
+```bash
+prepper-cli --system-prompt coding_focus --difficulty hard --question-limit 3 --pass-threshold 7.2
+```
+
+Benchmark mode keeps the simulated candidate flow and candidate-profile flags:
+
+```bash
+prepper-cli --benchmark --system-prompt behavioral_focus --bad-candidate
+```
+
+Interactive mode starts with a prompt selector so you can choose which coaching style to use for that session when `--system-prompt` is not provided. There is no separate `--interactive` flag anymore.
 
 List available system prompts:
 
