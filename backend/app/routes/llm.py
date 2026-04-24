@@ -2,23 +2,23 @@ from flask import Blueprint, jsonify, request
 from flask_cors import cross_origin
 from app import limiter
 from app.helpers.utils import (
-    _build_difficulty_instruction,
-    _build_runtime_interview_instruction,
-    _build_scoring_input,
-    _build_scoring_system_prompt,
-    _classify_assistant_turn,
-    _coerce_string_list,
-    _clamp_score,
-    _count_scored_questions,
-    _extract_json_object,
-    _parse_scoring_payload,
-    _resolve_difficulty,
-    _resolve_model_setting_override,
-    _resolve_model_settings,
-    _resolve_pass_threshold,
-    _resolve_prompt_descriptor,
-    _resolve_roundtrip_limit,
-    _score_interview,
+    build_difficulty_instruction,
+    build_runtime_interview_instruction,
+    build_scoring_input,
+    build_scoring_system_prompt,
+    classify_assistant_turn,
+    coerce_string_list,
+    clamp_score,
+    count_scored_questions,
+    extract_json_object,
+    parse_scoring_payload,
+    resolve_difficulty,
+    resolve_model_setting_override,
+    resolve_model_settings,
+    resolve_pass_threshold,
+    resolve_prompt_descriptor,
+    resolve_roundtrip_limit,
+    score_interview,
 )
 from prepper_cli import (
     Conversation,
@@ -93,37 +93,37 @@ def chat():
             return jsonify({"error": str(exc)}), 400
 
     try:
-        descriptor = _resolve_prompt_descriptor(system_prompt_name)
+        descriptor = resolve_prompt_descriptor(system_prompt_name)
     except ValueError as exc:
         if system_prompt_name is not None:
             return jsonify({"error": str(exc)}), 400
         return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
     try:
-        question_limit = _resolve_roundtrip_limit(max_question_roundtrips, descriptor)
+        question_limit = resolve_roundtrip_limit(max_question_roundtrips, descriptor)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
     try:
-        resolved_difficulty = _resolve_difficulty(difficulty, descriptor)
+        resolved_difficulty = resolve_difficulty(difficulty, descriptor)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
     try:
-        model_settings = _resolve_model_settings(data, descriptor)
+        model_settings = resolve_model_settings(data, descriptor)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    active_pass_threshold = _resolve_pass_threshold(descriptor, resolved_difficulty)
+    active_pass_threshold = resolve_pass_threshold(descriptor, resolved_difficulty)
 
     prior_question_count = 0
     system_prompt = descriptor.content
     if resolved_difficulty is not None:
-        system_prompt += _build_difficulty_instruction(resolved_difficulty)
+        system_prompt += build_difficulty_instruction(resolved_difficulty)
 
     if descriptor.interview_rating_enabled:
-        prior_question_count = _count_scored_questions(conversation, language)
-        system_prompt += _build_runtime_interview_instruction(
+        prior_question_count = count_scored_questions(conversation, language)
+        system_prompt += build_runtime_interview_instruction(
             descriptor, prior_question_count, question_limit
         )
 
@@ -146,7 +146,7 @@ def chat():
 
     response_payload = {"reply": reply}
     if descriptor.interview_rating_enabled:
-        current_turn_kind = _classify_assistant_turn(reply, language)
+        current_turn_kind = classify_assistant_turn(reply, language)
         count_after = prior_question_count + (1 if current_turn_kind == "question" else 0)
         interview_complete = prior_question_count >= question_limit
 
@@ -169,7 +169,7 @@ def chat():
                         {"role": "assistant", "content": reply},
                     ]
                 )
-                interview_status["rating"] = _score_interview(
+                interview_status["rating"] = score_interview(
                     scoring_conversation,
                     descriptor,
                     language,
@@ -208,25 +208,25 @@ def chat_start():
         return jsonify({"error": "difficulty must be a string"}), 400
 
     try:
-        descriptor = _resolve_prompt_descriptor(system_prompt_name)
+        descriptor = resolve_prompt_descriptor(system_prompt_name)
     except ValueError as exc:
         if system_prompt_name is not None:
             return jsonify({"error": str(exc)}), 400
         return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
     try:
-        resolved_difficulty = _resolve_difficulty(difficulty, descriptor)
+        resolved_difficulty = resolve_difficulty(difficulty, descriptor)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
     try:
-        model_settings = _resolve_model_settings(data, descriptor)
+        model_settings = resolve_model_settings(data, descriptor)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
     system_prompt = descriptor.content
     if resolved_difficulty is not None:
-        system_prompt += _build_difficulty_instruction(resolved_difficulty)
+        system_prompt += build_difficulty_instruction(resolved_difficulty)
 
     try:
         reply = get_interview_opener(
