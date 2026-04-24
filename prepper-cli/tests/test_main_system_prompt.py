@@ -170,6 +170,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         [
             "prepper-cli",
             "--benchmark",
+            "--color",
             "--system-prompt",
             "coding_focus",
             "--difficulty",
@@ -201,6 +202,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         pass_threshold_override=None,
         candidate_profile="good",
         output=None,
+        enable_color=False,
     ):
         called["interviewer"] = interviewer_descriptor.id
         called["difficulty"] = difficulty
@@ -208,6 +210,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         called["question_limit_override"] = question_limit_override
         called["pass_threshold_override"] = pass_threshold_override
         called["candidate_profile"] = candidate_profile
+        called["enable_color"] = enable_color
         return {
             "summary_json": {
                 "mode": "benchmark",
@@ -227,9 +230,10 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
     assert called["question_limit_override"] == 3
     assert called["pass_threshold_override"] == 7.2
     assert called["candidate_profile"] == "good"
+    assert called["enable_color"] is True
 
     captured = capsys.readouterr()
-    assert '"mode": "benchmark"' in captured.out
+    assert captured.out == ""
 
 
 def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
@@ -258,9 +262,11 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
         pass_threshold_override=None,
         candidate_profile="good",
         output=None,
+        enable_color=False,
     ):
         called["interviewer"] = interviewer_descriptor.id
         called["candidate_profile"] = candidate_profile
+        called["enable_color"] = enable_color
         return {
             "summary_json": {
                 "mode": "benchmark",
@@ -276,9 +282,10 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
     assert exit_code == 0
     assert called["interviewer"] == "behavioral_focus"
     assert called["candidate_profile"] == "good"
+    assert called["enable_color"] is False
 
     captured = capsys.readouterr()
-    assert '"interviewer_system_prompt": "behavioral_focus"' in captured.out
+    assert captured.out == ""
 
 
 def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys):
@@ -308,9 +315,11 @@ def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys)
         pass_threshold_override=None,
         candidate_profile="good",
         output=None,
+        enable_color=False,
     ):
         called["interviewer"] = interviewer_descriptor.id
         called["candidate_profile"] = candidate_profile
+        called["enable_color"] = enable_color
         return {
             "summary_json": {
                 "mode": "benchmark",
@@ -326,9 +335,10 @@ def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys)
     assert exit_code == 0
     assert called["interviewer"] == "behavioral_focus"
     assert called["candidate_profile"] == "bad"
+    assert called["enable_color"] is False
 
     captured = capsys.readouterr()
-    assert '"interviewer_system_prompt": "behavioral_focus"' in captured.out
+    assert captured.out == ""
 
 
 def test_benchmark_mode_rejects_conflicting_candidate_flags(monkeypatch):
@@ -364,19 +374,38 @@ def test_candidate_flags_require_benchmark(monkeypatch):
     assert exc.value.code == 2
 
 
+def test_color_flag_requires_benchmark(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--color",
+            "hello",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        main.main()
+
+    assert exc.value.code == 2
+
+
 def test_help_makes_candidate_flags_benchmark_only_clear():
     help_text = main._build_parser().format_help()
 
+    assert "--color" in help_text
+    assert "Benchmark-only: enable colorized benchmark" in help_text
     assert "Benchmark-only: use a strong candidate simulation" in help_text
     assert "Benchmark-only: use a weak candidate simulation" in help_text
     assert "required for benchmark-only options" in help_text
 
 
-def test_help_lists_benchmark_right_before_candidate_flags():
+def test_help_lists_color_below_benchmark_and_before_candidate_flags():
     help_text = main._build_parser().format_help()
 
     benchmark_index = help_text.index("--benchmark")
+    color_index = help_text.index("--color")
     good_index = help_text.index("--good-candidate")
     bad_index = help_text.index("--bad-candidate")
 
-    assert benchmark_index < good_index < bad_index
+    assert benchmark_index < color_index < good_index < bad_index
