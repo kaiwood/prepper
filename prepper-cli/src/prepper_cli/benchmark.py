@@ -207,7 +207,7 @@ def _print_final_result(
 def run_benchmark_interview(
     interviewer_descriptor: PromptDescriptor,
     difficulty: str | None = None,
-    language: str | None = None,
+    language: str | None = "en",
     question_limit_override: int | None = None,
     pass_threshold_override: float | None = None,
     candidate_profile: str = "good",

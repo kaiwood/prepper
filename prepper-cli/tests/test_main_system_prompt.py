@@ -265,6 +265,7 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
         enable_color=False,
     ):
         called["interviewer"] = interviewer_descriptor.id
+        called["language"] = language
         called["candidate_profile"] = candidate_profile
         called["enable_color"] = enable_color
         return {
@@ -281,6 +282,7 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
 
     assert exit_code == 0
     assert called["interviewer"] == "behavioral_focus"
+    assert called["language"] == "en"
     assert called["candidate_profile"] == "good"
     assert called["enable_color"] is False
 
@@ -390,9 +392,28 @@ def test_color_flag_requires_benchmark(monkeypatch):
     assert exc.value.code == 2
 
 
+def test_language_flag_requires_benchmark(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--language",
+            "de",
+            "hello",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        main.main()
+
+    assert exc.value.code == 2
+
+
 def test_help_makes_candidate_flags_benchmark_only_clear():
     help_text = main._build_parser().format_help()
 
+    assert "--language {en,de}" in help_text
+    assert "Benchmark-only: response language code (default: en)" in help_text
     assert "--color" in help_text
     assert "Benchmark-only: enable colorized benchmark" in help_text
     assert "Benchmark-only: use a strong candidate simulation" in help_text
@@ -400,12 +421,18 @@ def test_help_makes_candidate_flags_benchmark_only_clear():
     assert "required for benchmark-only options" in help_text
 
 
-def test_help_lists_color_below_benchmark_and_before_candidate_flags():
+def test_help_lists_benchmark_options_in_expected_order():
     help_text = main._build_parser().format_help()
 
     benchmark_index = help_text.index("--benchmark")
+    difficulty_index = help_text.index("--difficulty {easy,medium,hard}")
+    language_index = help_text.index("--language {en,de}")
+    pass_threshold_index = help_text.index("--pass-threshold PASS_THRESHOLD")
+    question_limit_index = help_text.index("--question-limit QUESTION_LIMIT")
     color_index = help_text.index("--color")
     good_index = help_text.index("--good-candidate")
     bad_index = help_text.index("--bad-candidate")
 
-    assert benchmark_index < color_index < good_index < bad_index
+    assert benchmark_index < difficulty_index < language_index
+    assert language_index < pass_threshold_index < question_limit_index
+    assert question_limit_index < color_index < good_index < bad_index

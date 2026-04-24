@@ -167,6 +167,7 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
         model_settings,
         difficulty,
     ):
+        assert language == "en"
         assert conversation is not None
         conversation.add_user_message(message)
         if calls["candidate_reply"] == 0:
@@ -222,6 +223,7 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
         calls["candidate_reply"] += 1
         assert "weak candidate" in system_prompt
         assert "vague" in system_prompt
+        assert language == "en"
         return "Not sure, but I fixed some things quickly."
 
     monkeypatch.setattr(benchmark, "run_interview_turn", fake_run_interview_turn)
@@ -233,6 +235,7 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
     )
 
     assert result["summary_json"]["candidate_system_prompt"] == "benchmark_candidate_bad"
+    assert result["summary_json"]["language"] == "en"
     assert result["summary_json"]["final_result"]["passed"] is False
 
 

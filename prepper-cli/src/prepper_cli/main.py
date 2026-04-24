@@ -34,29 +34,29 @@ def _build_parser() -> argparse.ArgumentParser:
         help="List available system prompts and exit",
     )
     parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run benchmark mode with simulated candidate responses (required for benchmark-only options)",
+    )
+    parser.add_argument(
         "--difficulty",
         choices=["easy", "medium", "hard"],
-        help="Interview difficulty override for benchmark mode",
+        help="Benchmark-only: interview difficulty override",
     )
     parser.add_argument(
         "--language",
         choices=["en", "de"],
-        help="Language code for benchmark mode",
-    )
-    parser.add_argument(
-        "--question-limit",
-        type=int,
-        help="Question roundtrip limit override for benchmark mode",
+        help="Benchmark-only: response language code (default: en)",
     )
     parser.add_argument(
         "--pass-threshold",
         type=float,
-        help="Pass threshold override for benchmark mode",
+        help="Benchmark-only: pass threshold override",
     )
     parser.add_argument(
-        "--benchmark",
-        action="store_true",
-        help="Run benchmark mode with simulated candidate responses (required for benchmark-only options)",
+        "--question-limit",
+        type=int,
+        help="Benchmark-only: question roundtrip limit override",
     )
     parser.add_argument(
         "--color",
@@ -85,6 +85,8 @@ def _validate_benchmark_candidate_flags(
         parser.error("--good-candidate/--bad-candidate require --benchmark")
     if args.color and not args.benchmark:
         parser.error("--color requires --benchmark")
+    if args.language is not None and not args.benchmark:
+        parser.error("--language requires --benchmark")
 
 
 def _resolve_system_prompt_name(selected_name: str | None) -> str:
@@ -232,7 +234,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
     result = run_benchmark_interview(
         interviewer_descriptor=interviewer_descriptor,
         difficulty=args.difficulty,
-        language=args.language,
+        language=args.language or "en",
         question_limit_override=args.question_limit,
         pass_threshold_override=args.pass_threshold,
         candidate_profile=candidate_profile,
