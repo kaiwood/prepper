@@ -28,10 +28,10 @@ from prepper_cli import (
     load_prompt_descriptor,
 )
 
-llm_bp = Blueprint("llm", __name__)
+chat_bp = Blueprint("chat", __name__)
 
 
-@llm_bp.route("/api/chat", methods=["OPTIONS"])
+@chat_bp.route("/api/chat", methods=["OPTIONS"])
 @cross_origin(
     origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_headers=["Content-Type", "Authorization"],
@@ -40,7 +40,7 @@ def chat_options():
     return "", 204
 
 
-@llm_bp.route("/api/chat/start", methods=["OPTIONS"])
+@chat_bp.route("/api/chat/start", methods=["OPTIONS"])
 @cross_origin(
     origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_headers=["Content-Type", "Authorization"],
@@ -49,7 +49,7 @@ def chat_start_options():
     return "", 204
 
 
-@llm_bp.post("/api/chat")
+@chat_bp.post("/api/chat")
 @limiter.limit("10 per minute")
 @cross_origin(
     origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -180,7 +180,7 @@ def chat():
     return jsonify(response_payload)
 
 
-@llm_bp.post("/api/chat/start")
+@chat_bp.post("/api/chat/start")
 @limiter.limit("10 per minute")
 @cross_origin(
     origins=["http://localhost:3000", "http://127.0.0.1:3000"],
