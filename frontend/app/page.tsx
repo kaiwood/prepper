@@ -193,6 +193,8 @@ export default function Home() {
     "hard",
   ];
   const interviewCompleted = Boolean(interviewStatus?.interview_complete);
+  const finalResult = interviewStatus?.final_result;
+  const resultPassed = finalResult?.passed ?? false;
   const ui = TRANSLATIONS[language];
   const difficultyLabelByValue: Record<DifficultyValue, string> = {
     easy: ui.difficultyJunior,
@@ -702,21 +704,25 @@ export default function Home() {
       )}
 
       {interviewCompleted && interviewStatus?.final_result && (
-        <section className="w-full max-w-3xl rounded-xl border border-green-200 bg-green-50 p-4 flex flex-col gap-3">
-          <h2 className="text-xl font-semibold text-green-900">
-            {ui.interviewComplete}
-          </h2>
-          <p className="text-green-900">
+        <section
+          className={`w-full max-w-3xl rounded-xl p-4 flex flex-col gap-3 border ${
+            resultPassed
+              ? "border-green-200 bg-green-50 text-green-900"
+              : "border-red-200 bg-red-50 text-red-900"
+          }`}
+        >
+          <h2 className="text-xl font-semibold">{ui.interviewComplete}</h2>
+          <p>
             {ui.scoreLabel}:{" "}
             {interviewStatus.final_result.overall_score.toFixed(1)} / 10
           </p>
-          <p className="text-green-900">
+          <p>
             {interviewStatus.final_result.passed ? ui.passLabel : ui.failLabel}
           </p>
 
           <div>
-            <h3 className="font-medium text-green-900">{ui.rubricLabel}</h3>
-            <ul className="list-disc list-inside text-green-900">
+            <h3 className="font-medium">{ui.rubricLabel}</h3>
+            <ul className="list-disc list-inside">
               {interviewStatus.final_result.criterion_scores.map(
                 (criterion) => (
                   <li key={criterion.criterion}>
@@ -728,8 +734,8 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="font-medium text-green-900">{ui.strengthsLabel}</h3>
-            <ul className="list-disc list-inside text-green-900">
+            <h3 className="font-medium">{ui.strengthsLabel}</h3>
+            <ul className="list-disc list-inside">
               {interviewStatus.final_result.strengths.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -737,10 +743,8 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="font-medium text-green-900">
-              {ui.improvementsLabel}
-            </h3>
-            <ul className="list-disc list-inside text-green-900">
+            <h3 className="font-medium">{ui.improvementsLabel}</h3>
+            <ul className="list-disc list-inside">
               {interviewStatus.final_result.improvements.map((item) => (
                 <li key={item}>{item}</li>
               ))}
