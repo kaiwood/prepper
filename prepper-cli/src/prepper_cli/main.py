@@ -58,6 +58,17 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="Pass threshold override for benchmark mode",
     )
+    candidate_group = parser.add_mutually_exclusive_group()
+    candidate_group.add_argument(
+        "--good-candidate",
+        action="store_true",
+        help="Use a strong candidate simulation in benchmark mode (default)",
+    )
+    candidate_group.add_argument(
+        "--bad-candidate",
+        action="store_true",
+        help="Use a weak candidate simulation in benchmark mode",
+    )
     return parser
 
 
@@ -198,6 +209,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
     interviewer_prompt_name = _resolve_system_prompt_name(args.system_prompt)
 
     interviewer_descriptor = load_prompt_descriptor(interviewer_prompt_name)
+    candidate_profile = "bad" if args.bad_candidate else "good"
 
     if args.question_limit is not None and args.question_limit <= 0:
         raise ValueError("question_limit must be greater than 0")
@@ -208,6 +220,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         language=args.language,
         question_limit_override=args.question_limit,
         pass_threshold_override=args.pass_threshold,
+        candidate_profile=candidate_profile,
     )
 
     print(json.dumps(result["summary_json"], ensure_ascii=True))

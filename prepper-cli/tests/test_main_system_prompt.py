@@ -1,3 +1,5 @@
+import pytest
+
 from prepper_cli import main
 from prepper_cli.system_prompts import PromptDescriptor
 
@@ -197,6 +199,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         language=None,
         question_limit_override=None,
         pass_threshold_override=None,
+        candidate_profile="good",
         output=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
@@ -204,6 +207,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         called["language"] = language
         called["question_limit_override"] = question_limit_override
         called["pass_threshold_override"] = pass_threshold_override
+        called["candidate_profile"] = candidate_profile
         return {
             "summary_json": {
                 "mode": "benchmark",
@@ -222,6 +226,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
     assert called["language"] == "de"
     assert called["question_limit_override"] == 3
     assert called["pass_threshold_override"] == 7.2
+    assert called["candidate_profile"] == "good"
 
     captured = capsys.readouterr()
     assert '"mode": "benchmark"' in captured.out
@@ -251,9 +256,11 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
         language=None,
         question_limit_override=None,
         pass_threshold_override=None,
+        candidate_profile="good",
         output=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
+        called["candidate_profile"] = candidate_profile
         return {
             "summary_json": {
                 "mode": "benchmark",
@@ -268,6 +275,74 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
 
     assert exit_code == 0
     assert called["interviewer"] == "behavioral_focus"
+    assert called["candidate_profile"] == "good"
 
     captured = capsys.readouterr()
     assert '"interviewer_system_prompt": "behavioral_focus"' in captured.out
+
+
+def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--benchmark",
+            "--system-prompt",
+            "behavioral_focus",
+            "--bad-candidate",
+        ],
+    )
+
+    descriptor = _make_descriptor("behavioral_focus", name="Behavioral Interview")
+    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["behavioral_focus"])
+    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "behavioral_focus")
+    monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: descriptor)
+
+    called = {}
+
+    def fake_run_benchmark_interview(
+        interviewer_descriptor,
+        difficulty=None,
+        language=None,
+        question_limit_override=None,
+        pass_threshold_override=None,
+        candidate_profile="good",
+        output=None,
+    ):
+        called["interviewer"] = interviewer_descriptor.id
+        called["candidate_profile"] = candidate_profile
+        return {
+            "summary_json": {
+                "mode": "benchmark",
+                "interviewer_system_prompt": interviewer_descriptor.id,
+            },
+            "conversation": [],
+        }
+
+    monkeypatch.setattr(main, "run_benchmark_interview", fake_run_benchmark_interview)
+
+    exit_code = main.main()
+
+    assert exit_code == 0
+    assert called["interviewer"] == "behavioral_focus"
+    assert called["candidate_profile"] == "bad"
+
+    captured = capsys.readouterr()
+    assert '"interviewer_system_prompt": "behavioral_focus"' in captured.out
+
+
+def test_benchmark_mode_rejects_conflicting_candidate_flags(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--benchmark",
+            "--good-candidate",
+            "--bad-candidate",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        main.main()
+
+    assert exc.value.code == 2
