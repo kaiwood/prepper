@@ -491,6 +491,65 @@ def run_interview_turn(
 
     prior_question_count = count_scored_questions(conversation, language)
 
+    if prior_question_count >= question_limit:
+        forced_turn = request_forced_closing_turn(
+            descriptor=descriptor,
+            language=language,
+            model_settings=model_settings,
+            question_count=prior_question_count,
+            question_limit=question_limit,
+            difficulty=difficulty,
+            include_diagnostics=include_diagnostics,
+        )
+
+        clean_reply = forced_turn["reply"]
+        if conversation is not None:
+            conversation.add_user_message(message)
+            conversation.add_assistant_reply(clean_reply)
+
+        metadata_warning = not forced_turn["metadata_valid"]
+        final_result = None
+
+        scoring_conversation = conversation or Conversation.from_messages(
+            [
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": clean_reply},
+            ]
+        )
+
+        if include_diagnostics:
+            final_result, score_diagnostics = score_interview_with_diagnostics(
+                scoring_conversation,
+                descriptor,
+                language,
+                pass_threshold,
+            )
+            diagnostics["forced_closing"] = forced_turn["diagnostics"]
+            diagnostics["final_scoring"] = score_diagnostics
+        else:
+            final_result = score_interview(
+                scoring_conversation,
+                descriptor,
+                language,
+                pass_threshold,
+            )
+
+        result = {
+            "reply": clean_reply,
+            "turn_type": forced_turn["turn_type"],
+            "question_count": question_limit,
+            "question_limit": question_limit,
+            "interview_complete": True,
+            "pass_threshold": pass_threshold,
+            "metadata_warning": metadata_warning,
+            "final_result": final_result,
+        }
+
+        if include_diagnostics:
+            result["debug"] = diagnostics
+
+        return result
+
     system_prompt = descriptor.content + build_metadata_contract_instruction()
     if difficulty is not None:
         system_prompt += build_difficulty_instruction(difficulty)
@@ -556,7 +615,12 @@ def run_interview_turn(
 
     reached_limit = count_after >= question_limit
     model_provided_valid_closing = metadata_complete is True and turn_type == "other"
-    needs_forced_closing = reached_limit and not model_provided_valid_closing
+
+    # Important: only force-close once the candidate has already answered the
+    # final counted question (i.e., prior count is already at limit).
+    needs_forced_closing = (
+        prior_question_count >= question_limit and not model_provided_valid_closing
+    )
 
     metadata_warning = not parsed_reply["metadata_valid"]
 
@@ -583,9 +647,12 @@ def run_interview_turn(
 
         interview_complete = True
     else:
-        interview_complete = metadata_complete if metadata_complete is not None else reached_limit
-        # Safety guard: completion must not disagree with reached limit.
-        interview_complete = bool(interview_complete or reached_limit)
+        # If this turn asks the final allowed question, keep interview open so
+        # the candidate can answer that question in the next round.
+        if turn_type == "question" and reached_limit:
+            interview_complete = False
+        else:
+            interview_complete = metadata_complete if metadata_complete is not None else False
 
     final_result = None
     if interview_complete:
