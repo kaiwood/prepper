@@ -56,18 +56,28 @@ type InterviewRating = {
 
 type InterviewStatus = {
   enabled: boolean;
-  is_completed: boolean;
+  interview_complete: boolean;
   counted_question_roundtrips: number;
   question_roundtrips_limit: number;
   pass_threshold: number;
   current_turn_type: "question" | "other";
-  rating?: InterviewRating;
+  final_result?: InterviewRating;
+  metadata_warning?: boolean;
+  difficulty?: DifficultyValue;
 };
 
 type ChatResponse = {
   reply?: string;
   error?: string;
-  interview_status?: InterviewStatus;
+  interview_enabled?: boolean;
+  interview_complete?: boolean;
+  counted_question_roundtrips?: number;
+  question_roundtrips_limit?: number;
+  pass_threshold?: number;
+  current_turn_type?: "question" | "other";
+  metadata_warning?: boolean;
+  difficulty?: DifficultyValue;
+  final_result?: InterviewRating;
 };
 
 type AdvancedSettings = {
@@ -182,7 +192,7 @@ export default function Home() {
     "medium",
     "hard",
   ];
-  const interviewCompleted = Boolean(interviewStatus?.is_completed);
+  const interviewCompleted = Boolean(interviewStatus?.interview_complete);
   const ui = TRANSLATIONS[language];
   const difficultyLabelByValue: Record<DifficultyValue, string> = {
     easy: ui.difficultyJunior,
@@ -384,7 +394,21 @@ export default function Home() {
           ...prev,
           { role: "assistant", content: data.reply ?? "" },
         ]);
-        setInterviewStatus(data.interview_status ?? null);
+        if (data.interview_enabled) {
+          setInterviewStatus({
+            enabled: true,
+            interview_complete: Boolean(data.interview_complete),
+            counted_question_roundtrips: data.counted_question_roundtrips ?? 0,
+            question_roundtrips_limit: data.question_roundtrips_limit ?? 0,
+            pass_threshold: data.pass_threshold ?? 0,
+            current_turn_type: data.current_turn_type ?? "other",
+            final_result: data.final_result,
+            metadata_warning: data.metadata_warning,
+            difficulty: data.difficulty,
+          });
+        } else {
+          setInterviewStatus(null);
+        }
       }
     } catch {
       setError(ui.errorBackendUnavailable);
@@ -677,34 +701,36 @@ export default function Home() {
         </div>
       )}
 
-      {interviewCompleted && interviewStatus?.rating && (
+      {interviewCompleted && interviewStatus?.final_result && (
         <section className="w-full max-w-3xl rounded-xl border border-green-200 bg-green-50 p-4 flex flex-col gap-3">
           <h2 className="text-xl font-semibold text-green-900">
             {ui.interviewComplete}
           </h2>
           <p className="text-green-900">
-            {ui.scoreLabel}: {interviewStatus.rating.overall_score.toFixed(1)} /
-            10
+            {ui.scoreLabel}:{" "}
+            {interviewStatus.final_result.overall_score.toFixed(1)} / 10
           </p>
           <p className="text-green-900">
-            {interviewStatus.rating.passed ? ui.passLabel : ui.failLabel}
+            {interviewStatus.final_result.passed ? ui.passLabel : ui.failLabel}
           </p>
 
           <div>
             <h3 className="font-medium text-green-900">{ui.rubricLabel}</h3>
             <ul className="list-disc list-inside text-green-900">
-              {interviewStatus.rating.criterion_scores.map((criterion) => (
-                <li key={criterion.criterion}>
-                  {criterion.criterion}: {criterion.score.toFixed(1)} / 10
-                </li>
-              ))}
+              {interviewStatus.final_result.criterion_scores.map(
+                (criterion) => (
+                  <li key={criterion.criterion}>
+                    {criterion.criterion}: {criterion.score.toFixed(1)} / 10
+                  </li>
+                ),
+              )}
             </ul>
           </div>
 
           <div>
             <h3 className="font-medium text-green-900">{ui.strengthsLabel}</h3>
             <ul className="list-disc list-inside text-green-900">
-              {interviewStatus.rating.strengths.map((item) => (
+              {interviewStatus.final_result.strengths.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -715,7 +741,7 @@ export default function Home() {
               {ui.improvementsLabel}
             </h3>
             <ul className="list-disc list-inside text-green-900">
-              {interviewStatus.rating.improvements.map((item) => (
+              {interviewStatus.final_result.improvements.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>

@@ -1,19 +1,9 @@
-import json
-import re
-
 from prepper_cli import (
-    Conversation,
     PromptDescriptor,
-    get_chat_reply,
     get_default_system_prompt_name,
     load_prompt_descriptor,
 )
 
-_ROUNDTRIP_CLASSIFIER_PROMPT = (
-    "You classify interviewer messages. Respond with exactly one token: QUESTION or OTHER. "
-    "QUESTION means the interviewer is asking a new substantive interview question. "
-    "OTHER means clarification, acknowledgement, recap, or closing statement."
-)
 _VALID_DIFFICULTIES = {"easy", "medium", "hard"}
 _MODEL_SETTING_BOUNDS = {
     "temperature": (0.0, 2.0),
@@ -21,50 +11,6 @@ _MODEL_SETTING_BOUNDS = {
     "frequency_penalty": (-2.0, 2.0),
     "presence_penalty": (-2.0, 2.0),
 }
-
-
-def extract_json_object(raw: str) -> dict:
-    text = (raw or "").strip()
-    if not text:
-        return {}
-
-    try:
-        parsed = json.loads(text)
-        return parsed if isinstance(parsed, dict) else {}
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-        if not match:
-            return {}
-        try:
-            parsed = json.loads(match.group(0))
-            return parsed if isinstance(parsed, dict) else {}
-        except json.JSONDecodeError:
-            return {}
-
-
-def clamp_score(value: object) -> float:
-    try:
-        score = float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-    return max(0.0, min(10.0, score))
-
-
-def coerce_string_list(value: object, max_items: int = 3) -> list[str]:
-    if not isinstance(value, list):
-        return []
-
-    normalized: list[str] = []
-    for item in value:
-        if not isinstance(item, str):
-            continue
-        trimmed = item.strip()
-        if trimmed:
-            normalized.append(trimmed)
-        if len(normalized) >= max_items:
-            break
-    return normalized
 
 
 def resolve_roundtrip_limit(
@@ -205,156 +151,6 @@ def build_difficulty_instruction(difficulty: str) -> str:
         "Expect strong trade-off reasoning, robust edge-case handling, and clear communication. "
         "Provide limited hints only when appropriate."
     )
-
-
-def build_runtime_interview_instruction(
-    descriptor: PromptDescriptor,
-    question_count: int,
-    question_limit: int,
-) -> str:
-    if question_count >= question_limit:
-        return (
-            "\n\nRuntime rule: You already asked the configured number of scored interview "
-            "questions. Do not ask another new question. Provide a concise closing response "
-            "and thank the candidate."
-        )
-
-    remaining = question_limit - question_count
-    return (
-        "\n\nRuntime rule: You are still in active interview mode. "
-        f"Scored interview questions asked so far: {question_count}/{question_limit}. "
-        f"Remaining scored questions: {remaining}. Ask at most one new focused question in this turn. "
-        "Clarifications are allowed but should be concise."
-    )
-
-
-def classify_assistant_turn(message: str, language: str | None) -> str:
-    text = (message or "").strip()
-    if not text or "?" not in text:
-        return "other"
-
-    classifier_input = (
-        "Interviewer message:\n"
-        f"{text}\n\n"
-        "Answer with one token only: QUESTION or OTHER."
-    )
-
-    try:
-        result = get_chat_reply(
-            classifier_input,
-            system_prompt=_ROUNDTRIP_CLASSIFIER_PROMPT,
-            language=language,
-            temperature=0.0,
-            top_p=1.0,
-            frequency_penalty=0.0,
-            presence_penalty=0.0,
-            max_tokens=8,
-        )
-    except Exception:
-        lowered = text.lower()
-        if lowered.startswith(("can you", "what", "how", "why", "tell me", "walk me")):
-            return "question"
-        return "other"
-
-    normalized = result.strip().upper()
-    return "question" if normalized.startswith("QUESTION") else "other"
-
-
-def count_scored_questions(
-    conversation: Conversation | None,
-    language: str | None,
-) -> int:
-    if conversation is None:
-        return 0
-
-    count = 0
-    for message in conversation.get_messages():
-        if message["role"] != "assistant":
-            continue
-        if classify_assistant_turn(message["content"], language) == "question":
-            count += 1
-
-    return count
-
-
-def build_scoring_system_prompt(descriptor: PromptDescriptor) -> str:
-    rubric_items = "\n".join(
-        f"- {criterion}: score 0 to 10"
-        for criterion in descriptor.rubric_criteria
-    )
-    return (
-        "You are an expert interview evaluator. Score the candidate using ONLY the rubric below. "
-        "Return strict JSON with keys: overall_score, criterion_scores, strengths, improvements. "
-        "criterion_scores must be an object where each rubric criterion maps to a 0-10 number. "
-        "strengths and improvements must be arrays of short bullet-style strings (max 3 each).\n\n"
-        f"Rubric:\n{rubric_items}"
-    )
-
-
-def build_scoring_input(conversation: Conversation) -> str:
-    lines = [
-        f"{message['role'].upper()}: {message['content']}"
-        for message in conversation.get_messages()
-    ]
-    transcript = "\n".join(lines)
-    return f"Score this interview transcript:\n\n{transcript}"
-
-
-def parse_scoring_payload(
-    raw_response: str,
-    descriptor: PromptDescriptor,
-    pass_threshold: float,
-) -> dict:
-    parsed = extract_json_object(raw_response)
-    criterion_map = parsed.get("criterion_scores", {}) if isinstance(parsed, dict) else {}
-
-    criterion_scores = []
-    if isinstance(criterion_map, dict):
-        for criterion in descriptor.rubric_criteria:
-            criterion_scores.append(
-                {
-                    "criterion": criterion,
-                    "score": clamp_score(criterion_map.get(criterion)),
-                }
-            )
-    else:
-        for criterion in descriptor.rubric_criteria:
-            criterion_scores.append({"criterion": criterion, "score": 0.0})
-
-    overall = clamp_score(parsed.get("overall_score") if isinstance(parsed, dict) else None)
-    strengths = coerce_string_list(parsed.get("strengths") if isinstance(parsed, dict) else None)
-    improvements = coerce_string_list(
-        parsed.get("improvements") if isinstance(parsed, dict) else None
-    )
-
-    return {
-        "overall_score": overall,
-        "pass_threshold": pass_threshold,
-        "passed": overall >= pass_threshold,
-        "criterion_scores": criterion_scores,
-        "strengths": strengths,
-        "improvements": improvements,
-        "parse_warning": not bool(parsed),
-    }
-
-
-def score_interview(
-    conversation: Conversation,
-    descriptor: PromptDescriptor,
-    language: str | None,
-    pass_threshold: float,
-) -> dict:
-    score_raw = get_chat_reply(
-        build_scoring_input(conversation),
-        system_prompt=build_scoring_system_prompt(descriptor),
-        language=language,
-        temperature=0.0,
-        top_p=1.0,
-        frequency_penalty=0.0,
-        presence_penalty=0.0,
-        max_tokens=300,
-    )
-    return parse_scoring_payload(score_raw, descriptor, pass_threshold)
 
 
 def resolve_prompt_descriptor(selected_name: str | None = None) -> PromptDescriptor:

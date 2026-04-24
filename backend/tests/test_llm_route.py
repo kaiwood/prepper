@@ -338,31 +338,43 @@ def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
         "app.routes.chat.resolve_prompt_descriptor",
         lambda selected_name=None: descriptor,
     )
-    monkeypatch.setattr("app.routes.chat.count_scored_questions", lambda *_: 1)
-    monkeypatch.setattr("app.routes.chat.classify_assistant_turn", lambda *_: "other")
 
     captured = {}
 
-    def fake_get_chat_reply(*args, **kwargs):
-        captured["system_prompt"] = kwargs.get("system_prompt")
-        return "Thanks, that concludes the interview."
-
-    def fakescore_interview(conversation, passed_descriptor, language, pass_threshold):
+    def fake_run_interview_turn(
+        message,
+        conversation,
+        descriptor,
+        language,
+        question_limit,
+        pass_threshold,
+        model_settings,
+        difficulty=None,
+    ):
         captured["pass_threshold"] = pass_threshold
+        captured["difficulty"] = difficulty
         return {
-            "overall_score": 6.8,
+            "reply": "Thanks, that concludes the interview.",
+            "turn_type": "other",
+            "question_count": 1,
+            "question_limit": question_limit,
+            "interview_complete": True,
             "pass_threshold": pass_threshold,
-            "passed": 6.8 >= pass_threshold,
-            "criterion_scores": [
-                {"criterion": "Problem understanding", "score": 6.8},
-            ],
-            "strengths": ["Clear structure"],
-            "improvements": ["Deeper edge cases"],
-            "parse_warning": False,
+            "metadata_warning": False,
+            "final_result": {
+                "overall_score": 6.8,
+                "pass_threshold": pass_threshold,
+                "passed": 6.8 >= pass_threshold,
+                "criterion_scores": [
+                    {"criterion": "Problem understanding", "score": 6.8},
+                ],
+                "strengths": ["Clear structure"],
+                "improvements": ["Deeper edge cases"],
+                "parse_warning": False,
+            },
         }
 
-    monkeypatch.setattr("app.routes.chat.get_chat_reply", fake_get_chat_reply)
-    monkeypatch.setattr("app.routes.chat.score_interview", fakescore_interview)
+    monkeypatch.setattr("app.routes.chat.run_interview_turn", fake_run_interview_turn)
 
     response = client.post(
         "/api/chat",
@@ -371,10 +383,10 @@ def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
 
     assert response.status_code == 200
     data = response.get_json()
-    assert "Difficulty mode: Junior-level (easy)." in captured["system_prompt"]
-    assert data["interview_status"]["difficulty"] == "easy"
-    assert data["interview_status"]["pass_threshold"] == 6.5
-    assert data["interview_status"]["rating"]["pass_threshold"] == 6.5
+    assert captured["difficulty"] == "easy"
+    assert data["difficulty"] == "easy"
+    assert data["pass_threshold"] == 6.5
+    assert data["final_result"]["pass_threshold"] == 6.5
     assert captured["pass_threshold"] == 6.5
 
 
@@ -459,7 +471,7 @@ def test_chat_rejects_out_of_range_max_question_roundtrips(monkeypatch):
     }
 
 
-def test_chat_returns_interview_status_when_rating_enabled(monkeypatch):
+def test_chat_returns_interview_fields_when_rating_enabled(monkeypatch):
     app = create_app()
     client = app.test_client()
 
@@ -473,9 +485,19 @@ def test_chat_returns_interview_status_when_rating_enabled(monkeypatch):
             rubric_criteria=("Problem understanding", "Communication"),
         ),
     )
-    monkeypatch.setattr("app.routes.chat.count_scored_questions", lambda *_: 2)
-    monkeypatch.setattr("app.routes.chat.classify_assistant_turn", lambda *_: "question")
-    monkeypatch.setattr("app.routes.chat.get_chat_reply", lambda *args, **kwargs: "What would you optimize next?")
+    monkeypatch.setattr(
+        "app.routes.chat.run_interview_turn",
+        lambda *args, **kwargs: {
+            "reply": "What would you optimize next?",
+            "turn_type": "question",
+            "question_count": 3,
+            "question_limit": 5,
+            "interview_complete": False,
+            "pass_threshold": 7.0,
+            "metadata_warning": False,
+            "final_result": None,
+        },
+    )
 
     response = client.post(
         "/api/chat",
@@ -490,10 +512,10 @@ def test_chat_returns_interview_status_when_rating_enabled(monkeypatch):
     assert response.status_code == 200
     data = response.get_json()
     assert data["reply"] == "What would you optimize next?"
-    assert data["interview_status"]["enabled"] is True
-    assert data["interview_status"]["is_completed"] is False
-    assert data["interview_status"]["counted_question_roundtrips"] == 3
-    assert data["interview_status"]["question_roundtrips_limit"] == 5
+    assert data["interview_enabled"] is True
+    assert data["interview_complete"] is False
+    assert data["counted_question_roundtrips"] == 3
+    assert data["question_roundtrips_limit"] == 5
 
 
 def test_chat_returns_rating_when_interview_completed(monkeypatch):
@@ -510,22 +532,28 @@ def test_chat_returns_rating_when_interview_completed(monkeypatch):
             rubric_criteria=("Problem understanding", "Communication"),
         ),
     )
-    monkeypatch.setattr("app.routes.chat.count_scored_questions", lambda *_: 5)
-    monkeypatch.setattr("app.routes.chat.classify_assistant_turn", lambda *_: "other")
-    monkeypatch.setattr("app.routes.chat.get_chat_reply", lambda *args, **kwargs: "Thanks, that concludes the interview.")
     monkeypatch.setattr(
-        "app.routes.chat.score_interview",
-        lambda *_: {
-            "overall_score": 8.2,
+        "app.routes.chat.run_interview_turn",
+        lambda *args, **kwargs: {
+            "reply": "Thanks, that concludes the interview.",
+            "turn_type": "other",
+            "question_count": 5,
+            "question_limit": 5,
+            "interview_complete": True,
             "pass_threshold": 7.0,
-            "passed": True,
-            "criterion_scores": [
-                {"criterion": "Problem understanding", "score": 8.0},
-                {"criterion": "Communication", "score": 8.5},
-            ],
-            "strengths": ["Structured thinking"],
-            "improvements": ["Add more edge cases"],
-            "parse_warning": False,
+            "metadata_warning": False,
+            "final_result": {
+                "overall_score": 8.2,
+                "pass_threshold": 7.0,
+                "passed": True,
+                "criterion_scores": [
+                    {"criterion": "Problem understanding", "score": 8.0},
+                    {"criterion": "Communication", "score": 8.5},
+                ],
+                "strengths": ["Structured thinking"],
+                "improvements": ["Add more edge cases"],
+                "parse_warning": False,
+            },
         },
     )
 
@@ -542,8 +570,8 @@ def test_chat_returns_rating_when_interview_completed(monkeypatch):
 
     assert response.status_code == 200
     data = response.get_json()
-    assert data["interview_status"]["is_completed"] is True
-    assert data["interview_status"]["rating"]["passed"] is True
+    assert data["interview_complete"] is True
+    assert data["final_result"]["passed"] is True
 
 
 def test_chat_start_uses_default_system_prompt(monkeypatch):
@@ -623,6 +651,28 @@ def test_chat_start_accepts_selected_system_prompt(monkeypatch):
     assert captured["selected_name"] == "coding_focus"
     assert captured["system_prompt"] == "prompt::coding_focus"
     assert captured["language"] == "de"
+
+
+def test_chat_start_strips_metadata_suffix_from_reply(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.chat.resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor("coding_focus"),
+    )
+    monkeypatch.setattr(
+        "app.routes.chat.get_interview_opener",
+        lambda **kwargs: (
+            "Welcome to the interview.\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    )
+
+    response = client.post("/api/chat/start", json={})
+
+    assert response.status_code == 200
+    assert response.get_json() == {"reply": "Welcome to the interview."}
 
 
 def test_chat_start_allows_model_setting_overrides(monkeypatch):

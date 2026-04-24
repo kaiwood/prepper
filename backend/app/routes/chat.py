@@ -3,29 +3,18 @@ from flask_cors import cross_origin
 from app import limiter
 from app.helpers.utils import (
     build_difficulty_instruction,
-    build_runtime_interview_instruction,
-    build_scoring_input,
-    build_scoring_system_prompt,
-    classify_assistant_turn,
-    coerce_string_list,
-    clamp_score,
-    count_scored_questions,
-    extract_json_object,
-    parse_scoring_payload,
     resolve_difficulty,
-    resolve_model_setting_override,
     resolve_model_settings,
     resolve_pass_threshold,
     resolve_prompt_descriptor,
     resolve_roundtrip_limit,
-    score_interview,
 )
 from prepper_cli import (
     Conversation,
-    PromptDescriptor,
     get_chat_reply,
     get_interview_opener,
-    load_prompt_descriptor,
+    parse_reply_metadata,
+    run_interview_turn,
 )
 
 chat_bp = Blueprint("chat", __name__)
@@ -113,69 +102,60 @@ def chat():
 
     active_pass_threshold = resolve_pass_threshold(descriptor, resolved_difficulty)
 
-    prior_question_count = 0
-    system_prompt = descriptor.content
-    if resolved_difficulty is not None:
-        system_prompt += build_difficulty_instruction(resolved_difficulty)
-
     if descriptor.interview_rating_enabled:
-        prior_question_count = count_scored_questions(conversation, language)
-        system_prompt += build_runtime_interview_instruction(
-            descriptor, prior_question_count, question_limit
-        )
+        try:
+            turn_result = run_interview_turn(
+                message=message,
+                conversation=conversation,
+                descriptor=descriptor,
+                language=language,
+                question_limit=question_limit,
+                pass_threshold=active_pass_threshold,
+                model_settings=model_settings,
+                difficulty=resolved_difficulty,
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:
+            return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
-    try:
-        reply = get_chat_reply(
-            message,
-            conversation=conversation,
-            system_prompt=system_prompt,
-            language=language,
-            temperature=model_settings["temperature"],
-            top_p=model_settings["top_p"],
-            frequency_penalty=model_settings["frequency_penalty"],
-            presence_penalty=model_settings["presence_penalty"],
-            max_tokens=model_settings["max_tokens"],
-        )
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    except Exception as exc:
-        return jsonify({"error": f"LLM request failed: {exc}"}), 502
-
-    response_payload = {"reply": reply}
-    if descriptor.interview_rating_enabled:
-        current_turn_kind = classify_assistant_turn(reply, language)
-        count_after = prior_question_count + (1 if current_turn_kind == "question" else 0)
-        interview_complete = prior_question_count >= question_limit
-
-        interview_status = {
-            "enabled": True,
-            "is_completed": interview_complete,
-            "counted_question_roundtrips": count_after,
-            "question_roundtrips_limit": question_limit,
-            "pass_threshold": active_pass_threshold,
-            "current_turn_type": current_turn_kind,
+        response_payload = {
+            "reply": turn_result["reply"],
+            "interview_enabled": True,
+            "interview_complete": turn_result["interview_complete"],
+            "counted_question_roundtrips": turn_result["question_count"],
+            "question_roundtrips_limit": turn_result["question_limit"],
+            "pass_threshold": turn_result["pass_threshold"],
+            "current_turn_type": turn_result["turn_type"],
+            "metadata_warning": turn_result["metadata_warning"],
         }
         if resolved_difficulty is not None:
-            interview_status["difficulty"] = resolved_difficulty
+            response_payload["difficulty"] = resolved_difficulty
+        if turn_result["final_result"] is not None:
+            response_payload["final_result"] = turn_result["final_result"]
+    else:
+        system_prompt = descriptor.content
+        if resolved_difficulty is not None:
+            system_prompt += build_difficulty_instruction(resolved_difficulty)
 
-        if interview_complete:
-            try:
-                scoring_conversation = conversation or Conversation.from_messages(
-                    [
-                        {"role": "user", "content": message},
-                        {"role": "assistant", "content": reply},
-                    ]
-                )
-                interview_status["rating"] = score_interview(
-                    scoring_conversation,
-                    descriptor,
-                    language,
-                    active_pass_threshold,
-                )
-            except Exception as exc:
-                return jsonify({"error": f"LLM request failed: {exc}"}), 502
+        try:
+            reply = get_chat_reply(
+                message,
+                conversation=conversation,
+                system_prompt=system_prompt,
+                language=language,
+                temperature=model_settings["temperature"],
+                top_p=model_settings["top_p"],
+                frequency_penalty=model_settings["frequency_penalty"],
+                presence_penalty=model_settings["presence_penalty"],
+                max_tokens=model_settings["max_tokens"],
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:
+            return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
-        response_payload["interview_status"] = interview_status
+        response_payload = {"reply": reply}
 
     return jsonify(response_payload)
 
@@ -240,6 +220,7 @@ def chat_start():
     except Exception as exc:
         return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
-    return jsonify({"reply": reply})
+    parsed = parse_reply_metadata(reply)
+    return jsonify({"reply": parsed["reply"]})
 
 

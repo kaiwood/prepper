@@ -1,8 +1,10 @@
 import argparse
+import json
 import sys
 
 from .chat import get_chat_reply
 from .conversation import Conversation
+from .interview import resolve_pass_threshold, run_interview_turn
 from .system_prompts import (
     get_default_system_prompt_name,
     list_prompt_descriptors,
@@ -82,6 +84,26 @@ def _run_interactive(system_prompt: str | None) -> int:
         print("Using system prompt: none")
 
     conversation = Conversation()
+    question_limit = descriptor.default_question_roundtrips if descriptor else 5
+    difficulty = descriptor.default_difficulty if descriptor and descriptor.difficulty_enabled else None
+    pass_threshold = resolve_pass_threshold(descriptor, difficulty) if descriptor else 7.0
+    model_settings = (
+        {
+            "temperature": descriptor.temperature,
+            "top_p": descriptor.top_p,
+            "frequency_penalty": descriptor.frequency_penalty,
+            "presence_penalty": descriptor.presence_penalty,
+            "max_tokens": descriptor.max_tokens,
+        }
+        if descriptor
+        else {
+            "temperature": 0.7,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 800,
+        }
+    )
 
     while True:
         try:
@@ -100,17 +122,47 @@ def _run_interactive(system_prompt: str | None) -> int:
             return 0
 
         try:
-            reply = get_chat_reply(
-                text,
-                conversation=conversation,
-                system_prompt=descriptor.content if descriptor else None,
-                temperature=descriptor.temperature if descriptor else None,
-                top_p=descriptor.top_p if descriptor else None,
-                frequency_penalty=descriptor.frequency_penalty if descriptor else None,
-                presence_penalty=descriptor.presence_penalty if descriptor else None,
-                max_tokens=descriptor.max_tokens if descriptor else None,
-            )
-            print(reply)
+            if descriptor and descriptor.interview_rating_enabled:
+                result = run_interview_turn(
+                    message=text,
+                    conversation=conversation,
+                    descriptor=descriptor,
+                    language=None,
+                    question_limit=question_limit,
+                    pass_threshold=pass_threshold,
+                    model_settings=model_settings,
+                    difficulty=difficulty,
+                )
+                print(result["reply"])
+                if result["interview_complete"]:
+                    print("Interview is now over.")
+                    print(
+                        json.dumps(
+                            {
+                                "reply": result["reply"],
+                                "interview_complete": result["interview_complete"],
+                                "counted_question_roundtrips": result["question_count"],
+                                "question_roundtrips_limit": result["question_limit"],
+                                "current_turn_type": result["turn_type"],
+                                "pass_threshold": result["pass_threshold"],
+                                "final_result": result["final_result"],
+                            },
+                            ensure_ascii=True,
+                        )
+                    )
+                    return 0
+            else:
+                reply = get_chat_reply(
+                    text,
+                    conversation=conversation,
+                    system_prompt=descriptor.content if descriptor else None,
+                    temperature=descriptor.temperature if descriptor else None,
+                    top_p=descriptor.top_p if descriptor else None,
+                    frequency_penalty=descriptor.frequency_penalty if descriptor else None,
+                    presence_penalty=descriptor.presence_penalty if descriptor else None,
+                    max_tokens=descriptor.max_tokens if descriptor else None,
+                )
+                print(reply)
         except Exception as exc:  # pragma: no cover - direct CLI safety net
             print(f"Error: {exc}", file=sys.stderr)
             return 1
