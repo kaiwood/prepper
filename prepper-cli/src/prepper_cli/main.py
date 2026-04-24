@@ -34,11 +34,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="List available system prompts and exit",
     )
     parser.add_argument(
-        "--benchmark",
-        action="store_true",
-        help="Run benchmark mode with simulated candidate responses",
-    )
-    parser.add_argument(
         "--difficulty",
         choices=["easy", "medium", "hard"],
         help="Interview difficulty override for benchmark mode",
@@ -58,18 +53,31 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="Pass threshold override for benchmark mode",
     )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run benchmark mode with simulated candidate responses (required for benchmark-only options)",
+    )
     candidate_group = parser.add_mutually_exclusive_group()
     candidate_group.add_argument(
         "--good-candidate",
         action="store_true",
-        help="Use a strong candidate simulation in benchmark mode (default)",
+        help="Benchmark-only: use a strong candidate simulation (default)",
     )
     candidate_group.add_argument(
         "--bad-candidate",
         action="store_true",
-        help="Use a weak candidate simulation in benchmark mode",
+        help="Benchmark-only: use a weak candidate simulation",
     )
     return parser
+
+
+def _validate_benchmark_candidate_flags(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+) -> None:
+    if (args.good_candidate or args.bad_candidate) and not args.benchmark:
+        parser.error("--good-candidate/--bad-candidate require --benchmark")
 
 
 def _resolve_system_prompt_name(selected_name: str | None) -> str:
@@ -235,6 +243,8 @@ def main() -> int:
         for name in list_system_prompt_names():
             print(name)
         return 0
+
+    _validate_benchmark_candidate_flags(parser, args)
 
     if args.benchmark:
         try:
