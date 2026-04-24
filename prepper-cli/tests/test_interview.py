@@ -1,6 +1,8 @@
 from prepper_cli.conversation import Conversation
 from prepper_cli.interview import (
+    build_interviewer_scoring_system_prompt,
     count_scored_questions,
+    parse_interviewer_scoring_payload,
     parse_reply_metadata,
     run_interview_turn,
 )
@@ -357,3 +359,46 @@ def test_run_interview_turn_uses_fallback_goodbye_when_post_limit_close_metadata
     messages = conversation.get_messages()
     assert messages[-1]["content"] == "Thank you for your time today. The interview is now over."
     assert "[PREPPER_JSON]" not in messages[-1]["content"]
+
+
+def test_parse_interviewer_scoring_payload_uses_weighted_formula():
+    descriptor = _descriptor()
+    raw_payload = (
+        "{"
+        '"interviewer_overall_score":8.5,'
+        '"criterion_scores":{'
+        '"Question clarity":8.0,'
+        '"Follow-up depth":9.0,'
+        '"Behavior realism":8.0,'
+        '"Candidate challenge level":8.0,'
+        '"Adaptation to candidate responses":9.0,'
+        '"Difficulty calibration":9.0'
+        "},"
+        '"strengths":["Clear prompts"],'
+        '"improvements":["Probe edge cases"],'
+        '"difficulty_alignment":"aligned"'
+        "}"
+    )
+
+    parsed = parse_interviewer_scoring_payload(
+        raw_payload,
+        descriptor=descriptor,
+        interviewer_pass_threshold=7.0,
+        candidate_overall_score=6.0,
+    )
+
+    assert parsed["rubric_overall_score"] == 8.5
+    assert parsed["candidate_score_component"] == 6.0
+    assert parsed["overall_score"] == 8.0
+    assert parsed["passed"] is True
+    assert parsed["difficulty_alignment"] == "aligned"
+    assert len(parsed["criterion_scores"]) == 6
+
+
+def test_build_interviewer_scoring_system_prompt_mentions_difficulty_and_json_contract():
+    descriptor = _descriptor()
+    prompt = build_interviewer_scoring_system_prompt(descriptor, "hard")
+
+    assert "Configured difficulty baseline: hard" in prompt
+    assert "interviewer_overall_score" in prompt
+    assert "difficulty_alignment" in prompt

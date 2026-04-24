@@ -122,6 +122,25 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
 
     monkeypatch.setattr(benchmark, "run_interview_turn", fake_run_interview_turn)
     monkeypatch.setattr(benchmark, "get_chat_reply", fake_get_chat_reply)
+    monkeypatch.setattr(
+        benchmark,
+        "score_interviewer_performance",
+        lambda **kwargs: {
+            "overall_score": 7.9,
+            "rubric_overall_score": 7.8,
+            "candidate_score_component": 8.0,
+            "weights": {"interviewer_rubric": 0.8, "candidate_outcome": 0.2},
+            "pass_threshold": 7.0,
+            "passed": True,
+            "criterion_scores": [
+                {"criterion": "Question clarity", "score": 8.0},
+            ],
+            "strengths": ["Focused follow-ups"],
+            "improvements": ["Increase challenge depth"],
+            "difficulty_alignment": "aligned",
+            "parse_warning": False,
+        },
+    )
 
     result = benchmark.run_benchmark_interview(
         interviewer_descriptor=interviewer,
@@ -135,6 +154,7 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
     assert result["summary_json"]["difficulty"] == "medium"
     assert result["summary_json"]["question_roundtrips_limit"] == 2
     assert result["summary_json"]["final_result"]["passed"] is True
+    assert result["summary_json"]["interviewer_result"]["passed"] is True
     assert result["conversation"][0]["role"] == "user"
     assert result["conversation"][1]["role"] == "assistant"
 
@@ -228,6 +248,25 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
 
     monkeypatch.setattr(benchmark, "run_interview_turn", fake_run_interview_turn)
     monkeypatch.setattr(benchmark, "get_chat_reply", fake_get_chat_reply)
+    monkeypatch.setattr(
+        benchmark,
+        "score_interviewer_performance",
+        lambda **kwargs: {
+            "overall_score": 4.5,
+            "rubric_overall_score": 4.6,
+            "candidate_score_component": 4.0,
+            "weights": {"interviewer_rubric": 0.8, "candidate_outcome": 0.2},
+            "pass_threshold": 7.0,
+            "passed": False,
+            "criterion_scores": [
+                {"criterion": "Question clarity", "score": 4.5},
+            ],
+            "strengths": [],
+            "improvements": ["Ask deeper follow-ups"],
+            "difficulty_alignment": "aligned",
+            "parse_warning": False,
+        },
+    )
 
     result = benchmark.run_benchmark_interview(
         interviewer_descriptor=interviewer,
@@ -237,6 +276,7 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
     assert result["summary_json"]["candidate_system_prompt"] == "benchmark_candidate_bad"
     assert result["summary_json"]["language"] == "en"
     assert result["summary_json"]["final_result"]["passed"] is False
+    assert result["summary_json"]["interviewer_result"]["passed"] is False
 
 
 def test_run_benchmark_interview_rejects_invalid_candidate_profile():

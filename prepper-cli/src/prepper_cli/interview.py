@@ -14,6 +14,17 @@ _ROUNDTRIP_CLASSIFIER_PROMPT = (
 _METADATA_PREFIX = "[PREPPER_JSON]"
 _VALID_TURN_TYPES = {"QUESTION", "OTHER"}
 _FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
+_DEFAULT_INTERVIEWER_RUBRIC = (
+    "Question clarity",
+    "Follow-up depth",
+    "Behavior realism",
+    "Candidate challenge level",
+    "Adaptation to candidate responses",
+    "Difficulty calibration",
+)
+_INTERVIEWER_RUBRIC_WEIGHT = 0.8
+_CANDIDATE_OUTCOME_WEIGHT = 0.2
+_VALID_DIFFICULTY_ALIGNMENT = {"aligned", "underchallenging", "overchallenging", "unknown"}
 
 
 def extract_json_object(raw: str) -> dict:
@@ -384,14 +395,156 @@ def build_scoring_system_prompt(descriptor: PromptDescriptor) -> str:
 
 
 def build_scoring_input(conversation: Conversation) -> str:
+    lines = _build_clean_transcript_lines(conversation)
+    transcript = "\n".join(lines)
+    return f"Score this interview transcript:\n\n{transcript}"
+
+
+def _build_clean_transcript_lines(conversation: Conversation) -> list[str]:
     lines = [
         f"{message['role'].upper()}: {parse_reply_metadata(message['content'])['reply']}"
         if message["role"] == "assistant"
         else f"{message['role'].upper()}: {message['content']}"
         for message in conversation.get_messages()
     ]
+    return lines
+
+
+def get_interviewer_rubric_criteria(descriptor: PromptDescriptor) -> tuple[str, ...]:
+    if descriptor.interviewer_rubric_criteria:
+        return descriptor.interviewer_rubric_criteria
+    return _DEFAULT_INTERVIEWER_RUBRIC
+
+
+def build_interviewer_scoring_system_prompt(
+    descriptor: PromptDescriptor,
+    difficulty: str | None,
+) -> str:
+    criteria = get_interviewer_rubric_criteria(descriptor)
+    rubric_items = "\n".join(f"- {criterion}: score 0 to 10" for criterion in criteria)
+    difficulty_context = difficulty or "default"
+    return (
+        "You are an expert evaluator of interviewer performance. "
+        "Evaluate ONLY interviewer behavior in the transcript. "
+        "Do not evaluate candidate quality directly except where candidate outcome reflects interview guidance quality. "
+        "Return strict JSON with keys: interviewer_overall_score, criterion_scores, strengths, improvements, difficulty_alignment. "
+        "criterion_scores must be an object where each rubric criterion maps to a 0-10 number. "
+        "difficulty_alignment must be one of: aligned, underchallenging, overchallenging, unknown. "
+        "strengths and improvements must be arrays of short bullet-style strings (max 3 each).\n\n"
+        f"Configured difficulty baseline: {difficulty_context}.\n"
+        "For difficulty calibration, judge if interviewer questions and follow-ups match this baseline.\n\n"
+        f"Rubric:\n{rubric_items}"
+    )
+
+
+def build_interviewer_scoring_input(
+    conversation: Conversation,
+    difficulty: str | None,
+) -> str:
+    lines = _build_clean_transcript_lines(conversation)
     transcript = "\n".join(lines)
-    return f"Score this interview transcript:\n\n{transcript}"
+    baseline = difficulty or "default"
+    return (
+        "Evaluate the interviewer's performance in this transcript.\n"
+        f"Configured difficulty baseline: {baseline}.\n"
+        "Focus on interviewer quality: clarity, depth, realism, challenge, adaptability, and difficulty calibration.\n\n"
+        f"Transcript:\n\n{transcript}"
+    )
+
+
+def parse_interviewer_scoring_payload(
+    raw_response: str,
+    descriptor: PromptDescriptor,
+    interviewer_pass_threshold: float,
+    candidate_overall_score: float,
+) -> dict:
+    parsed = extract_json_object(raw_response)
+    criteria = get_interviewer_rubric_criteria(descriptor)
+    criterion_map = parsed.get("criterion_scores", {}) if isinstance(parsed, dict) else {}
+
+    criterion_scores: list[dict[str, float | str]] = []
+    if isinstance(criterion_map, dict):
+        for criterion in criteria:
+            criterion_scores.append(
+                {
+                    "criterion": criterion,
+                    "score": clamp_score(criterion_map.get(criterion)),
+                }
+            )
+    else:
+        for criterion in criteria:
+            criterion_scores.append({"criterion": criterion, "score": 0.0})
+
+    interviewer_overall = clamp_score(
+        parsed.get("interviewer_overall_score") if isinstance(parsed, dict) else None
+    )
+    if interviewer_overall == 0.0 and criterion_scores:
+        interviewer_overall = sum(row["score"] for row in criterion_scores) / len(criterion_scores)
+
+    candidate_component = clamp_score(candidate_overall_score)
+    weighted_score = clamp_score(
+        (interviewer_overall * _INTERVIEWER_RUBRIC_WEIGHT)
+        + (candidate_component * _CANDIDATE_OUTCOME_WEIGHT)
+    )
+
+    strengths = coerce_string_list(parsed.get("strengths") if isinstance(parsed, dict) else None)
+    improvements = coerce_string_list(
+        parsed.get("improvements") if isinstance(parsed, dict) else None
+    )
+
+    difficulty_alignment_raw = (
+        str(parsed.get("difficulty_alignment", "unknown")).strip().lower()
+        if isinstance(parsed, dict)
+        else "unknown"
+    )
+    difficulty_alignment = (
+        difficulty_alignment_raw
+        if difficulty_alignment_raw in _VALID_DIFFICULTY_ALIGNMENT
+        else "unknown"
+    )
+
+    return {
+        "overall_score": weighted_score,
+        "rubric_overall_score": interviewer_overall,
+        "candidate_score_component": candidate_component,
+        "weights": {
+            "interviewer_rubric": _INTERVIEWER_RUBRIC_WEIGHT,
+            "candidate_outcome": _CANDIDATE_OUTCOME_WEIGHT,
+        },
+        "pass_threshold": interviewer_pass_threshold,
+        "passed": weighted_score >= interviewer_pass_threshold,
+        "criterion_scores": criterion_scores,
+        "strengths": strengths,
+        "improvements": improvements,
+        "difficulty_alignment": difficulty_alignment,
+        "parse_warning": not bool(parsed),
+    }
+
+
+def score_interviewer_performance(
+    conversation: Conversation,
+    descriptor: PromptDescriptor,
+    language: str | None,
+    difficulty: str | None,
+    candidate_overall_score: float,
+    interviewer_pass_threshold: float,
+) -> dict:
+    score_raw = get_chat_reply(
+        build_interviewer_scoring_input(conversation, difficulty),
+        system_prompt=build_interviewer_scoring_system_prompt(descriptor, difficulty),
+        language=language,
+        temperature=0.0,
+        top_p=1.0,
+        frequency_penalty=0.0,
+        presence_penalty=0.0,
+        max_tokens=350,
+    )
+    return parse_interviewer_scoring_payload(
+        score_raw,
+        descriptor,
+        interviewer_pass_threshold,
+        candidate_overall_score,
+    )
 
 
 def parse_scoring_payload(

@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import TextIO
 
 from .chat import get_chat_reply
-from .cli_output import print_final_result, print_turn, write_line
+from .cli_output import print_final_result, print_interviewer_result, print_turn, write_line
 from .conversation import Conversation
-from .interview import resolve_pass_threshold, run_interview_turn
+from .interview import resolve_pass_threshold, run_interview_turn, score_interviewer_performance
 from .system_prompts import PromptDescriptor
 
 
@@ -96,7 +96,8 @@ def _print_header(
     language: str | None,
     enable_color: bool = False,
 ) -> None:
-    write_line(output, "=== Benchmark Mock Interview ===", enable_color=enable_color)
+    write_line(output, "## Benchmark Mock Interview", enable_color=enable_color)
+    write_line(output, "", enable_color=enable_color)
     write_line(
         output,
         f"Interviewer prompt: {interviewer_descriptor.name} ({interviewer_descriptor.id})",
@@ -200,8 +201,23 @@ def run_benchmark_interview(
         print_turn(output, "Interviewer", result["reply"], enable_color=enable_color)
 
     write_line(output, "Interview complete.", enable_color=enable_color)
-    write_line(output, "=== Final Score ===", enable_color=enable_color)
+    write_line(output, "", enable_color=enable_color)
+    write_line(output, "## Final Score", enable_color=enable_color)
+    write_line(output, "", enable_color=enable_color)
     print_final_result(output, result.get("final_result"), enable_color=enable_color)
+
+    interviewer_result = None
+    candidate_result = result.get("final_result")
+    if isinstance(candidate_result, dict):
+        interviewer_result = score_interviewer_performance(
+            conversation=conversation,
+            descriptor=interviewer_descriptor,
+            language=language,
+            difficulty=resolved_difficulty,
+            candidate_overall_score=float(candidate_result.get("overall_score", 0.0)),
+            interviewer_pass_threshold=interviewer_descriptor.interviewer_pass_threshold,
+        )
+        print_interviewer_result(output, interviewer_result, enable_color=enable_color)
 
     summary_json = {
         "mode": "benchmark",
@@ -215,6 +231,7 @@ def run_benchmark_interview(
         "current_turn_type": result["turn_type"],
         "pass_threshold": pass_threshold,
         "final_result": result.get("final_result"),
+        "interviewer_result": interviewer_result,
     }
 
     return {

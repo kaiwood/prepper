@@ -93,3 +93,58 @@ def print_final_result(
             write_line(output, f"- {item}", enable_color=enable_color)
     else:
         write_line(output, "- none", enable_color=enable_color)
+
+
+def print_interviewer_result(
+    output: TextIO | None,
+    interviewer_result: dict | None,
+    *,
+    enable_color: bool = False,
+) -> None:
+    if interviewer_result is None:
+        return
+
+    write_line(output, "", enable_color=enable_color)
+    write_line(output, "----------------------", enable_color=enable_color)
+    write_line(output, "| Interviewer Quality |", enable_color=enable_color)
+    write_line(output, "----------------------", enable_color=enable_color)
+    write_line(output, "", enable_color=enable_color)
+    write_line(
+        output,
+        f"Weighted score: {interviewer_result['overall_score']:.2f} / 10.00 | "
+        f"Threshold: {interviewer_result['pass_threshold']:.2f} | "
+        f"Passed: {str(interviewer_result['passed']).lower()}",
+        enable_color=enable_color,
+    )
+    write_line(
+        output,
+        f"Rubric-only score: {interviewer_result['rubric_overall_score']:.2f} | "
+        f"Candidate component: {interviewer_result['candidate_score_component']:.2f}",
+        enable_color=enable_color,
+    )
+    write_line(
+        output,
+        f"Difficulty alignment: {interviewer_result['difficulty_alignment']}",
+        enable_color=enable_color,
+    )
+
+    write_line(output, "Interviewer rubric:", enable_color=enable_color)
+    for row in interviewer_result.get("criterion_scores", []):
+        write_line(output, f"- {row['criterion']}: {row['score']:.2f}", enable_color=enable_color)
+
+    strengths = interviewer_result.get("strengths", [])
+    improvements = interviewer_result.get("improvements", [])
+
+    write_line(output, "Interviewer strengths:", enable_color=enable_color)
+    if strengths:
+        for item in strengths:
+            write_line(output, f"- {item}", enable_color=enable_color)
+    else:
+        write_line(output, "- none", enable_color=enable_color)
+
+    write_line(output, "Interviewer improvements:", enable_color=enable_color)
+    if improvements:
+        for item in improvements:
+            write_line(output, f"- {item}", enable_color=enable_color)
+    else:
+        write_line(output, "- none", enable_color=enable_color)
