@@ -67,6 +67,7 @@ def _generate_candidate_reply(
     interviewer_descriptor: PromptDescriptor,
     language: str | None,
     candidate_profile: str,
+    model: str | None = None,
 ) -> str:
     candidate_input = (
         "Interviewer question:\n"
@@ -83,6 +84,7 @@ def _generate_candidate_reply(
         frequency_penalty=interviewer_descriptor.frequency_penalty,
         presence_penalty=interviewer_descriptor.presence_penalty,
         max_tokens=interviewer_descriptor.max_tokens,
+        model=model,
     )
 
 
@@ -124,6 +126,8 @@ def run_benchmark_interview(
     candidate_profile: str = "good",
     output: TextIO | None = None,
     enable_color: bool = False,
+    model: str | None = None,
+    benchmark_model: str | None = None,
 ) -> dict:
     conversation = Conversation()
 
@@ -165,6 +169,7 @@ def run_benchmark_interview(
         pass_threshold=pass_threshold,
         model_settings=model_settings,
         difficulty=resolved_difficulty,
+        model=model,
     )
 
     print_turn(output, "Interviewer", result["reply"], enable_color=enable_color)
@@ -182,6 +187,7 @@ def run_benchmark_interview(
             interviewer_descriptor=interviewer_descriptor,
             language=language,
             candidate_profile=candidate_profile,
+            model=model,
         )
 
         print_turn(output, "Candidate", candidate_reply, enable_color=enable_color)
@@ -196,6 +202,7 @@ def run_benchmark_interview(
             pass_threshold=pass_threshold,
             model_settings=model_settings,
             difficulty=resolved_difficulty,
+            model=model,
         )
 
         print_turn(output, "Interviewer", result["reply"], enable_color=enable_color)
@@ -216,6 +223,7 @@ def run_benchmark_interview(
             difficulty=resolved_difficulty,
             candidate_overall_score=float(candidate_result.get("overall_score", 0.0)),
             interviewer_pass_threshold=interviewer_descriptor.interviewer_pass_threshold,
+            model=benchmark_model or model,
         )
         print_interviewer_result(output, interviewer_result, enable_color=enable_color)
 
