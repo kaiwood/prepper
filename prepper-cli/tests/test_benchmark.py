@@ -55,6 +55,13 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
         assert question_limit == interviewer.default_question_roundtrips
         assert pass_threshold == interviewer.medium_pass_threshold
         assert difficulty == "medium"
+        assert model_settings == {
+            "temperature": interviewer.temperature,
+            "top_p": interviewer.top_p,
+            "frequency_penalty": interviewer.frequency_penalty,
+            "presence_penalty": interviewer.presence_penalty,
+            "max_tokens": interviewer.max_tokens,
+        }
 
         assert conversation is not None
         conversation.add_user_message(message)
@@ -194,6 +201,13 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
     ):
         assert language == "en"
         assert model == "runtime-model"
+        assert model_settings == {
+            "temperature": interviewer.temperature,
+            "top_p": interviewer.top_p,
+            "frequency_penalty": interviewer.frequency_penalty,
+            "presence_penalty": interviewer.presence_penalty,
+            "max_tokens": interviewer.max_tokens,
+        }
         assert conversation is not None
         conversation.add_user_message(message)
         if calls["candidate_reply"] == 0:
@@ -286,6 +300,125 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
     assert result["summary_json"]["language"] == "en"
     assert result["summary_json"]["final_result"]["passed"] is False
     assert result["summary_json"]["interviewer_result"]["passed"] is False
+
+
+def test_run_benchmark_interview_applies_model_setting_overrides(monkeypatch):
+    interviewer = _make_descriptor("behavioral_focus")
+
+    calls = {"run_turn": 0, "candidate_reply": 0}
+
+    def fake_run_interview_turn(
+        message: str,
+        conversation: Conversation | None,
+        descriptor,
+        language,
+        question_limit,
+        pass_threshold,
+        model_settings,
+        difficulty,
+        model=None,
+    ):
+        calls["run_turn"] += 1
+        assert model_settings == {
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "frequency_penalty": 0.3,
+            "presence_penalty": -0.1,
+            "max_tokens": 444,
+        }
+        assert conversation is not None
+        conversation.add_user_message(message)
+        if calls["run_turn"] == 1:
+            conversation.add_assistant_reply("Tell me about a tough decision you made.")
+            return {
+                "reply": "Tell me about a tough decision you made.",
+                "turn_type": "question",
+                "question_count": 1,
+                "question_limit": question_limit,
+                "interview_complete": False,
+                "pass_threshold": pass_threshold,
+                "metadata_warning": False,
+                "final_result": None,
+            }
+
+        conversation.add_assistant_reply("Thanks, this interview is now complete.")
+        return {
+            "reply": "Thanks, this interview is now complete.",
+            "turn_type": "other",
+            "question_count": 1,
+            "question_limit": question_limit,
+            "interview_complete": True,
+            "pass_threshold": pass_threshold,
+            "metadata_warning": False,
+            "final_result": {
+                "overall_score": 7.0,
+                "pass_threshold": pass_threshold,
+                "passed": True,
+                "criterion_scores": [
+                    {"criterion": "Story structure", "score": 7.0},
+                    {"criterion": "Communication", "score": 7.0},
+                ],
+                "strengths": ["Clear response"],
+                "improvements": ["More depth"],
+                "parse_warning": False,
+            },
+        }
+
+    def fake_get_chat_reply(
+        message,
+        conversation=None,
+        history_limit=10,
+        system_prompt=None,
+        language=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+        conversation_reply_override=None,
+        model=None,
+        include_diagnostics=False,
+    ):
+        calls["candidate_reply"] += 1
+        assert temperature == 0.2
+        assert top_p == 0.9
+        assert frequency_penalty == 0.3
+        assert presence_penalty == -0.1
+        assert max_tokens == 444
+        return "I balanced tradeoffs and picked the least risky option."
+
+    monkeypatch.setattr(benchmark, "run_interview_turn", fake_run_interview_turn)
+    monkeypatch.setattr(benchmark, "get_chat_reply", fake_get_chat_reply)
+    monkeypatch.setattr(
+        benchmark,
+        "score_interviewer_performance",
+        lambda **kwargs: {
+            "overall_score": 7.0,
+            "rubric_overall_score": 7.0,
+            "candidate_score_component": 7.0,
+            "weights": {"interviewer_rubric": 0.8, "candidate_outcome": 0.2},
+            "pass_threshold": 7.0,
+            "passed": True,
+            "criterion_scores": [{"criterion": "Question clarity", "score": 7.0}],
+            "strengths": ["Clear questioning"],
+            "improvements": ["Deeper follow-up"],
+            "difficulty_alignment": "aligned",
+            "parse_warning": False,
+        },
+    )
+
+    result = benchmark.run_benchmark_interview(
+        interviewer_descriptor=interviewer,
+        temperature_override=0.2,
+        top_p_override=0.9,
+        frequency_penalty_override=0.3,
+        presence_penalty_override=-0.1,
+        max_tokens_override=444,
+    )
+
+    assert calls["run_turn"] == 2
+    assert calls["candidate_reply"] == 1
+    assert result["summary_json"]["mode"] == "benchmark"
 
 
 def test_run_benchmark_interview_rejects_invalid_candidate_profile():

@@ -80,6 +80,8 @@ max_tokens: 700
 
 These settings are applied automatically when a prompt is selected.
 
+CLI default behavior: if you do not pass model-setting override flags, `prepper-cli` uses these prompt-file values.
+
 ## CLI (`prepper-cli`)
 
 ```bash
@@ -114,6 +116,12 @@ Interview tuning:
 
 ```bash
 prepper-cli --system-prompt coding_focus --difficulty hard --question-limit 4 --pass-threshold 7.5
+```
+
+Model settings overrides:
+
+```bash
+prepper-cli --system-prompt coding_focus --temperature 0.2 --top-p 0.9 --frequency-penalty 0.3 --presence-penalty -0.2 --max-tokens 500
 ```
 
 Color + language:
@@ -165,6 +173,7 @@ Notes:
 
 - `--good-candidate` and `--bad-candidate` only work with `--benchmark`
 - If you omit both, benchmark uses the good candidate profile
+- `--temperature`, `--top-p`, `--frequency-penalty`, `--presence-penalty`, and `--max-tokens` override runtime model settings
 
 ## Frontend Setup
 

@@ -277,6 +277,11 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         enable_color=False,
         model=None,
         benchmark_model=None,
+        temperature_override=None,
+        top_p_override=None,
+        frequency_penalty_override=None,
+        presence_penalty_override=None,
+        max_tokens_override=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
         called["difficulty"] = difficulty
@@ -285,6 +290,11 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         called["pass_threshold_override"] = pass_threshold_override
         called["candidate_profile"] = candidate_profile
         called["enable_color"] = enable_color
+        called["temperature_override"] = temperature_override
+        called["top_p_override"] = top_p_override
+        called["frequency_penalty_override"] = frequency_penalty_override
+        called["presence_penalty_override"] = presence_penalty_override
+        called["max_tokens_override"] = max_tokens_override
         return {
             "summary_json": {
                 "mode": "benchmark",
@@ -305,6 +315,11 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
     assert called["pass_threshold_override"] == 7.2
     assert called["candidate_profile"] == "good"
     assert called["enable_color"] is True
+    assert called["temperature_override"] is None
+    assert called["top_p_override"] is None
+    assert called["frequency_penalty_override"] is None
+    assert called["presence_penalty_override"] is None
+    assert called["max_tokens_override"] is None
 
     captured = capsys.readouterr()
     assert captured.out == ""
@@ -339,6 +354,11 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
         enable_color=False,
         model=None,
         benchmark_model=None,
+        temperature_override=None,
+        top_p_override=None,
+        frequency_penalty_override=None,
+        presence_penalty_override=None,
+        max_tokens_override=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
         called["language"] = language
@@ -396,6 +416,11 @@ def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys)
         enable_color=False,
         model=None,
         benchmark_model=None,
+        temperature_override=None,
+        top_p_override=None,
+        frequency_penalty_override=None,
+        presence_penalty_override=None,
+        max_tokens_override=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
         called["candidate_profile"] = candidate_profile
@@ -596,10 +621,105 @@ def test_interactive_passes_interview_overrides(monkeypatch):
     }
 
 
+def test_interactive_passes_model_setting_overrides(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--system-prompt",
+            "interview_coach",
+            "--temperature",
+            "0.2",
+            "--top-p",
+            "0.8",
+            "--frequency-penalty",
+            "0.4",
+            "--presence-penalty",
+            "-0.3",
+            "--max-tokens",
+            "321",
+        ],
+    )
+    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["interview_coach"])
+    monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: _make_descriptor("interview_coach"))
+
+    inputs = iter(["hello", "quit"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    calls = []
+
+    def fake_get_chat_reply(*args, **kwargs):
+        calls.append(kwargs)
+        return "assistant"
+
+    monkeypatch.setattr(main, "get_chat_reply", fake_get_chat_reply)
+
+    exit_code = main.main()
+
+    assert exit_code == 0
+    assert len(calls) == 2
+    assert calls[0]["temperature"] == 0.2
+    assert calls[0]["top_p"] == 0.8
+    assert calls[0]["frequency_penalty"] == 0.4
+    assert calls[0]["presence_penalty"] == -0.3
+    assert calls[0]["max_tokens"] == 321
+    assert calls[1]["temperature"] == 0.2
+    assert calls[1]["top_p"] == 0.8
+    assert calls[1]["frequency_penalty"] == 0.4
+    assert calls[1]["presence_penalty"] == -0.3
+    assert calls[1]["max_tokens"] == 321
+
+
+def test_benchmark_mode_passes_model_setting_overrides(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--benchmark",
+            "--system-prompt",
+            "behavioral_focus",
+            "--temperature",
+            "0.2",
+            "--top-p",
+            "0.9",
+            "--frequency-penalty",
+            "0.3",
+            "--presence-penalty",
+            "-0.2",
+            "--max-tokens",
+            "500",
+        ],
+    )
+    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["behavioral_focus"])
+    monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: _make_descriptor("behavioral_focus"))
+
+    called = {}
+
+    def fake_run_benchmark_interview(**kwargs):
+        called.update(kwargs)
+        return {"summary_json": {"mode": "benchmark"}, "conversation": []}
+
+    monkeypatch.setattr(main, "run_benchmark_interview", fake_run_benchmark_interview)
+
+    exit_code = main.main()
+
+    assert exit_code == 0
+    assert called["temperature_override"] == 0.2
+    assert called["top_p_override"] == 0.9
+    assert called["frequency_penalty_override"] == 0.3
+    assert called["presence_penalty_override"] == -0.2
+    assert called["max_tokens_override"] == 500
+
+
 def test_help_makes_candidate_flags_benchmark_only_clear():
     help_text = main._build_parser().format_help()
 
     assert "--language {en,de}" in help_text
+    assert "--temperature TEMPERATURE" in help_text
+    assert "--top-p TOP_P" in help_text
+    assert "--frequency-penalty FREQUENCY_PENALTY" in help_text
+    assert "--presence-penalty PRESENCE_PENALTY" in help_text
+    assert "--max-tokens MAX_TOKENS" in help_text
     assert "Response language code" in help_text
     assert "--color" in help_text
     assert "Enable colorized transcript output" in help_text
@@ -615,11 +735,19 @@ def test_help_lists_benchmark_options_in_expected_order():
     language_index = help_text.index("--language {en,de}")
     pass_threshold_index = help_text.index("--pass-threshold PASS_THRESHOLD")
     question_limit_index = help_text.index("--question-limit QUESTION_LIMIT")
+    temperature_index = help_text.index("--temperature TEMPERATURE")
+    top_p_index = help_text.index("--top-p TOP_P")
+    frequency_penalty_index = help_text.index("--frequency-penalty FREQUENCY_PENALTY")
+    presence_penalty_index = help_text.index("--presence-penalty PRESENCE_PENALTY")
+    max_tokens_index = help_text.index("--max-tokens MAX_TOKENS")
     color_index = help_text.index("--color")
     benchmark_index = help_text.index("--benchmark")
     good_index = help_text.index("--good-candidate")
     bad_index = help_text.index("--bad-candidate")
 
     assert difficulty_index < language_index < pass_threshold_index
-    assert pass_threshold_index < question_limit_index < color_index
+    assert pass_threshold_index < question_limit_index < temperature_index
+    assert temperature_index < top_p_index < frequency_penalty_index
+    assert frequency_penalty_index < presence_penalty_index < max_tokens_index
+    assert max_tokens_index < color_index
     assert color_index < benchmark_index < good_index < bad_index
