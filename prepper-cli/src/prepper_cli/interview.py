@@ -649,6 +649,7 @@ def run_interview_turn(
     difficulty: str | None = None,
     model: str | None = None,
     include_diagnostics: bool = False,
+    treat_candidate_input_as_untrusted: bool = False,
 ) -> dict[str, Any]:
     diagnostics: dict[str, Any] = {}
 
@@ -725,33 +726,31 @@ def run_interview_turn(
         question_limit,
     )
 
+    chat_kwargs = {
+        "conversation": conversation,
+        "system_prompt": system_prompt,
+        "language": language,
+        "temperature": model_settings["temperature"],
+        "top_p": model_settings["top_p"],
+        "frequency_penalty": model_settings["frequency_penalty"],
+        "presence_penalty": model_settings["presence_penalty"],
+        "max_tokens": model_settings["max_tokens"],
+        "model": model,
+    }
+    if treat_candidate_input_as_untrusted:
+        chat_kwargs["treat_input_as_untrusted"] = True
+
     if include_diagnostics:
         raw_reply, chat_diagnostics = get_chat_reply(
             message,
-            conversation=conversation,
-            system_prompt=system_prompt,
-            language=language,
-            temperature=model_settings["temperature"],
-            top_p=model_settings["top_p"],
-            frequency_penalty=model_settings["frequency_penalty"],
-            presence_penalty=model_settings["presence_penalty"],
-            max_tokens=model_settings["max_tokens"],
-            model=model,
             include_diagnostics=True,
+            **chat_kwargs,
         )
         diagnostics["turn_chat"] = chat_diagnostics
     else:
         raw_reply = get_chat_reply(
             message,
-            conversation=conversation,
-            system_prompt=system_prompt,
-            language=language,
-            temperature=model_settings["temperature"],
-            top_p=model_settings["top_p"],
-            frequency_penalty=model_settings["frequency_penalty"],
-            presence_penalty=model_settings["presence_penalty"],
-            max_tokens=model_settings["max_tokens"],
-            model=model,
+            **chat_kwargs,
         )
 
     parsed_reply = parse_reply_metadata(raw_reply)

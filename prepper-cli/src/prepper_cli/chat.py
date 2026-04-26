@@ -137,31 +137,23 @@ def get_chat_reply(
     conversation_reply_override: str | None = None,
     model: str | None = None,
     include_diagnostics: bool = False,
+    treat_input_as_untrusted: bool = False,
 ) -> str | tuple[str, dict[str, Any]]:
     prompt = message.strip()
     if not prompt:
         raise ValueError("message is required")
 
-    current_message = {
-        "role": "user",
-        "content": _wrap_untrusted_content(prompt, "current_user_message"),
-    }
+    current_content = (
+        _wrap_untrusted_content(prompt, "current_user_message")
+        if treat_input_as_untrusted
+        else prompt
+    )
+    current_message = {"role": "user", "content": current_content}
     messages = [current_message]
     if conversation is not None and history_limit > 1:
         context_messages = conversation.get_recent_messages(
             limit=history_limit - 1)
-        wrapped_context_messages: list[dict[str, str]] = []
-        for index, history_message in enumerate(context_messages):
-            source = f"conversation_{history_message['role']}_{index}"
-            wrapped_context_messages.append(
-                {
-                    "role": history_message["role"],
-                    "content": _wrap_untrusted_content(
-                        history_message["content"], source
-                    ),
-                }
-            )
-        messages = wrapped_context_messages + messages
+        messages = context_messages + messages
 
     messages = _prepend_system_prompts(
         messages, language=language, system_prompt=system_prompt)

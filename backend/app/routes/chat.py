@@ -125,6 +125,7 @@ def chat():
                 "pass_threshold": active_pass_threshold,
                 "model_settings": model_settings,
                 "difficulty": resolved_difficulty,
+                "treat_candidate_input_as_untrusted": True,
             }
             if debug_mode:
                 interview_kwargs["include_diagnostics"] = True
@@ -173,6 +174,7 @@ def chat():
                     presence_penalty=model_settings["presence_penalty"],
                     max_tokens=model_settings["max_tokens"],
                     include_diagnostics=True,
+                    treat_input_as_untrusted=True,
                 )
             else:
                 reply = get_chat_reply(
@@ -185,6 +187,7 @@ def chat():
                     frequency_penalty=model_settings["frequency_penalty"],
                     presence_penalty=model_settings["presence_penalty"],
                     max_tokens=model_settings["max_tokens"],
+                    treat_input_as_untrusted=True,
                 )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
@@ -293,5 +296,4 @@ def chat_start():
 
     parsed = parse_reply_metadata(reply)
     return jsonify({"reply": parsed["reply"]})
-
 

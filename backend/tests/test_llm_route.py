@@ -39,11 +39,13 @@ def test_chat_uses_default_system_prompt(monkeypatch):
         frequency_penalty=None,
         presence_penalty=None,
         max_tokens=None,
+        **kwargs,
     ):
         captured["message"] = message
         captured["system_prompt"] = system_prompt
         captured["language"] = language
         captured["temperature"] = temperature
+        captured["treat_input_as_untrusted"] = kwargs.get("treat_input_as_untrusted")
         return "ok"
 
     monkeypatch.setattr("app.routes.chat.get_chat_reply", fake_get_chat_reply)
@@ -56,6 +58,7 @@ def test_chat_uses_default_system_prompt(monkeypatch):
     assert captured["system_prompt"] == "prompt::coding_focus"
     assert captured["language"] is None
     assert captured["temperature"] == 0.5
+    assert captured["treat_input_as_untrusted"] is True
 
 
 def test_chat_accepts_selected_system_prompt(monkeypatch):
@@ -79,6 +82,7 @@ def test_chat_accepts_selected_system_prompt(monkeypatch):
         frequency_penalty=None,
         presence_penalty=None,
         max_tokens=None,
+        **kwargs,
     ):
         captured["message"] = message
         captured["system_prompt"] = system_prompt
@@ -128,6 +132,7 @@ def test_chat_allows_model_setting_overrides(monkeypatch):
         frequency_penalty=None,
         presence_penalty=None,
         max_tokens=None,
+        **kwargs,
     ):
         captured["temperature"] = temperature
         captured["top_p"] = top_p
@@ -350,9 +355,13 @@ def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
         pass_threshold,
         model_settings,
         difficulty=None,
+        **kwargs,
     ):
         captured["pass_threshold"] = pass_threshold
         captured["difficulty"] = difficulty
+        captured["treat_candidate_input_as_untrusted"] = kwargs.get(
+            "treat_candidate_input_as_untrusted"
+        )
         return {
             "reply": "Thanks, that concludes the interview.",
             "turn_type": "other",
@@ -388,6 +397,7 @@ def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
     assert data["pass_threshold"] == 6.5
     assert data["final_result"]["pass_threshold"] == 6.5
     assert captured["pass_threshold"] == 6.5
+    assert captured["treat_candidate_input_as_untrusted"] is True
 
 
 def test_chat_start_includes_difficulty_instruction(monkeypatch):
@@ -788,6 +798,7 @@ def test_chat_uses_diagnostics_in_debug_mode(monkeypatch):
         model_settings,
         difficulty=None,
         include_diagnostics=False,
+        **kwargs,
     ):
         captured["include_diagnostics"] = include_diagnostics
         return {
