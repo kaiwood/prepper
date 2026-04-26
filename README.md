@@ -10,6 +10,16 @@ Prepper helps you practice interviews with an AI interviewer.
 
 Use the dedicated setup guide: [SETUP.md](./SETUP.md)
 
+## Run Both Dev Servers
+
+From the project root:
+
+```bash
+./run.sh
+```
+
+This starts backend and frontend together and prints both logs in one terminal. Press `Ctrl+C` to stop both.
+
 ## Testing
 
 Run tests from the project root:
