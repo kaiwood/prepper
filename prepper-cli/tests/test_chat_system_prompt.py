@@ -32,7 +32,7 @@ def test_get_chat_reply_prepends_system_prompt_and_context(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda: (fake_client, "fake-model")
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
     )
 
     conversation = Conversation.from_messages(
@@ -73,7 +73,7 @@ def test_get_chat_reply_forwards_tuning_params(monkeypatch):
     fake_client = _make_fake_client(captured)
 
     monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda: (fake_client, "fake-model")
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
     )
 
     get_chat_reply(
@@ -97,7 +97,7 @@ def test_get_chat_reply_omits_tuning_params_when_not_provided(monkeypatch):
     fake_client = _make_fake_client(captured)
 
     monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda: (fake_client, "fake-model")
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
     )
 
     get_chat_reply("question")
@@ -114,7 +114,7 @@ def test_get_chat_reply_omits_individual_none_tuning_params(monkeypatch):
     fake_client = _make_fake_client(captured)
 
     monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda: (fake_client, "fake-model")
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
     )
 
     get_chat_reply("question", temperature=0.5, top_p=None)
@@ -140,7 +140,7 @@ def test_get_interview_opener_prepends_system_prompt_and_bootstrap_message(monke
     )
 
     monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda: (fake_client, "fake-model")
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
     )
 
     reply = get_interview_opener(
@@ -165,7 +165,7 @@ def test_get_interview_opener_forwards_tuning_params(monkeypatch):
     fake_client = _make_fake_client(captured)
 
     monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda: (fake_client, "fake-model")
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
     )
 
     get_interview_opener(

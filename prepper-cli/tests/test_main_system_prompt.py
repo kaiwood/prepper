@@ -49,6 +49,7 @@ def test_default_mode_is_interactive_with_selected_system_prompt(monkeypatch):
         frequency_penalty=None,
         presence_penalty=None,
         max_tokens=None,
+        model=None,
     ):
         calls.append(
             {
@@ -102,6 +103,7 @@ def test_interactive_selection_applies_selected_prompt(monkeypatch):
         frequency_penalty=None,
         presence_penalty=None,
         max_tokens=None,
+        model=None,
     ):
         calls.append((message, system_prompt, conversation is not None))
         return "assistant"
@@ -139,6 +141,7 @@ def test_system_prompt_starts_interview_immediately(monkeypatch, capsys):
         frequency_penalty=None,
         presence_penalty=None,
         max_tokens=None,
+        model=None,
     ):
         called["message"] = message
         return "Opening question"
@@ -226,7 +229,7 @@ def test_interactive_rating_prompt_stops_when_interview_completes(monkeypatch, c
     captured = capsys.readouterr()
     assert "Interviewer" in captured.out
     assert "Thanks for your answer." in captured.out
-    assert "Final Score" in captured.out
+    assert "Final Candidate Score" in captured.out
     assert "Overall: 8.00 / 10.00 | Threshold: 7.00 | Passed: true" in captured.out
     assert '"final_result"' not in captured.out
     assert "Interview is now over." not in captured.out
@@ -272,6 +275,8 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         candidate_profile="good",
         output=None,
         enable_color=False,
+        model=None,
+        benchmark_model=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
         called["difficulty"] = difficulty
@@ -332,6 +337,8 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
         candidate_profile="good",
         output=None,
         enable_color=False,
+        model=None,
+        benchmark_model=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
         called["language"] = language
@@ -387,6 +394,8 @@ def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys)
         candidate_profile="good",
         output=None,
         enable_color=False,
+        model=None,
+        benchmark_model=None,
     ):
         called["interviewer"] = interviewer_descriptor.id
         called["candidate_profile"] = candidate_profile
