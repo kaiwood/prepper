@@ -209,7 +209,7 @@ def run_benchmark_interview(
 
     write_line(output, "Interview complete.", enable_color=enable_color)
     write_line(output, "", enable_color=enable_color)
-    write_line(output, "## Final Score", enable_color=enable_color)
+    write_line(output, "## Final Candidate Score", enable_color=enable_color)
     write_line(output, "", enable_color=enable_color)
     print_final_result(output, result.get("final_result"), enable_color=enable_color)
 
