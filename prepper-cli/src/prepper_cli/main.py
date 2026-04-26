@@ -51,6 +51,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Enable colorized transcript output",
     )
     parser.add_argument(
+        "--model",
+        help="Model name to use for runtime chat and benchmark candidate generation",
+    )
+    parser.add_argument(
+        "--benchmark-model",
+        help="Model name to use for final benchmark scoring",
+    )
+    parser.add_argument(
         "--benchmark",
         action="store_true",
         help="Run benchmark mode with simulated candidate responses (required for benchmark-only options)",
@@ -156,6 +164,7 @@ def _run_interactive(
     difficulty_override: str | None,
     question_limit_override: int | None,
     pass_threshold_override: float | None,
+    model: str | None,
 ) -> int:
     print("Interactive mode. Type 'exit' or 'quit' to leave.")
 
@@ -202,6 +211,7 @@ def _run_interactive(
                 pass_threshold=pass_threshold,
                 model_settings=model_settings,
                 difficulty=difficulty,
+                model=model,
             )
             print_turn(None, "Interviewer", result["reply"], enable_color=enable_color)
             if result["interview_complete"]:
@@ -218,6 +228,7 @@ def _run_interactive(
                 frequency_penalty=descriptor.frequency_penalty,
                 presence_penalty=descriptor.presence_penalty,
                 max_tokens=descriptor.max_tokens,
+                model=model,
             )
             print_turn(None, "Assistant", reply, enable_color=enable_color)
     except Exception as exc:  # pragma: no cover - direct CLI safety net
@@ -251,6 +262,7 @@ def _run_interactive(
                     pass_threshold=pass_threshold,
                     model_settings=model_settings,
                     difficulty=difficulty,
+                    model=model,
                 )
                 print_turn(None, "Interviewer", result["reply"], enable_color=enable_color)
                 if result["interview_complete"]:
@@ -267,6 +279,7 @@ def _run_interactive(
                     frequency_penalty=descriptor.frequency_penalty if descriptor else None,
                     presence_penalty=descriptor.presence_penalty if descriptor else None,
                     max_tokens=descriptor.max_tokens if descriptor else None,
+                    model=model,
                 )
                 print_turn(None, "Assistant", reply, enable_color=enable_color)
         except Exception as exc:  # pragma: no cover - direct CLI safety net
@@ -291,6 +304,8 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         pass_threshold_override=args.pass_threshold,
         candidate_profile=candidate_profile,
         enable_color=args.color,
+        model=args.model,
+        benchmark_model=args.benchmark_model,
     )
 
     # Benchmark mode prints the conversational transcript/final score from the
@@ -330,6 +345,7 @@ def main() -> int:
             difficulty_override=args.difficulty,
             question_limit_override=args.question_limit,
             pass_threshold_override=args.pass_threshold,
+            model=args.model,
         )
     except Exception as exc:  # pragma: no cover - direct CLI safety net
         print(f"Error: {exc}", file=sys.stderr)

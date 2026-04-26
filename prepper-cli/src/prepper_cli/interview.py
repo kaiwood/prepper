@@ -205,6 +205,7 @@ def request_forced_closing_turn(
     question_count: int,
     question_limit: int,
     difficulty: str | None = None,
+    model: str | None = None,
     include_diagnostics: bool = False,
 ) -> dict[str, Any]:
     system_prompt = descriptor.content + build_metadata_contract_instruction()
@@ -228,6 +229,7 @@ def request_forced_closing_turn(
             frequency_penalty=model_settings["frequency_penalty"],
             presence_penalty=model_settings["presence_penalty"],
             max_tokens=model_settings["max_tokens"],
+            model=model,
             include_diagnostics=True,
         )
         diagnostics["turn_chat"] = chat_diagnostics
@@ -242,6 +244,7 @@ def request_forced_closing_turn(
             frequency_penalty=model_settings["frequency_penalty"],
             presence_penalty=model_settings["presence_penalty"],
             max_tokens=model_settings["max_tokens"],
+            model=model,
         )
 
     parsed_reply = parse_reply_metadata(raw_reply)
@@ -528,6 +531,7 @@ def score_interviewer_performance(
     difficulty: str | None,
     candidate_overall_score: float,
     interviewer_pass_threshold: float,
+    model: str | None = None,
 ) -> dict:
     score_raw = get_chat_reply(
         build_interviewer_scoring_input(conversation, difficulty),
@@ -538,6 +542,7 @@ def score_interviewer_performance(
         frequency_penalty=0.0,
         presence_penalty=0.0,
         max_tokens=350,
+        model=model,
     )
     return parse_interviewer_scoring_payload(
         score_raw,
@@ -590,6 +595,7 @@ def score_interview(
     descriptor: PromptDescriptor,
     language: str | None,
     pass_threshold: float,
+    model: str | None = None,
 ) -> dict:
     score_raw = get_chat_reply(
         build_scoring_input(conversation),
@@ -600,6 +606,7 @@ def score_interview(
         frequency_penalty=0.0,
         presence_penalty=0.0,
         max_tokens=300,
+        model=model,
     )
     return parse_scoring_payload(score_raw, descriptor, pass_threshold)
 
@@ -609,6 +616,7 @@ def score_interview_with_diagnostics(
     descriptor: PromptDescriptor,
     language: str | None,
     pass_threshold: float,
+    model: str | None = None,
 ) -> tuple[dict, dict[str, Any]]:
     score_raw, chat_diagnostics = get_chat_reply(
         build_scoring_input(conversation),
@@ -619,6 +627,7 @@ def score_interview_with_diagnostics(
         frequency_penalty=0.0,
         presence_penalty=0.0,
         max_tokens=300,
+        model=model,
         include_diagnostics=True,
     )
     parsed = parse_scoring_payload(score_raw, descriptor, pass_threshold)
@@ -638,6 +647,7 @@ def run_interview_turn(
     pass_threshold: float,
     model_settings: dict[str, float | int],
     difficulty: str | None = None,
+    model: str | None = None,
     include_diagnostics: bool = False,
 ) -> dict[str, Any]:
     diagnostics: dict[str, Any] = {}
@@ -652,6 +662,7 @@ def run_interview_turn(
             question_count=prior_question_count,
             question_limit=question_limit,
             difficulty=difficulty,
+            model=model,
             include_diagnostics=include_diagnostics,
         )
 
@@ -676,6 +687,7 @@ def run_interview_turn(
                 descriptor,
                 language,
                 pass_threshold,
+                model=model,
             )
             diagnostics["forced_closing"] = forced_turn["diagnostics"]
             diagnostics["final_scoring"] = score_diagnostics
@@ -685,6 +697,7 @@ def run_interview_turn(
                 descriptor,
                 language,
                 pass_threshold,
+                model=model,
             )
 
         result = {
@@ -723,6 +736,7 @@ def run_interview_turn(
             frequency_penalty=model_settings["frequency_penalty"],
             presence_penalty=model_settings["presence_penalty"],
             max_tokens=model_settings["max_tokens"],
+            model=model,
             include_diagnostics=True,
         )
         diagnostics["turn_chat"] = chat_diagnostics
@@ -737,6 +751,7 @@ def run_interview_turn(
             frequency_penalty=model_settings["frequency_penalty"],
             presence_penalty=model_settings["presence_penalty"],
             max_tokens=model_settings["max_tokens"],
+            model=model,
         )
 
     parsed_reply = parse_reply_metadata(raw_reply)
@@ -822,6 +837,7 @@ def run_interview_turn(
                 descriptor,
                 language,
                 pass_threshold,
+                model=model,
             )
             diagnostics["final_scoring"] = score_diagnostics
         else:
@@ -830,6 +846,7 @@ def run_interview_turn(
                 descriptor,
                 language,
                 pass_threshold,
+                model=model,
             )
 
     result = {

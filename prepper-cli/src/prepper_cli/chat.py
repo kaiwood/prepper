@@ -19,11 +19,12 @@ def _request_chat_reply(
     frequency_penalty: float | None = None,
     presence_penalty: float | None = None,
     max_tokens: int | None = None,
+    model: str | None = None,
     include_diagnostics: bool = False,
 ) -> str | tuple[str, dict[str, Any]]:
-    client, model = get_client()
+    client, resolved_model = get_client(model)
 
-    kwargs: dict = {"model": model, "messages": messages}
+    kwargs: dict = {"model": resolved_model, "messages": messages}
     if temperature is not None:
         kwargs["temperature"] = temperature
     if top_p is not None:
@@ -46,6 +47,7 @@ def _request_chat_reply(
     return normalized_reply, {
         "request": {
             "model": model,
+            "model": resolved_model,
             "messages": messages,
             "temperature": temperature,
             "top_p": top_p,
@@ -119,6 +121,7 @@ def get_chat_reply(
     presence_penalty: float | None = None,
     max_tokens: int | None = None,
     conversation_reply_override: str | None = None,
+    model: str | None = None,
     include_diagnostics: bool = False,
 ) -> str | tuple[str, dict[str, Any]]:
     prompt = message.strip()
@@ -141,6 +144,7 @@ def get_chat_reply(
         frequency_penalty=frequency_penalty,
         presence_penalty=presence_penalty,
         max_tokens=max_tokens,
+        model=model,
         include_diagnostics=include_diagnostics,
     )
 
@@ -173,6 +177,7 @@ def get_interview_opener(
     frequency_penalty: float | None = None,
     presence_penalty: float | None = None,
     max_tokens: int | None = None,
+    model: str | None = None,
     include_diagnostics: bool = False,
 ) -> str | tuple[str, dict[str, Any]]:
     messages = [{"role": "user", "content": _INTERVIEW_OPENER_MESSAGE}]
@@ -186,5 +191,6 @@ def get_interview_opener(
         frequency_penalty=frequency_penalty,
         presence_penalty=presence_penalty,
         max_tokens=max_tokens,
+        model=model,
         include_diagnostics=include_diagnostics,
     )

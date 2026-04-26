@@ -47,6 +47,7 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
         pass_threshold,
         model_settings,
         difficulty,
+        model=None,
     ):
         calls["run_turn"] += 1
         assert descriptor.id == "behavioral_focus"
@@ -106,6 +107,7 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
         presence_penalty=None,
         max_tokens=None,
         conversation_reply_override=None,
+        model=None,
         include_diagnostics=False,
     ):
         calls["candidate_reply"] += 1
@@ -122,10 +124,9 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
 
     monkeypatch.setattr(benchmark, "run_interview_turn", fake_run_interview_turn)
     monkeypatch.setattr(benchmark, "get_chat_reply", fake_get_chat_reply)
-    monkeypatch.setattr(
-        benchmark,
-        "score_interviewer_performance",
-        lambda **kwargs: {
+    def fake_score_interviewer_performance(**kwargs):
+        assert kwargs["model"] == "benchmark-model"
+        return {
             "overall_score": 7.9,
             "rubric_overall_score": 7.8,
             "candidate_score_component": 8.0,
@@ -139,12 +140,15 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
             "improvements": ["Increase challenge depth"],
             "difficulty_alignment": "aligned",
             "parse_warning": False,
-        },
-    )
+        }
+
+    monkeypatch.setattr(benchmark, "score_interviewer_performance", fake_score_interviewer_performance)
 
     result = benchmark.run_benchmark_interview(
         interviewer_descriptor=interviewer,
         language="de",
+        model="runtime-model",
+        benchmark_model="benchmark-model",
     )
 
     assert calls["run_turn"] == 2
@@ -186,8 +190,10 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
         pass_threshold,
         model_settings,
         difficulty,
+        model=None,
     ):
         assert language == "en"
+        assert model == "runtime-model"
         assert conversation is not None
         conversation.add_user_message(message)
         if calls["candidate_reply"] == 0:
@@ -238,12 +244,14 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
         presence_penalty=None,
         max_tokens=None,
         conversation_reply_override=None,
+        model=None,
         include_diagnostics=False,
     ):
         calls["candidate_reply"] += 1
         assert "weak candidate" in system_prompt
         assert "vague" in system_prompt
         assert language == "en"
+        assert model == "runtime-model"
         return "Not sure, but I fixed some things quickly."
 
     monkeypatch.setattr(benchmark, "run_interview_turn", fake_run_interview_turn)
@@ -271,6 +279,7 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
     result = benchmark.run_benchmark_interview(
         interviewer_descriptor=interviewer,
         candidate_profile="bad",
+        model="runtime-model",
     )
 
     assert result["summary_json"]["candidate_system_prompt"] == "benchmark_candidate_bad"
