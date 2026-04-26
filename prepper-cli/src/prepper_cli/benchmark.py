@@ -9,13 +9,35 @@ from .interview import resolve_pass_threshold, run_interview_turn, score_intervi
 from .system_prompts import PromptDescriptor
 
 
-def _build_model_settings(descriptor: PromptDescriptor) -> dict[str, float | int]:
+def _build_model_settings(
+    descriptor: PromptDescriptor,
+    *,
+    temperature_override: float | None = None,
+    top_p_override: float | None = None,
+    frequency_penalty_override: float | None = None,
+    presence_penalty_override: float | None = None,
+    max_tokens_override: int | None = None,
+) -> dict[str, float | int]:
     return {
-        "temperature": descriptor.temperature,
-        "top_p": descriptor.top_p,
-        "frequency_penalty": descriptor.frequency_penalty,
-        "presence_penalty": descriptor.presence_penalty,
-        "max_tokens": descriptor.max_tokens,
+        "temperature": (
+            descriptor.temperature
+            if temperature_override is None
+            else temperature_override
+        ),
+        "top_p": descriptor.top_p if top_p_override is None else top_p_override,
+        "frequency_penalty": (
+            descriptor.frequency_penalty
+            if frequency_penalty_override is None
+            else frequency_penalty_override
+        ),
+        "presence_penalty": (
+            descriptor.presence_penalty
+            if presence_penalty_override is None
+            else presence_penalty_override
+        ),
+        "max_tokens": (
+            descriptor.max_tokens if max_tokens_override is None else max_tokens_override
+        ),
     }
 
 
@@ -64,7 +86,7 @@ def _build_candidate_system_prompt(candidate_profile: str) -> str:
 
 def _generate_candidate_reply(
     interviewer_message: str,
-    interviewer_descriptor: PromptDescriptor,
+    model_settings: dict[str, float | int],
     language: str | None,
     candidate_profile: str,
     model: str | None = None,
@@ -79,11 +101,11 @@ def _generate_candidate_reply(
         candidate_input,
         system_prompt=_build_candidate_system_prompt(candidate_profile),
         language=language,
-        temperature=interviewer_descriptor.temperature,
-        top_p=interviewer_descriptor.top_p,
-        frequency_penalty=interviewer_descriptor.frequency_penalty,
-        presence_penalty=interviewer_descriptor.presence_penalty,
-        max_tokens=interviewer_descriptor.max_tokens,
+        temperature=model_settings["temperature"],
+        top_p=model_settings["top_p"],
+        frequency_penalty=model_settings["frequency_penalty"],
+        presence_penalty=model_settings["presence_penalty"],
+        max_tokens=model_settings["max_tokens"],
         model=model,
     )
 
@@ -128,6 +150,11 @@ def run_benchmark_interview(
     enable_color: bool = False,
     model: str | None = None,
     benchmark_model: str | None = None,
+    temperature_override: float | None = None,
+    top_p_override: float | None = None,
+    frequency_penalty_override: float | None = None,
+    presence_penalty_override: float | None = None,
+    max_tokens_override: int | None = None,
 ) -> dict:
     conversation = Conversation()
 
@@ -146,7 +173,14 @@ def run_benchmark_interview(
         else resolve_pass_threshold(interviewer_descriptor, resolved_difficulty)
     )
 
-    model_settings = _build_model_settings(interviewer_descriptor)
+    model_settings = _build_model_settings(
+        interviewer_descriptor,
+        temperature_override=temperature_override,
+        top_p_override=top_p_override,
+        frequency_penalty_override=frequency_penalty_override,
+        presence_penalty_override=presence_penalty_override,
+        max_tokens_override=max_tokens_override,
+    )
     _print_header(
         output,
         interviewer_descriptor,
@@ -184,7 +218,7 @@ def run_benchmark_interview(
 
         candidate_reply = _generate_candidate_reply(
             interviewer_message=result["reply"],
-            interviewer_descriptor=interviewer_descriptor,
+            model_settings=model_settings,
             language=language,
             candidate_profile=candidate_profile,
             model=model,

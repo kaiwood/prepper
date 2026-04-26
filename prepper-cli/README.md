@@ -69,6 +69,12 @@ Interview tuning flags:
 prepper-cli --system-prompt coding_focus --difficulty hard --question-limit 3 --pass-threshold 7.2
 ```
 
+Model settings overrides:
+
+```bash
+prepper-cli --system-prompt coding_focus --temperature 0.2 --top-p 0.9 --frequency-penalty 0.3 --presence-penalty -0.2 --max-tokens 500
+```
+
 Language + color:
 
 ```bash
@@ -131,6 +137,11 @@ prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-4o-m
 - `--question-limit`: max question roundtrips
 - `--difficulty`: interviewer difficulty (`easy`, `medium`, `hard`) when supported by prompt
 - `--pass-threshold`: override required pass score
+- `--temperature`: runtime model temperature override
+- `--top-p`: runtime model top-p override
+- `--frequency-penalty`: runtime model frequency penalty override
+- `--presence-penalty`: runtime model presence penalty override
+- `--max-tokens`: runtime model max tokens override
 - `--model`: model for runtime chat + candidate generation
 - `--benchmark-model`: model for final interviewer scoring pass
 
@@ -163,6 +174,8 @@ max_tokens: 700
 - `max_tokens`: response length cap
 
 OpenRouter compatibility note: parameters are forwarded via OpenAI-compatible API, but not all model/provider combinations honor every field.
+
+CLI default behavior: if you do not pass a model-setting override flag, `prepper-cli` uses the selected prompt file's front matter value.
 
 ## Python API
 

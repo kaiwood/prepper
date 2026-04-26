@@ -46,6 +46,31 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Interview question roundtrip limit override",
     )
     parser.add_argument(
+        "--temperature",
+        type=float,
+        help="Model temperature override",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        help="Model top-p override",
+    )
+    parser.add_argument(
+        "--frequency-penalty",
+        type=float,
+        help="Model frequency penalty override",
+    )
+    parser.add_argument(
+        "--presence-penalty",
+        type=float,
+        help="Model presence penalty override",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        help="Model max tokens override",
+    )
+    parser.add_argument(
         "--color",
         action="store_true",
         help="Enable colorized transcript output",
@@ -156,6 +181,41 @@ def _resolve_interview_settings(
     return difficulty, question_limit, resolved_pass_threshold
 
 
+def _resolve_runtime_model_settings(
+    descriptor,
+    *,
+    temperature_override: float | None,
+    top_p_override: float | None,
+    frequency_penalty_override: float | None,
+    presence_penalty_override: float | None,
+    max_tokens_override: int | None,
+) -> dict[str, float | int] | None:
+    if descriptor is None:
+        return None
+
+    return {
+        "temperature": (
+            descriptor.temperature
+            if temperature_override is None
+            else temperature_override
+        ),
+        "top_p": descriptor.top_p if top_p_override is None else top_p_override,
+        "frequency_penalty": (
+            descriptor.frequency_penalty
+            if frequency_penalty_override is None
+            else frequency_penalty_override
+        ),
+        "presence_penalty": (
+            descriptor.presence_penalty
+            if presence_penalty_override is None
+            else presence_penalty_override
+        ),
+        "max_tokens": (
+            descriptor.max_tokens if max_tokens_override is None else max_tokens_override
+        ),
+    }
+
+
 def _run_interactive(
     system_prompt: str | None,
     *,
@@ -165,6 +225,11 @@ def _run_interactive(
     question_limit_override: int | None,
     pass_threshold_override: float | None,
     model: str | None,
+    temperature_override: float | None,
+    top_p_override: float | None,
+    frequency_penalty_override: float | None,
+    presence_penalty_override: float | None,
+    max_tokens_override: int | None,
 ) -> int:
     print("Interactive mode. Type 'exit' or 'quit' to leave.")
 
@@ -182,22 +247,13 @@ def _run_interactive(
         question_limit_override,
         pass_threshold_override,
     )
-    model_settings = (
-        {
-            "temperature": descriptor.temperature,
-            "top_p": descriptor.top_p,
-            "frequency_penalty": descriptor.frequency_penalty,
-            "presence_penalty": descriptor.presence_penalty,
-            "max_tokens": descriptor.max_tokens,
-        }
-        if descriptor
-        else {
-            "temperature": 0.7,
-            "top_p": 1.0,
-            "frequency_penalty": 0.0,
-            "presence_penalty": 0.0,
-            "max_tokens": 800,
-        }
+    model_settings = _resolve_runtime_model_settings(
+        descriptor,
+        temperature_override=temperature_override,
+        top_p_override=top_p_override,
+        frequency_penalty_override=frequency_penalty_override,
+        presence_penalty_override=presence_penalty_override,
+        max_tokens_override=max_tokens_override,
     )
 
     try:
@@ -223,11 +279,11 @@ def _run_interactive(
                 conversation=conversation,
                 system_prompt=descriptor.content,
                 language=language,
-                temperature=descriptor.temperature,
-                top_p=descriptor.top_p,
-                frequency_penalty=descriptor.frequency_penalty,
-                presence_penalty=descriptor.presence_penalty,
-                max_tokens=descriptor.max_tokens,
+                temperature=model_settings["temperature"] if model_settings else None,
+                top_p=model_settings["top_p"] if model_settings else None,
+                frequency_penalty=model_settings["frequency_penalty"] if model_settings else None,
+                presence_penalty=model_settings["presence_penalty"] if model_settings else None,
+                max_tokens=model_settings["max_tokens"] if model_settings else None,
                 model=model,
             )
             print_turn(None, "Assistant", reply, enable_color=enable_color)
@@ -274,11 +330,11 @@ def _run_interactive(
                     conversation=conversation,
                     system_prompt=descriptor.content if descriptor else None,
                     language=language,
-                    temperature=descriptor.temperature if descriptor else None,
-                    top_p=descriptor.top_p if descriptor else None,
-                    frequency_penalty=descriptor.frequency_penalty if descriptor else None,
-                    presence_penalty=descriptor.presence_penalty if descriptor else None,
-                    max_tokens=descriptor.max_tokens if descriptor else None,
+                    temperature=model_settings["temperature"] if model_settings else None,
+                    top_p=model_settings["top_p"] if model_settings else None,
+                    frequency_penalty=model_settings["frequency_penalty"] if model_settings else None,
+                    presence_penalty=model_settings["presence_penalty"] if model_settings else None,
+                    max_tokens=model_settings["max_tokens"] if model_settings else None,
                     model=model,
                 )
                 print_turn(None, "Assistant", reply, enable_color=enable_color)
@@ -306,6 +362,11 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         enable_color=args.color,
         model=args.model,
         benchmark_model=args.benchmark_model,
+        temperature_override=args.temperature,
+        top_p_override=args.top_p,
+        frequency_penalty_override=args.frequency_penalty,
+        presence_penalty_override=args.presence_penalty,
+        max_tokens_override=args.max_tokens,
     )
 
     # Benchmark mode prints the conversational transcript/final score from the
@@ -346,6 +407,11 @@ def main() -> int:
             question_limit_override=args.question_limit,
             pass_threshold_override=args.pass_threshold,
             model=args.model,
+            temperature_override=args.temperature,
+            top_p_override=args.top_p,
+            frequency_penalty_override=args.frequency_penalty,
+            presence_penalty_override=args.presence_penalty,
+            max_tokens_override=args.max_tokens,
         )
     except Exception as exc:  # pragma: no cover - direct CLI safety net
         print(f"Error: {exc}", file=sys.stderr)
