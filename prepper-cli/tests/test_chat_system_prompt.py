@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 
-from prepper_cli.chat import get_chat_reply, get_interview_opener
+from prepper_cli.chat import (
+    _PROMPT_INJECTION_GUARDRAIL,
+    get_chat_reply,
+    get_interview_opener,
+)
 from prepper_cli.conversation import Conversation
 
 
@@ -54,12 +58,25 @@ def test_get_chat_reply_prepends_system_prompt_and_context(monkeypatch):
     assert captured_messages == [
         {
             "role": "system",
+            "content": _PROMPT_INJECTION_GUARDRAIL,
+        },
+        {
+            "role": "system",
             "content": "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.",
         },
         {"role": "system", "content": "You are a coach."},
-        {"role": "user", "content": "previous question"},
-        {"role": "assistant", "content": "previous answer"},
-        {"role": "user", "content": "new question"},
+        {
+            "role": "user",
+            "content": '<untrusted_input source="conversation_user_0">\nprevious question\n</untrusted_input>',
+        },
+        {
+            "role": "assistant",
+            "content": '<untrusted_input source="conversation_assistant_1">\nprevious answer\n</untrusted_input>',
+        },
+        {
+            "role": "user",
+            "content": '<untrusted_input source="current_user_message">\nnew question\n</untrusted_input>',
+        },
     ]
 
     assert conversation.get_messages()[-2:] == [
@@ -150,6 +167,10 @@ def test_get_interview_opener_prepends_system_prompt_and_bootstrap_message(monke
     assert captured_messages == [
         {
             "role": "system",
+            "content": _PROMPT_INJECTION_GUARDRAIL,
+        },
+        {
+            "role": "system",
             "content": "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.",
         },
         {"role": "system", "content": "You are an interviewer."},
@@ -158,6 +179,35 @@ def test_get_interview_opener_prepends_system_prompt_and_bootstrap_message(monke
             "content": "Begin the interview now. Ask the first interview question and wait for the candidate's response.",
         },
     ]
+
+
+def test_get_chat_reply_includes_guardrail_without_other_system_prompts(monkeypatch):
+    captured_messages = []
+
+    def fake_create(*, model, messages, **kwargs):
+        captured_messages.extend(messages)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="assistant reply"))]
+        )
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    monkeypatch.setattr(
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
+    )
+
+    get_chat_reply("hello")
+
+    assert captured_messages[0] == {
+        "role": "system",
+        "content": _PROMPT_INJECTION_GUARDRAIL,
+    }
+    assert captured_messages[1] == {
+        "role": "user",
+        "content": '<untrusted_input source="current_user_message">\nhello\n</untrusted_input>',
+    }
 
 
 def test_get_interview_opener_forwards_tuning_params(monkeypatch):

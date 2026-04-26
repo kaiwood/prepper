@@ -50,6 +50,7 @@ type TranslationStrings = {
   improvementsLabel: string;
   rubricLabel: string;
   interviewLockedPlaceholder: string;
+  injectionWarning: string;
 };
 
 export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
@@ -99,6 +100,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     rubricLabel: "Rubric scores",
     interviewLockedPlaceholder:
       "Interview completed. Reset the conversation to start a new run.",
+    injectionWarning:
+      "This message contains patterns often used in prompt-injection attempts. It will still be sent, but treat results with caution.",
   },
   de: {
     appTitle: "Prepper",
@@ -148,5 +151,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     rubricLabel: "Rubrik-Bewertungen",
     interviewLockedPlaceholder:
       "Interview ist abgeschlossen. Setze das Gespraech zurueck, um neu zu starten.",
+    injectionWarning:
+      "Diese Nachricht enthaelt Muster, die oft bei Prompt-Injection-Versuchen genutzt werden. Sie wird trotzdem gesendet, aber bewerte die Antwort mit Vorsicht.",
   },
 };

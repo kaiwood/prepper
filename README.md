@@ -10,6 +10,29 @@ Prepper helps you practice interviews with an AI interviewer.
 
 Use the dedicated setup guide: [SETUP.md](./SETUP.md)
 
+## Testing
+
+Run tests from the project root:
+
+### Frontend
+
+```bash
+cd frontend
+npm run test:unit
+```
+
+### Backend
+
+```bash
+backend/.venv/bin/python -m pytest backend/tests
+```
+
+### prepper-cli
+
+```bash
+prepper-cli/.venv/bin/python -m pytest prepper-cli/tests
+```
+
 ## Project Structure
 
 ```text
