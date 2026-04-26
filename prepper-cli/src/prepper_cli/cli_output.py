@@ -64,7 +64,7 @@ def print_final_result(
         write_line(output, "Final score: unavailable", enable_color=enable_color)
         return
 
-    write_line(output, "Final Score", enable_color=enable_color)
+    write_line(output, "## Final Candidate Score", enable_color=enable_color)
     write_line(
         output,
         f"Overall: {final_result['overall_score']:.2f} / 10.00 | "
