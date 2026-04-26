@@ -6,6 +6,10 @@ Prepper helps you practice interviews with an AI interviewer.
 - `frontend/`: Next.js web app
 - `prepper-cli/`: reusable Python package + CLI for local interview practice and benchmarking
 
+## Fresh Clone Setup
+
+Use the dedicated setup guide: [SETUP.md](./SETUP.md)
+
 ## Project Structure
 
 ```text
