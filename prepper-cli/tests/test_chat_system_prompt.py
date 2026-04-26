@@ -65,18 +65,9 @@ def test_get_chat_reply_prepends_system_prompt_and_context(monkeypatch):
             "content": "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.",
         },
         {"role": "system", "content": "You are a coach."},
-        {
-            "role": "user",
-            "content": '<untrusted_input source="conversation_user_0">\nprevious question\n</untrusted_input>',
-        },
-        {
-            "role": "assistant",
-            "content": '<untrusted_input source="conversation_assistant_1">\nprevious answer\n</untrusted_input>',
-        },
-        {
-            "role": "user",
-            "content": '<untrusted_input source="current_user_message">\nnew question\n</untrusted_input>',
-        },
+        {"role": "user", "content": "previous question"},
+        {"role": "assistant", "content": "previous answer"},
+        {"role": "user", "content": "new question"},
     ]
 
     assert conversation.get_messages()[-2:] == [
@@ -205,6 +196,45 @@ def test_get_chat_reply_includes_guardrail_without_other_system_prompts(monkeypa
         "content": _PROMPT_INJECTION_GUARDRAIL,
     }
     assert captured_messages[1] == {
+        "role": "user",
+        "content": "hello",
+    }
+
+
+def test_get_chat_reply_wraps_only_current_message_when_untrusted(monkeypatch):
+    captured_messages = []
+
+    def fake_create(*, model, messages, **kwargs):
+        captured_messages.extend(messages)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="assistant reply"))]
+        )
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    monkeypatch.setattr(
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
+    )
+
+    conversation = Conversation.from_messages(
+        [
+            {"role": "user", "content": "previous question"},
+            {"role": "assistant", "content": "previous answer"},
+        ]
+    )
+
+    get_chat_reply(
+        "hello",
+        conversation=conversation,
+        history_limit=3,
+        treat_input_as_untrusted=True,
+    )
+
+    assert captured_messages[1] == {"role": "user", "content": "previous question"}
+    assert captured_messages[2] == {"role": "assistant", "content": "previous answer"}
+    assert captured_messages[3] == {
         "role": "user",
         "content": '<untrusted_input source="current_user_message">\nhello\n</untrusted_input>',
     }
