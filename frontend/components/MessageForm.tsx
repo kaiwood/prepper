@@ -21,6 +21,7 @@ type MessageFormProps = {
   resetConversationText: string;
   sendText: string;
   thinkingText: string;
+  injectionWarningText?: string | null;
 };
 
 export default function MessageForm({
@@ -42,6 +43,7 @@ export default function MessageForm({
   resetConversationText,
   sendText,
   thinkingText,
+  injectionWarningText = null,
 }: MessageFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -130,6 +132,9 @@ export default function MessageForm({
       </div>
 
       {error && <p className="text-red-600 max-w-lg">{error}</p>}
+      {injectionWarningText && (
+        <p className="text-amber-700 max-w-lg">{injectionWarningText}</p>
+      )}
     </form>
   );
 }

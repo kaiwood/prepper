@@ -12,6 +12,7 @@ import {
   TRANSLATIONS,
   type LanguageCode,
 } from "../lib/translations";
+import { hasSuspiciousPromptInjectionPattern } from "../lib/promptInjection.mjs";
 
 type DifficultyValue = "easy" | "medium" | "hard";
 
@@ -196,6 +197,7 @@ export default function Home() {
   const finalResult = interviewStatus?.final_result;
   const resultPassed = finalResult?.passed ?? false;
   const ui = TRANSLATIONS[language];
+  const showInjectionWarning = hasSuspiciousPromptInjectionPattern(message);
   const difficultyLabelByValue: Record<DifficultyValue, string> = {
     easy: ui.difficultyJunior,
     medium: ui.difficultySenior,
@@ -744,6 +746,7 @@ export default function Home() {
         resetConversationText={ui.resetConversation}
         sendText={ui.send}
         thinkingText={ui.thinking}
+        injectionWarningText={showInjectionWarning ? ui.injectionWarning : null}
       />
 
       {interviewCompleted && interviewStatus?.final_result && (
