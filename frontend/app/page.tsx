@@ -705,50 +705,6 @@ export default function Home() {
         </div>
       )}
 
-      <Conversation
-        conversation={conversation}
-        loading={loading}
-        emptyStateText={ui.conversationEmpty}
-        thinkingText={ui.thinking}
-      />
-
-      <MessageForm
-        message={message}
-        onMessageChange={setMessage}
-        onSubmit={handleSubmit}
-        onStart={handleStart}
-        onClear={() => {
-          setConversation([]);
-          setMessage("");
-          setError(null);
-          setInterviewStatus(null);
-          setAdvancedSettings(buildAdvancedSettings(selectedPromptMetadata));
-          setSelectedDifficulty(
-            selectedPromptMetadata?.difficulty_enabled
-              ? (selectedPromptMetadata.default_difficulty ?? "medium")
-              : "medium",
-          );
-        }}
-        loading={loading}
-        canClear={conversation.length > 0}
-        canStart={Boolean(selectedPrompt) && availablePrompts.length > 0}
-        hasStarted={hasStarted}
-        disableMessaging={interviewCompleted}
-        error={error}
-        placeholderStarted={
-          interviewCompleted
-            ? ui.interviewLockedPlaceholder
-            : ui.inputPlaceholderStarted
-        }
-        placeholderNotStarted={ui.inputPlaceholderNotStarted}
-        startInterviewText={ui.startInterview}
-        startingText={ui.starting}
-        resetConversationText={ui.resetConversation}
-        sendText={ui.send}
-        thinkingText={ui.thinking}
-        injectionWarningText={showInjectionWarning ? ui.injectionWarning : null}
-      />
-
       {interviewCompleted && interviewStatus?.final_result && (
         <section
           className={`w-full max-w-3xl rounded-xl p-4 flex flex-col gap-3 border ${
@@ -798,6 +754,50 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <Conversation
+        conversation={conversation}
+        loading={loading}
+        emptyStateText={ui.conversationEmpty}
+        thinkingText={ui.thinking}
+      />
+
+      <MessageForm
+        message={message}
+        onMessageChange={setMessage}
+        onSubmit={handleSubmit}
+        onStart={handleStart}
+        onClear={() => {
+          setConversation([]);
+          setMessage("");
+          setError(null);
+          setInterviewStatus(null);
+          setAdvancedSettings(buildAdvancedSettings(selectedPromptMetadata));
+          setSelectedDifficulty(
+            selectedPromptMetadata?.difficulty_enabled
+              ? (selectedPromptMetadata.default_difficulty ?? "medium")
+              : "medium",
+          );
+        }}
+        loading={loading}
+        canClear={conversation.length > 0}
+        canStart={Boolean(selectedPrompt) && availablePrompts.length > 0}
+        hasStarted={hasStarted}
+        disableMessaging={interviewCompleted}
+        error={error}
+        placeholderStarted={
+          interviewCompleted
+            ? ui.interviewLockedPlaceholder
+            : ui.inputPlaceholderStarted
+        }
+        placeholderNotStarted={ui.inputPlaceholderNotStarted}
+        startInterviewText={ui.startInterview}
+        startingText={ui.starting}
+        resetConversationText={ui.resetConversation}
+        sendText={ui.send}
+        thinkingText={ui.thinking}
+        injectionWarningText={showInjectionWarning ? ui.injectionWarning : null}
+      />
     </main>
   );
 }
