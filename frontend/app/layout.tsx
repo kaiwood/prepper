@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Prepper - Your AI Interview Coach",
+  title: "Prepper - AI Interview Prep",
   description:
     "App to help software developers to prepare for job interviews with AI-powered mock conversations and feedback.",
 };

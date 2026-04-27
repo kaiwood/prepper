@@ -36,7 +36,7 @@ Create `.env` (or export env vars):
 OPENROUTER_API_KEY=your_key_here
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_MODEL=openai/gpt-4o-mini
-PREPPER_DEFAULT_SYSTEM_PROMPT=interview_coach
+PREPPER_DEFAULT_SYSTEM_PROMPT=coding_focus
 ```
 
 ## CLI Usage

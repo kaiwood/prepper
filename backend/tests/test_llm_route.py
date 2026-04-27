@@ -45,7 +45,8 @@ def test_chat_uses_default_system_prompt(monkeypatch):
         captured["system_prompt"] = system_prompt
         captured["language"] = language
         captured["temperature"] = temperature
-        captured["treat_input_as_untrusted"] = kwargs.get("treat_input_as_untrusted")
+        captured["treat_input_as_untrusted"] = kwargs.get(
+            "treat_input_as_untrusted")
         return "ok"
 
     monkeypatch.setattr("app.routes.chat.get_chat_reply", fake_get_chat_reply)
@@ -196,7 +197,8 @@ def test_chat_rejects_invalid_model_setting(monkeypatch):
     )
 
     assert response.status_code == 400
-    assert response.get_json() == {"error": "temperature must be between 0.0 and 2.0"}
+    assert response.get_json() == {
+        "error": "temperature must be between 0.0 and 2.0"}
 
 
 def test_chat_returns_502_when_default_prompt_resolution_fails(monkeypatch):
@@ -228,8 +230,6 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
                          top_p=1.0, frequency_penalty=0.2, presence_penalty=0.0, max_tokens=700,
                          difficulty_enabled=True, difficulty_levels=("easy", "medium", "hard"),
                          default_difficulty="medium"),
-        _make_descriptor("interview_coach", name="Interview Coach", temperature=0.4,
-                         top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=800),
     ]
     monkeypatch.setattr(
         "app.routes.prompts.list_prompt_descriptors",
@@ -237,7 +237,7 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     )
     monkeypatch.setattr(
         "app.routes.prompts.list_system_prompt_names",
-        lambda: ["behavioral_focus", "coding_focus", "interview_coach"],
+        lambda: ["behavioral_focus", "coding_focus"],
     )
     monkeypatch.setattr(
         "app.routes.prompts.get_default_system_prompt_name",
@@ -249,7 +249,7 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     assert response.status_code == 200
     data = response.get_json()
     assert data["default"] == "coding_focus"
-    assert len(data["prompts"]) == 3
+    assert len(data["prompts"]) == 2
 
     coding = next(p for p in data["prompts"] if p["id"] == "coding_focus")
     assert coding["name"] == "Coding Interview"
@@ -275,10 +275,12 @@ def test_chat_rejects_non_string_difficulty(monkeypatch):
 
     monkeypatch.setattr(
         "app.routes.chat.resolve_prompt_descriptor",
-        lambda selected_name=None: _make_descriptor("coding_focus", difficulty_enabled=True),
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus", difficulty_enabled=True),
     )
 
-    response = client.post("/api/chat", json={"message": "hello", "difficulty": 123})
+    response = client.post(
+        "/api/chat", json={"message": "hello", "difficulty": 123})
 
     assert response.status_code == 400
     assert response.get_json() == {"error": "difficulty must be a string"}
@@ -290,7 +292,8 @@ def test_chat_rejects_invalid_difficulty_value(monkeypatch):
 
     monkeypatch.setattr(
         "app.routes.chat.resolve_prompt_descriptor",
-        lambda selected_name=None: _make_descriptor("coding_focus", difficulty_enabled=True),
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus", difficulty_enabled=True),
     )
 
     response = client.post(
@@ -310,7 +313,8 @@ def test_chat_rejects_difficulty_for_unsupported_prompt(monkeypatch):
 
     monkeypatch.setattr(
         "app.routes.chat.resolve_prompt_descriptor",
-        lambda selected_name=None: _make_descriptor("behavioral_focus", difficulty_enabled=False),
+        lambda selected_name=None: _make_descriptor(
+            "behavioral_focus", difficulty_enabled=False),
     )
 
     response = client.post(
@@ -383,7 +387,8 @@ def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
             },
         }
 
-    monkeypatch.setattr("app.routes.chat.run_interview_turn", fake_run_interview_turn)
+    monkeypatch.setattr("app.routes.chat.run_interview_turn",
+                        fake_run_interview_turn)
     monkeypatch.setattr(
         "app.routes.chat.get_interview_opener",
         lambda **kwargs: (
@@ -392,7 +397,8 @@ def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
         ),
     )
 
-    start_response = client.post("/api/chat/start", json={"difficulty": "easy"})
+    start_response = client.post(
+        "/api/chat/start", json={"difficulty": "easy"})
     assert start_response.status_code == 200
     interview_id = start_response.get_json()["interview_id"]
 
@@ -443,7 +449,8 @@ def test_chat_start_includes_difficulty_instruction(monkeypatch):
         captured["system_prompt"] = system_prompt
         return "opening question"
 
-    monkeypatch.setattr("app.routes.chat.get_interview_opener", fake_get_interview_opener)
+    monkeypatch.setattr("app.routes.chat.get_interview_opener",
+                        fake_get_interview_opener)
 
     response = client.post("/api/chat/start", json={"difficulty": "hard"})
 
@@ -594,7 +601,8 @@ def test_chat_keeps_interview_closed_after_completion(monkeypatch):
             },
         }
 
-    monkeypatch.setattr("app.routes.chat.run_interview_turn", fake_run_interview_turn)
+    monkeypatch.setattr("app.routes.chat.run_interview_turn",
+                        fake_run_interview_turn)
 
     start_response = client.post("/api/chat/start", json={})
     interview_id = start_response.get_json()["interview_id"]
@@ -870,7 +878,8 @@ def test_chat_start_allows_model_setting_overrides(monkeypatch):
         captured["max_tokens"] = max_tokens
         return "opening question"
 
-    monkeypatch.setattr("app.routes.chat.get_interview_opener", fake_get_interview_opener)
+    monkeypatch.setattr("app.routes.chat.get_interview_opener",
+                        fake_get_interview_opener)
 
     response = client.post(
         "/api/chat/start",
@@ -971,7 +980,8 @@ def test_chat_uses_diagnostics_in_debug_mode(monkeypatch):
             "debug": {"raw_turn_reply": "raw model output"},
         }
 
-    monkeypatch.setattr("app.routes.chat.run_interview_turn", fake_run_interview_turn)
+    monkeypatch.setattr("app.routes.chat.run_interview_turn",
+                        fake_run_interview_turn)
     monkeypatch.setattr(
         "app.routes.chat.get_interview_opener",
         lambda **kwargs: (
@@ -1058,9 +1068,11 @@ def test_chat_rate_limit_exceeded(monkeypatch):
 
     monkeypatch.setattr(
         "app.routes.chat.resolve_prompt_descriptor",
-        lambda selected_name=None: _make_descriptor("coding_focus", name="Coding Interview"),
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus", name="Coding Interview"),
     )
-    monkeypatch.setattr("app.routes.chat.get_chat_reply", lambda *args, **kwargs: "ok")
+    monkeypatch.setattr("app.routes.chat.get_chat_reply",
+                        lambda *args, **kwargs: "ok")
 
     for _ in range(10):
         response = client.post("/api/chat", json={"message": "hello"})
