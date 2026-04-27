@@ -384,10 +384,25 @@ def test_chat_applies_difficulty_instruction_and_threshold(monkeypatch):
         }
 
     monkeypatch.setattr("app.routes.chat.run_interview_turn", fake_run_interview_turn)
+    monkeypatch.setattr(
+        "app.routes.chat.get_interview_opener",
+        lambda **kwargs: (
+            "opening question\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    )
+
+    start_response = client.post("/api/chat/start", json={"difficulty": "easy"})
+    assert start_response.status_code == 200
+    interview_id = start_response.get_json()["interview_id"]
 
     response = client.post(
         "/api/chat",
-        json={"message": "hello", "difficulty": "easy"},
+        json={
+            "message": "hello",
+            "difficulty": "easy",
+            "interview_id": interview_id,
+        },
     )
 
     assert response.status_code == 200
@@ -481,6 +496,132 @@ def test_chat_rejects_out_of_range_max_question_roundtrips(monkeypatch):
     }
 
 
+def test_chat_requires_interview_id_when_rating_enabled(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.chat.resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+        ),
+    )
+
+    response = client.post("/api/chat", json={"message": "hello"})
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "interview_id is required for interview chat"
+    }
+
+
+def test_chat_start_returns_interview_id_for_interview_prompt(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.chat.resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+            default_question_roundtrips=5,
+        ),
+    )
+    monkeypatch.setattr(
+        "app.routes.chat.get_interview_opener",
+        lambda **kwargs: (
+            "Welcome.\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    )
+
+    response = client.post("/api/chat/start", json={})
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["reply"] == "Welcome."
+    assert data["interview_enabled"] is True
+    assert isinstance(data["interview_id"], str)
+    assert data["counted_question_roundtrips"] == 1
+    assert data["question_roundtrips_limit"] == 5
+
+
+def test_chat_keeps_interview_closed_after_completion(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.chat.resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+            default_question_roundtrips=2,
+            pass_threshold=7.0,
+            rubric_criteria=("Problem understanding",),
+        ),
+    )
+    monkeypatch.setattr(
+        "app.routes.chat.get_interview_opener",
+        lambda **kwargs: (
+            "Opening question.\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    )
+
+    call_counter = {"count": 0}
+
+    def fake_run_interview_turn(*args, **kwargs):
+        call_counter["count"] += 1
+        return {
+            "reply": "Thanks, that concludes the interview.",
+            "turn_type": "other",
+            "question_count": 2,
+            "question_limit": 2,
+            "interview_complete": True,
+            "pass_threshold": 7.0,
+            "metadata_warning": False,
+            "final_result": {
+                "overall_score": 8.0,
+                "pass_threshold": 7.0,
+                "passed": True,
+                "criterion_scores": [
+                    {"criterion": "Problem understanding", "score": 8.0},
+                ],
+                "strengths": ["Clear communication"],
+                "improvements": ["None"],
+                "parse_warning": False,
+            },
+        }
+
+    monkeypatch.setattr("app.routes.chat.run_interview_turn", fake_run_interview_turn)
+
+    start_response = client.post("/api/chat/start", json={})
+    interview_id = start_response.get_json()["interview_id"]
+
+    first_response = client.post(
+        "/api/chat",
+        json={"message": "candidate answer", "interview_id": interview_id},
+    )
+    assert first_response.status_code == 200
+    assert call_counter["count"] == 1
+
+    second_response = client.post(
+        "/api/chat",
+        json={
+            "message": "another answer",
+            "interview_id": interview_id,
+            "conversation_history": [],
+        },
+    )
+
+    assert second_response.status_code == 200
+    second_payload = second_response.get_json()
+    assert second_payload["interview_complete"] is True
+    assert second_payload["reply"] == "Thanks, that concludes the interview."
+    assert call_counter["count"] == 1
+
+
 def test_chat_returns_interview_fields_when_rating_enabled(monkeypatch):
     app = create_app()
     client = app.test_client()
@@ -508,14 +649,23 @@ def test_chat_returns_interview_fields_when_rating_enabled(monkeypatch):
             "final_result": None,
         },
     )
+    monkeypatch.setattr(
+        "app.routes.chat.get_interview_opener",
+        lambda **kwargs: (
+            "opening question\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    )
+
+    start_response = client.post("/api/chat/start", json={})
+    assert start_response.status_code == 200
+    interview_id = start_response.get_json()["interview_id"]
 
     response = client.post(
         "/api/chat",
         json={
             "message": "I would optimize memory usage",
-            "conversation_history": [
-                {"role": "assistant", "content": "Tell me about your approach?"}
-            ],
+            "interview_id": interview_id,
         },
     )
 
@@ -566,15 +716,23 @@ def test_chat_returns_rating_when_interview_completed(monkeypatch):
             },
         },
     )
+    monkeypatch.setattr(
+        "app.routes.chat.get_interview_opener",
+        lambda **kwargs: (
+            "opening question\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    )
+
+    start_response = client.post("/api/chat/start", json={})
+    assert start_response.status_code == 200
+    interview_id = start_response.get_json()["interview_id"]
 
     response = client.post(
         "/api/chat",
         json={
             "message": "Thanks",
-            "conversation_history": [
-                {"role": "assistant", "content": "Question one?"},
-                {"role": "user", "content": "Answer one"},
-            ],
+            "interview_id": interview_id,
         },
     )
 
@@ -814,8 +972,28 @@ def test_chat_uses_diagnostics_in_debug_mode(monkeypatch):
         }
 
     monkeypatch.setattr("app.routes.chat.run_interview_turn", fake_run_interview_turn)
+    monkeypatch.setattr(
+        "app.routes.chat.get_interview_opener",
+        lambda **kwargs: (
+            (
+                "opening question\n"
+                "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+            ),
+            {"raw": "diagnostics"},
+        ) if kwargs.get("include_diagnostics") else (
+            "opening question\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    )
 
-    response = client.post("/api/chat", json={"message": "hello"})
+    start_response = client.post("/api/chat/start", json={})
+    assert start_response.status_code == 200
+    interview_id = start_response.get_json()["interview_id"]
+
+    response = client.post(
+        "/api/chat",
+        json={"message": "hello", "interview_id": interview_id},
+    )
 
     assert response.status_code == 200
     assert captured["include_diagnostics"] is True
