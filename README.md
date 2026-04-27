@@ -18,11 +18,21 @@ From the project root:
 ./run.sh
 ```
 
-This starts backend and frontend together and prints both logs in one terminal. Press `Ctrl+C` to stop both.
+`./run.sh` defaults to `--dev` mode. This starts backend and frontend together and prints both logs in one terminal. Press `Ctrl+C` to stop both.
+
+You can also run modes explicitly:
 
 ## Testing
 
-Run tests from the project root:
+Run all tests from the project root with:
+
+```bash
+./run.sh --test
+```
+
+This executes tests in order and stops on the first failure.
+
+You can still run suites individually:
 
 ### Frontend
 

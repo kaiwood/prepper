@@ -30,6 +30,14 @@ def validate_layout() -> None:
         sys.exit(1)
 
 
+def print_usage() -> None:
+    log("Usage: ./run.sh [--dev | --test | --help | -h]")
+    log("  --dev   Run backend and frontend development servers (default).")
+    log("  --test  Run backend, prepper-cli, and frontend tests in sequence.")
+    log("  --help  Show this usage information and exit.")
+    log("  -h      Show this usage information and exit.")
+
+
 def resolve_backend_python() -> str:
     venv_python = BACKEND_DIR / ".venv" / "bin" / "python"
     if venv_python.exists() and os.access(venv_python, os.X_OK):
@@ -48,6 +56,69 @@ def stream_output(name: str, pipe) -> None:
             log(f"[{name}] {line.rstrip()}")
     finally:
         pipe.close()
+
+
+def parse_mode(argv: List[str]) -> str:
+    if len(argv) == 0:
+        return "dev"
+
+    if len(argv) != 1:
+        print_usage()
+        raise ValueError("Expected at most one flag.")
+
+    flag = argv[0]
+    if flag == "--dev":
+        return "dev"
+    if flag == "--test":
+        return "test"
+    if flag in ("--help", "-h"):
+        return "help"
+
+    print_usage()
+    raise ValueError(f"Unsupported flag: {flag}")
+
+
+def run_command(name: str, cmd: List[str], cwd: Path, env: Optional[Dict[str, str]] = None) -> int:
+    log(f"[{name}] Running: {' '.join(cmd)}")
+    proc = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    stream_output(name, proc.stdout)
+    return proc.wait()
+
+
+def run_test_mode(backend_python: str) -> int:
+    backend_env = os.environ.copy()
+    backend_env["PYTHONUNBUFFERED"] = "1"
+
+    test_steps = [
+        ("backend-test", [backend_python, "-m", "pytest",
+         "tests", "-q"], BACKEND_DIR, backend_env),
+        (
+            "prepper-cli-test",
+            [backend_python, "-m", "pytest", "tests", "-q"],
+            PROJECT_ROOT / "prepper-cli",
+            backend_env,
+        ),
+        ("frontend-test", ["npm", "run", "test:unit"],
+         FRONTEND_DIR, os.environ.copy()),
+    ]
+
+    for name, cmd, cwd, env in test_steps:
+        code = run_command(name, cmd, cwd, env)
+        if code != 0:
+            log(f"[{name}] Failed with exit code {code}; stopping test run.")
+            return code
+
+    log("All test suites passed.")
+    return 0
 
 
 def start_processes(backend_python: str) -> Dict[str, subprocess.Popen]:
@@ -112,12 +183,27 @@ def terminate_processes(processes: Dict[str, subprocess.Popen], timeout_seconds:
 
 def main() -> int:
     validate_layout()
+    try:
+        mode = parse_mode(sys.argv[1:])
+    except ValueError as err:
+        log(f"Error: {err}")
+        return 2
+
     backend_python = resolve_backend_python()
+
+    if mode == "help":
+        print_usage()
+        return 0
+
+    if mode == "test":
+        return run_test_mode(backend_python)
+
     processes = start_processes(backend_python)
 
     stream_threads: List[threading.Thread] = []
     for name, proc in processes.items():
-        thread = threading.Thread(target=stream_output, args=(name, proc.stdout), daemon=True)
+        thread = threading.Thread(
+            target=stream_output, args=(name, proc.stdout), daemon=True)
         thread.start()
         stream_threads.append(thread)
 
@@ -143,9 +229,11 @@ def main() -> int:
         if stop_signal is not None:
             break
 
-        codes: Dict[str, Optional[int]] = {name: proc.poll() for name, proc in processes.items()}
+        codes: Dict[str, Optional[int]] = {
+            name: proc.poll() for name, proc in processes.items()}
         running = [name for name, code in codes.items() if code is None]
-        exited: List[Tuple[str, int]] = [(name, code) for name, code in codes.items() if code is not None]
+        exited: List[Tuple[str, int]] = [
+            (name, code) for name, code in codes.items() if code is not None]
 
         if len(exited) == len(processes):
             break
