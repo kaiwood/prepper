@@ -147,6 +147,19 @@ Interactive mode is the default (there is no `--interactive` flag):
 prepper-cli
 ```
 
+From the project root, you can run the same CLI without activating `prepper-cli/.venv` manually:
+
+```bash
+./cli.sh
+```
+
+Help and all other flags are passed through unchanged:
+
+```bash
+./cli.sh --help
+./cli.sh --system-prompt coding_focus --difficulty hard
+```
+
 Pick a specific interviewer style:
 
 ```bash
