@@ -35,15 +35,6 @@ create_venv_if_missing() {
   fi
 }
 
-copy_if_missing() {
-  local src="$1"
-  local dst="$2"
-  if [[ -f "$src" && ! -f "$dst" ]]; then
-    cp "$src" "$dst"
-    echo "Created $dst from $src"
-  fi
-}
-
 ensure_frontend_env_local() {
   local example="$FRONTEND_DIR/.env.local.example"
   local target="$FRONTEND_DIR/.env.local"
@@ -64,6 +55,31 @@ EOF
   echo "Created $target with default NEXT_PUBLIC_API_URL"
 }
 
+ensure_root_env() {
+  local example="$SCRIPT_DIR/.env.example"
+  local target="$SCRIPT_DIR/.env"
+
+  if [[ -f "$target" ]]; then
+    return
+  fi
+
+  if [[ -f "$example" ]]; then
+    cp "$example" "$target"
+    echo "Created $target from $example"
+    return
+  fi
+
+  cat >"$target" <<'EOF'
+OPENROUTER_API_KEY=
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+PREPPER_DEFAULT_SYSTEM_PROMPT=coding_focus
+OPENROUTER_MODEL=openai/gpt-5-mini
+EOF
+  echo "Created $target with default OpenRouter settings"
+}
+
+ensure_root_env
+
 echo "==> Setting up prepper-cli"
 create_venv_if_missing "$PREPPER_CLI_DIR"
 # shellcheck disable=SC1091
@@ -71,7 +87,6 @@ source "$PREPPER_CLI_DIR/.venv/bin/activate"
 python -m pip install --upgrade pip
 python -m pip install --editable "$PREPPER_CLI_DIR"
 deactivate
-copy_if_missing "$PREPPER_CLI_DIR/.env.example" "$PREPPER_CLI_DIR/.env"
 
 echo "==> Setting up backend"
 create_venv_if_missing "$BACKEND_DIR"
@@ -83,7 +98,6 @@ python -m pip install --upgrade pip
   python -m pip install -r requirements.txt
 )
 deactivate
-copy_if_missing "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
 
 echo "==> Setting up frontend"
 ensure_frontend_env_local
@@ -95,5 +109,4 @@ ensure_frontend_env_local
 echo
 echo "Setup complete."
 echo "Set OPENROUTER_API_KEY in:"
-echo "  - $PREPPER_CLI_DIR/.env"
-echo "  - $BACKEND_DIR/.env"
+echo "  - $SCRIPT_DIR/.env"

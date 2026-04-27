@@ -12,14 +12,16 @@ Use separate virtual environments in `prepper-cli/` and `backend/`. Do not creat
 From the project root:
 
 ```bash
+# 0) root env file (shared by prepper-cli and backend)
+cp .env.example .env           # if .env does not exist
+# set OPENROUTER_API_KEY in .env
+
 # 1) prepper-cli venv + editable install
 cd prepper-cli
 python3 -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
 python -m pip install --editable .
-cp .env.example .env           # if .env does not exist
-# set OPENROUTER_API_KEY in prepper-cli/.env
 deactivate
 cd ..
 
@@ -29,8 +31,6 @@ python3 -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-cp .env.example .env           # if .env does not exist
-# set OPENROUTER_API_KEY in backend/.env
 deactivate
 cd ..
 
@@ -45,8 +45,7 @@ cd ..
 
 ## Environment Files and API Key
 
-- `prepper-cli/.env.example` -> copy to `prepper-cli/.env`
-- `backend/.env.example` -> copy to `backend/.env`
+- `.env.example` -> copy to root `.env`
 - `frontend/.env.local.example` -> copy to `frontend/.env.local`
 
 For frontend backend-mode calls, set `NEXT_PUBLIC_API_URL` in `frontend/.env.local`.
@@ -58,10 +57,7 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:5000
 
 If you change `frontend/.env.local`, restart the frontend dev server so Next.js picks up the new `NEXT_PUBLIC_*` values.
 
-Set `OPENROUTER_API_KEY=...` in both:
-
-- `prepper-cli/.env`
-- `backend/.env`
+Set `OPENROUTER_API_KEY=...` in root `.env`.
 
 ## One-Command Setup
 

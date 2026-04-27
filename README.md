@@ -65,11 +65,11 @@ prepper/
 ## Backend Setup
 
 ```bash
+cp .env.example .env           # then set OPENROUTER_API_KEY
 cd backend
 python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env           # then set OPENROUTER_API_KEY
 python run.py
 ```
 
@@ -132,11 +132,11 @@ CLI default behavior: if you do not pass model-setting override flags, `prepper-
 ## CLI (`prepper-cli`)
 
 ```bash
+cp .env.example .env
 cd prepper-cli
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
-cp .env.example .env
 ```
 
 ### Core Usage

@@ -38,9 +38,9 @@ Services run independently (no Docker/orchestration in repo defaults).
 
 ### Environment Files
 
-- Backend: `backend/.env` (`OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`)
+- Backend: root `.env` (`OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`)
 - Frontend: `frontend/.env.local` (`NEXT_PUBLIC_API_URL`)
-- prepper-cli: `prepper-cli/.env` (`OPENROUTER_API_KEY`, optional model/base URL overrides)
+- prepper-cli: root `.env` (`OPENROUTER_API_KEY`, optional model/base URL overrides)
 - Never commit real env files; keep and update example templates.
 
 ## Current Runtime Behavior (Source of Truth)
