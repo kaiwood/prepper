@@ -161,7 +161,7 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
     assert calls["run_turn"] == 2
     assert calls["candidate_reply"] == 1
     assert result["summary_json"]["mode"] == "benchmark"
-    assert result["summary_json"]["candidate_system_prompt"] == "benchmark_candidate_good"
+    assert result["summary_json"]["candidate_system_prompt"] == "benchmark_candidate_strong"
     assert result["summary_json"]["difficulty"] == "medium"
     assert result["summary_json"]["question_roundtrips_limit"] == 2
     assert result["summary_json"]["final_result"]["passed"] is True
@@ -183,7 +183,7 @@ def test_run_benchmark_interview_rejects_invalid_difficulty():
         assert "difficulty" in str(exc)
 
 
-def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
+def test_run_benchmark_interview_uses_good_candidate_profile_prompt(monkeypatch):
     interviewer = _make_descriptor("behavioral_focus")
 
     calls = {"candidate_reply": 0}
@@ -292,11 +292,11 @@ def test_run_benchmark_interview_uses_bad_candidate_profile_prompt(monkeypatch):
 
     result = benchmark.run_benchmark_interview(
         interviewer_descriptor=interviewer,
-        candidate_profile="bad",
+        candidate_profile="weak",
         model="runtime-model",
     )
 
-    assert result["summary_json"]["candidate_system_prompt"] == "benchmark_candidate_bad"
+    assert result["summary_json"]["candidate_system_prompt"] == "benchmark_candidate_weak"
     assert result["summary_json"]["language"] == "en"
     assert result["summary_json"]["final_result"]["passed"] is False
     assert result["summary_json"]["interviewer_result"]["passed"] is False

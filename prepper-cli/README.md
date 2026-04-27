@@ -95,7 +95,7 @@ Benchmark mode simulates a full interview automatically.
 
 ### Quick Examples
 
-Default benchmark (good candidate profile):
+Default benchmark (strong candidate profile):
 
 ```bash
 prepper-cli --benchmark --system-prompt behavioral_focus
@@ -104,7 +104,7 @@ prepper-cli --benchmark --system-prompt behavioral_focus
 Force weak candidate simulation:
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus --bad-candidate
+prepper-cli --benchmark --system-prompt behavioral_focus --weak-candidate
 ```
 
 Short hard coding benchmark:
@@ -134,8 +134,8 @@ prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-4o-m
 ### Benchmark Flags Reference
 
 - `--benchmark`: required to run benchmark mode
-- `--good-candidate`: use strong candidate simulation (default)
-- `--bad-candidate`: use weak candidate simulation
+- `--strong-candidate`: use strong candidate simulation (default)
+- `--weak-candidate`: use weak candidate simulation
 - `--question-limit`: max question roundtrips
 - `--difficulty`: interviewer difficulty (`easy`, `medium`, `hard`) when supported by prompt
 - `--pass-threshold`: override required pass score
@@ -147,7 +147,7 @@ prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-4o-m
 - `--model`: model for runtime chat + candidate generation
 - `--benchmark-model`: model for final interviewer scoring pass
 
-Important: `--good-candidate` and `--bad-candidate` are benchmark-only flags and will error without `--benchmark`.
+Important: `--strong-candidate` and `--weak-candidate` are benchmark-only flags and will error without `--benchmark`.
 
 ## Prompt Front Matter
 

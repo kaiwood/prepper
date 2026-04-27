@@ -286,7 +286,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         language=None,
         question_limit_override=None,
         pass_threshold_override=None,
-        candidate_profile="good",
+        candidate_profile="strong",
         output=None,
         enable_color=False,
         model=None,
@@ -328,7 +328,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
     assert called["language"] == "de"
     assert called["question_limit_override"] == 3
     assert called["pass_threshold_override"] == 7.2
-    assert called["candidate_profile"] == "good"
+    assert called["candidate_profile"] == "strong"
     assert called["enable_color"] is True
     assert called["temperature_override"] is None
     assert called["top_p_override"] is None
@@ -367,7 +367,7 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
         language=None,
         question_limit_override=None,
         pass_threshold_override=None,
-        candidate_profile="good",
+        candidate_profile="strong",
         output=None,
         enable_color=False,
         model=None,
@@ -398,14 +398,14 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
     assert exit_code == 0
     assert called["interviewer"] == "behavioral_focus"
     assert called["language"] == "en"
-    assert called["candidate_profile"] == "good"
+    assert called["candidate_profile"] == "strong"
     assert called["enable_color"] is False
 
     captured = capsys.readouterr()
     assert captured.out == ""
 
 
-def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys):
+def test_benchmark_mode_uses_explicit_weak_candidate_profile(monkeypatch, capsys):
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -413,7 +413,7 @@ def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys)
             "--benchmark",
             "--system-prompt",
             "behavioral_focus",
-            "--bad-candidate",
+            "--weak-candidate",
         ],
     )
 
@@ -433,7 +433,7 @@ def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys)
         language=None,
         question_limit_override=None,
         pass_threshold_override=None,
-        candidate_profile="good",
+        candidate_profile="strong",
         output=None,
         enable_color=False,
         model=None,
@@ -462,7 +462,7 @@ def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys)
 
     assert exit_code == 0
     assert called["interviewer"] == "behavioral_focus"
-    assert called["candidate_profile"] == "bad"
+    assert called["candidate_profile"] == "good"
     assert called["enable_color"] is False
 
     captured = capsys.readouterr()
@@ -475,8 +475,8 @@ def test_benchmark_mode_rejects_conflicting_candidate_flags(monkeypatch):
         [
             "prepper-cli",
             "--benchmark",
-            "--good-candidate",
-            "--bad-candidate",
+            "--strong-candidate",
+            "--weak-candidate",
         ],
     )
 
@@ -491,7 +491,7 @@ def test_candidate_flags_require_benchmark(monkeypatch):
         "sys.argv",
         [
             "prepper-cli",
-            "--good-candidate",
+            "--strong-candidate",
         ],
     )
 
@@ -778,12 +778,12 @@ def test_help_lists_benchmark_options_in_expected_order():
     max_tokens_index = help_text.index("--max-tokens MAX_TOKENS")
     color_index = help_text.index("--color")
     benchmark_index = help_text.index("--benchmark")
-    good_index = help_text.index("--good-candidate")
-    bad_index = help_text.index("--bad-candidate")
+    strong_index = help_text.index("--strong-candidate")
+    weak_index = help_text.index("--weak-candidate")
 
     assert difficulty_index < language_index < pass_threshold_index
     assert pass_threshold_index < question_limit_index < temperature_index
     assert temperature_index < top_p_index < frequency_penalty_index
     assert frequency_penalty_index < presence_penalty_index < max_tokens_index
     assert max_tokens_index < color_index
-    assert color_index < benchmark_index < good_index < bad_index
+    assert color_index < benchmark_index < strong_index < weak_index

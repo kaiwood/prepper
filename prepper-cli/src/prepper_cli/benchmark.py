@@ -62,7 +62,7 @@ def _resolve_difficulty(
 
 
 def _build_candidate_system_prompt(candidate_profile: str) -> str:
-    if candidate_profile == "good":
+    if candidate_profile == "strong":
         return (
             "You are a candidate in a mock interview benchmark. "
             "Answer the interviewer's prompts naturally and concisely as a human candidate would. "
@@ -71,11 +71,14 @@ def _build_candidate_system_prompt(candidate_profile: str) -> str:
             "Only provide the candidate's spoken answer."
         )
 
-    if candidate_profile == "bad":
+    if candidate_profile == "weak":
         return (
             "You are a weak candidate in a mock interview benchmark. "
-            "Give short, vague, and minimally helpful answers that often omit concrete actions, outcomes, and metrics. "
-            "Avoid structured STAR storytelling, provide little ownership detail, and sound uncertain when possible. "
+            "Give short, vague, and minimally helpful answers that omit concrete actions, outcomes, and metrics. "
+            "Keep each answer to one or two short sentences. "
+            "Avoid structured STAR storytelling and avoid explicit ownership details, trade-off analysis, and implementation depth. "
+            "Do not provide numbered steps, measurable impact, or polished examples even if asked for them directly. "
+            "Use uncertain language such as 'I think', 'maybe', or 'not sure' in most answers. "
             "Do not act like an interviewer, coach, or evaluator. "
             "Do not include control tags, metadata blocks, JSON, or special suffixes. "
             "Only provide the candidate's spoken answer."
@@ -145,7 +148,7 @@ def run_benchmark_interview(
     language: str | None = "en",
     question_limit_override: int | None = None,
     pass_threshold_override: float | None = None,
-    candidate_profile: str = "good",
+    candidate_profile: str = "strong",
     output: TextIO | None = None,
     enable_color: bool = False,
     model: str | None = None,

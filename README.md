@@ -195,11 +195,11 @@ prepper-cli --color --language de --system-prompt behavioral_focus
 Benchmark mode runs a full simulated interview between:
 
 - interviewer prompt (`--system-prompt`)
-- simulated candidate (`good` by default, or `--bad-candidate`)
+- simulated candidate (`strong` by default, or `--weak-candidate`)
 
 Use it to compare prompt quality and interviewer strictness.
 
-Run a default benchmark (good candidate):
+Run a default benchmark (strong candidate):
 
 ```bash
 prepper-cli --benchmark --system-prompt behavioral_focus
@@ -208,7 +208,7 @@ prepper-cli --benchmark --system-prompt behavioral_focus
 Simulate a weak candidate:
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus --bad-candidate
+prepper-cli --benchmark --system-prompt behavioral_focus --weak-candidate
 ```
 
 Short, strict coding benchmark:
@@ -231,8 +231,8 @@ prepper-cli --benchmark --system-prompt behavioral_focus --language de --questio
 
 Notes:
 
-- `--good-candidate` and `--bad-candidate` only work with `--benchmark`
-- If you omit both, benchmark uses the good candidate profile
+- `--strong-candidate` and `--weak-candidate` only work with `--benchmark`
+- If you omit both, benchmark uses the strong candidate profile
 - `--temperature`, `--top-p`, `--frequency-penalty`, `--presence-penalty`, and `--max-tokens` override runtime model settings
 
 ## Frontend Setup
