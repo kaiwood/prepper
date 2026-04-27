@@ -90,12 +90,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     candidate_group = parser.add_mutually_exclusive_group()
     candidate_group.add_argument(
-        "--good-candidate",
+        "--strong-candidate",
+        dest="strong_candidate",
         action="store_true",
         help="Benchmark-only: use a strong candidate simulation (default)",
     )
     candidate_group.add_argument(
-        "--bad-candidate",
+        "--weak-candidate",
+        dest="weak_candidate",
         action="store_true",
         help="Benchmark-only: use a weak candidate simulation",
     )
@@ -106,8 +108,8 @@ def _validate_benchmark_candidate_flags(
     parser: argparse.ArgumentParser,
     args: argparse.Namespace,
 ) -> None:
-    if (args.good_candidate or args.bad_candidate) and not args.benchmark:
-        parser.error("--good-candidate/--bad-candidate require --benchmark")
+    if (args.strong_candidate or args.weak_candidate) and not args.benchmark:
+        parser.error("--strong-candidate/--weak-candidate require --benchmark")
 
 
 def _resolve_system_prompt_name(selected_name: str | None) -> str:
@@ -347,7 +349,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
     interviewer_prompt_name = _resolve_system_prompt_name(args.system_prompt)
 
     interviewer_descriptor = load_prompt_descriptor(interviewer_prompt_name)
-    candidate_profile = "bad" if args.bad_candidate else "good"
+    candidate_profile = "weak" if args.weak_candidate else "strong"
 
     if args.question_limit is not None and args.question_limit <= 0:
         raise ValueError("question_limit must be greater than 0")
