@@ -58,7 +58,10 @@ create_venv_if_missing "$BACKEND_DIR"
 # shellcheck disable=SC1091
 source "$BACKEND_DIR/.venv/bin/activate"
 python -m pip install --upgrade pip
-python -m pip install -r "$BACKEND_DIR/requirements.txt"
+(
+  cd "$BACKEND_DIR"
+  python -m pip install -r requirements.txt
+)
 deactivate
 copy_if_missing "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
 
