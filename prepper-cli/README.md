@@ -41,6 +41,8 @@ PREPPER_DEFAULT_SYSTEM_PROMPT=coding_focus
 
 ## CLI Usage
 
+From the monorepo root, you can run the same CLI via `./cli.sh` without manually activating `prepper-cli/.venv`.
+
 ### Interactive Mode (Default)
 
 Running `prepper-cli` starts an interactive session and keeps conversation context in memory for that session.

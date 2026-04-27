@@ -79,3 +79,11 @@ This script automates all steps above:
 - Runs `npm install` in `frontend/`
 - Copies `frontend/.env.local.example` to `frontend/.env.local` when missing (and writes a safe default URL if the example file is unavailable)
 - Copies other env example files when target files are missing
+
+After setup, you can run the Prepper CLI directly from project root:
+
+```bash
+./cli.sh --help
+```
+
+The wrapper forwards all flags to `prepper-cli` and uses `prepper-cli/.venv` automatically.
