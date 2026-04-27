@@ -106,6 +106,22 @@ const ADVANCED_SETTING_CONFIG: AdvancedSettingConfig[] = [
   { key: "frequency_penalty", min: -2, max: 2, step: 0.1 },
   { key: "presence_penalty", min: -2, max: 2, step: 0.1 },
 ];
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:5000";
+
+function resolveApiBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL;
+  if (!raw || raw === "undefined" || raw === "null") {
+    return DEFAULT_API_BASE_URL;
+  }
+
+  return raw.replace(/\/$/, "");
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
+
+function buildApiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
 
 function buildAdvancedSettings(prompt?: PromptMetadata): AdvancedSettings {
   return {
@@ -281,9 +297,7 @@ export default function Home() {
       setPromptsError(null);
 
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/prompts`,
-        );
+        const res = await fetch(buildApiUrl("/api/prompts"));
         const data: PromptsResponse = await res.json();
 
         if (!res.ok) {
@@ -393,7 +407,7 @@ export default function Home() {
         payload.presence_penalty = advancedSettings.presence_penalty;
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat`, {
+      const res = await fetch(buildApiUrl("/api/chat"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -473,14 +487,11 @@ export default function Home() {
         payload.presence_penalty = advancedSettings.presence_penalty;
       }
 
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/chat/start`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
+      const res = await fetch(buildApiUrl("/api/chat/start"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       const data: ChatResponse = await res.json();
 
