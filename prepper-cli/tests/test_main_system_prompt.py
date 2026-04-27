@@ -19,12 +19,14 @@ def _make_descriptor(id: str, name: str | None = None) -> PromptDescriptor:
 
 def test_default_mode_is_interactive_with_selected_system_prompt(monkeypatch):
     monkeypatch.setattr("sys.argv", ["prepper-cli"])
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["interview_coach"])
-    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "interview_coach")
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["coding_focus"])
+    monkeypatch.setattr(
+        main, "get_default_system_prompt_name", lambda: "coding_focus")
     monkeypatch.setattr(
         main,
         "list_prompt_descriptors",
-        lambda: [_make_descriptor("interview_coach")],
+        lambda: [_make_descriptor("coding_focus")],
     )
     monkeypatch.setattr(
         main,
@@ -66,16 +68,18 @@ def test_default_mode_is_interactive_with_selected_system_prompt(monkeypatch):
 
     assert exit_code == 0
     assert calls[0]["message"] == "I am ready for the interview. Please begin."
-    assert calls[0]["system_prompt"] == "prompt::interview_coach"
+    assert calls[0]["system_prompt"] == "prompt::coding_focus"
     assert calls[1]["message"] == "help me prepare"
-    assert calls[1]["system_prompt"] == "prompt::interview_coach"
+    assert calls[1]["system_prompt"] == "prompt::coding_focus"
     assert calls[1]["temperature"] == 0.5
 
 
 def test_interactive_selection_applies_selected_prompt(monkeypatch):
     monkeypatch.setattr("sys.argv", ["prepper-cli"])
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["first", "second"])
-    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "first")
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["first", "second"])
+    monkeypatch.setattr(
+        main, "get_default_system_prompt_name", lambda: "first")
     monkeypatch.setattr(
         main,
         "list_prompt_descriptors",
@@ -120,10 +124,14 @@ def test_interactive_selection_applies_selected_prompt(monkeypatch):
 
 
 def test_system_prompt_starts_interview_immediately(monkeypatch, capsys):
-    monkeypatch.setattr("sys.argv", ["prepper-cli", "--system-prompt", "behavioral_focus"])
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["behavioral_focus"])
-    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "behavioral_focus")
-    monkeypatch.setattr(main, "load_prompt_descriptor", lambda name: _make_descriptor(name))
+    monkeypatch.setattr(
+        "sys.argv", ["prepper-cli", "--system-prompt", "behavioral_focus"])
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["behavioral_focus"])
+    monkeypatch.setattr(main, "get_default_system_prompt_name",
+                        lambda: "behavioral_focus")
+    monkeypatch.setattr(main, "load_prompt_descriptor",
+                        lambda name: _make_descriptor(name))
 
     inputs = iter(["quit"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
@@ -169,9 +177,12 @@ def test_list_system_prompts_option_prints_prompt_names(monkeypatch, capsys):
 
 
 def test_interactive_rating_prompt_stops_when_interview_completes(monkeypatch, capsys):
-    monkeypatch.setattr("sys.argv", ["prepper-cli", "--system-prompt", "coding_focus"])
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["coding_focus"])
-    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "coding_focus")
+    monkeypatch.setattr(
+        "sys.argv", ["prepper-cli", "--system-prompt", "coding_focus"])
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["coding_focus"])
+    monkeypatch.setattr(
+        main, "get_default_system_prompt_name", lambda: "coding_focus")
     monkeypatch.setattr(
         main,
         "load_prompt_descriptor",
@@ -260,9 +271,12 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
         "coding_focus": _make_descriptor("coding_focus", name="Coding Interview"),
     }
 
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["coding_focus"])
-    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "coding_focus")
-    monkeypatch.setattr(main, "load_prompt_descriptor", lambda name: descriptors[name])
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["coding_focus"])
+    monkeypatch.setattr(
+        main, "get_default_system_prompt_name", lambda: "coding_focus")
+    monkeypatch.setattr(main, "load_prompt_descriptor",
+                        lambda name: descriptors[name])
 
     called = {}
 
@@ -303,7 +317,8 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
             "conversation": [],
         }
 
-    monkeypatch.setattr(main, "run_benchmark_interview", fake_run_benchmark_interview)
+    monkeypatch.setattr(main, "run_benchmark_interview",
+                        fake_run_benchmark_interview)
 
     exit_code = main.main()
 
@@ -336,9 +351,12 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
         ],
     )
 
-    descriptor = _make_descriptor("behavioral_focus", name="Behavioral Interview")
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["behavioral_focus"])
-    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "behavioral_focus")
+    descriptor = _make_descriptor(
+        "behavioral_focus", name="Behavioral Interview")
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["behavioral_focus"])
+    monkeypatch.setattr(main, "get_default_system_prompt_name",
+                        lambda: "behavioral_focus")
     monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: descriptor)
 
     called = {}
@@ -372,7 +390,8 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
             "conversation": [],
         }
 
-    monkeypatch.setattr(main, "run_benchmark_interview", fake_run_benchmark_interview)
+    monkeypatch.setattr(main, "run_benchmark_interview",
+                        fake_run_benchmark_interview)
 
     exit_code = main.main()
 
@@ -398,9 +417,12 @@ def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys)
         ],
     )
 
-    descriptor = _make_descriptor("behavioral_focus", name="Behavioral Interview")
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["behavioral_focus"])
-    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "behavioral_focus")
+    descriptor = _make_descriptor(
+        "behavioral_focus", name="Behavioral Interview")
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["behavioral_focus"])
+    monkeypatch.setattr(main, "get_default_system_prompt_name",
+                        lambda: "behavioral_focus")
     monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: descriptor)
 
     called = {}
@@ -433,7 +455,8 @@ def test_benchmark_mode_uses_explicit_bad_candidate_profile(monkeypatch, capsys)
             "conversation": [],
         }
 
-    monkeypatch.setattr(main, "run_benchmark_interview", fake_run_benchmark_interview)
+    monkeypatch.setattr(main, "run_benchmark_interview",
+                        fake_run_benchmark_interview)
 
     exit_code = main.main()
 
@@ -485,11 +508,13 @@ def test_color_flag_is_allowed_in_interactive_mode(monkeypatch):
             "prepper-cli",
             "--color",
             "--system-prompt",
-            "interview_coach",
+            "coding_focus",
         ],
     )
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["interview_coach"])
-    monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: _make_descriptor("interview_coach"))
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["coding_focus"])
+    monkeypatch.setattr(main, "load_prompt_descriptor",
+                        lambda _: _make_descriptor("coding_focus"))
 
     inputs = iter(["hello", "quit"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
@@ -505,7 +530,7 @@ def test_color_flag_is_allowed_in_interactive_mode(monkeypatch):
     exit_code = main.main()
 
     assert exit_code == 0
-    assert called["system_prompt"] == "prompt::interview_coach"
+    assert called["system_prompt"] == "prompt::coding_focus"
 
 
 def test_language_flag_is_forwarded_in_interactive_mode(monkeypatch):
@@ -516,11 +541,13 @@ def test_language_flag_is_forwarded_in_interactive_mode(monkeypatch):
             "--language",
             "de",
             "--system-prompt",
-            "interview_coach",
+            "coding_focus",
         ],
     )
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["interview_coach"])
-    monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: _make_descriptor("interview_coach"))
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["coding_focus"])
+    monkeypatch.setattr(main, "load_prompt_descriptor",
+                        lambda _: _make_descriptor("coding_focus"))
 
     inputs = iter(["hello", "quit"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
@@ -556,8 +583,10 @@ def test_interactive_passes_interview_overrides(monkeypatch):
             "7.2",
         ],
     )
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["coding_focus"])
-    monkeypatch.setattr(main, "get_default_system_prompt_name", lambda: "coding_focus")
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["coding_focus"])
+    monkeypatch.setattr(
+        main, "get_default_system_prompt_name", lambda: "coding_focus")
     monkeypatch.setattr(
         main,
         "load_prompt_descriptor",
@@ -627,7 +656,7 @@ def test_interactive_passes_model_setting_overrides(monkeypatch):
         [
             "prepper-cli",
             "--system-prompt",
-            "interview_coach",
+            "coding_focus",
             "--temperature",
             "0.2",
             "--top-p",
@@ -640,8 +669,10 @@ def test_interactive_passes_model_setting_overrides(monkeypatch):
             "321",
         ],
     )
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["interview_coach"])
-    monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: _make_descriptor("interview_coach"))
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["coding_focus"])
+    monkeypatch.setattr(main, "load_prompt_descriptor",
+                        lambda _: _make_descriptor("coding_focus"))
 
     inputs = iter(["hello", "quit"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
@@ -690,8 +721,10 @@ def test_benchmark_mode_passes_model_setting_overrides(monkeypatch):
             "500",
         ],
     )
-    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["behavioral_focus"])
-    monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: _make_descriptor("behavioral_focus"))
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["behavioral_focus"])
+    monkeypatch.setattr(main, "load_prompt_descriptor",
+                        lambda _: _make_descriptor("behavioral_focus"))
 
     called = {}
 
@@ -699,7 +732,8 @@ def test_benchmark_mode_passes_model_setting_overrides(monkeypatch):
         called.update(kwargs)
         return {"summary_json": {"mode": "benchmark"}, "conversation": []}
 
-    monkeypatch.setattr(main, "run_benchmark_interview", fake_run_benchmark_interview)
+    monkeypatch.setattr(main, "run_benchmark_interview",
+                        fake_run_benchmark_interview)
 
     exit_code = main.main()
 
@@ -737,8 +771,10 @@ def test_help_lists_benchmark_options_in_expected_order():
     question_limit_index = help_text.index("--question-limit QUESTION_LIMIT")
     temperature_index = help_text.index("--temperature TEMPERATURE")
     top_p_index = help_text.index("--top-p TOP_P")
-    frequency_penalty_index = help_text.index("--frequency-penalty FREQUENCY_PENALTY")
-    presence_penalty_index = help_text.index("--presence-penalty PRESENCE_PENALTY")
+    frequency_penalty_index = help_text.index(
+        "--frequency-penalty FREQUENCY_PENALTY")
+    presence_penalty_index = help_text.index(
+        "--presence-penalty PRESENCE_PENALTY")
     max_tokens_index = help_text.index("--max-tokens MAX_TOKENS")
     color_index = help_text.index("--color")
     benchmark_index = help_text.index("--benchmark")
