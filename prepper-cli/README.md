@@ -30,7 +30,7 @@ Optional test deps:
 pip install pytest
 ```
 
-Create `.env` (or export env vars):
+From the monorepo root, create root `.env` (or export env vars):
 
 ```bash
 OPENROUTER_API_KEY=your_key_here
