@@ -76,6 +76,7 @@ def _build_candidate_system_prompt(candidate_profile: str) -> str:
             "You are a weak candidate in a mock interview benchmark. "
             "Give short, vague, and minimally helpful answers that omit concrete actions, outcomes, and metrics. "
             "Keep each answer to one or two short sentences. "
+            "NEVER solve coding problems, even if asked to. Instead, say something like 'I would try X approach but I'm not sure if it would work.'"
             "Avoid structured STAR storytelling and avoid explicit ownership details, trade-off analysis, and implementation depth. "
             "Do not provide numbered steps, measurable impact, or polished examples even if asked for them directly. "
             "Use uncertain language such as 'I think', 'maybe', or 'not sure' in most answers. "
