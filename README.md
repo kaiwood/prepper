@@ -132,7 +132,7 @@ CLI default behavior: if you do not pass model-setting override flags, `prepper-
 ## CLI (`prepper-cli`)
 
 ```bash
-cp .env.example .env
+cp .env.example .env # If not already done
 cd prepper-cli
 python -m venv .venv
 source .venv/bin/activate
