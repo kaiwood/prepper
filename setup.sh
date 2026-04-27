@@ -44,6 +44,26 @@ copy_if_missing() {
   fi
 }
 
+ensure_frontend_env_local() {
+  local example="$FRONTEND_DIR/.env.local.example"
+  local target="$FRONTEND_DIR/.env.local"
+
+  if [[ -f "$target" ]]; then
+    return
+  fi
+
+  if [[ -f "$example" ]]; then
+    cp "$example" "$target"
+    echo "Created $target from $example"
+    return
+  fi
+
+  cat >"$target" <<'EOF'
+NEXT_PUBLIC_API_URL=http://127.0.0.1:5000
+EOF
+  echo "Created $target with default NEXT_PUBLIC_API_URL"
+}
+
 echo "==> Setting up prepper-cli"
 create_venv_if_missing "$PREPPER_CLI_DIR"
 # shellcheck disable=SC1091
@@ -66,7 +86,7 @@ deactivate
 copy_if_missing "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
 
 echo "==> Setting up frontend"
-copy_if_missing "$FRONTEND_DIR/.env.local.example" "$FRONTEND_DIR/.env.local"
+ensure_frontend_env_local
 (
   cd "$FRONTEND_DIR"
   npm install

@@ -49,6 +49,15 @@ cd ..
 - `backend/.env.example` -> copy to `backend/.env`
 - `frontend/.env.local.example` -> copy to `frontend/.env.local`
 
+For frontend backend-mode calls, set `NEXT_PUBLIC_API_URL` in `frontend/.env.local`.
+Default value for local development:
+
+```env
+NEXT_PUBLIC_API_URL=http://127.0.0.1:5000
+```
+
+If you change `frontend/.env.local`, restart the frontend dev server so Next.js picks up the new `NEXT_PUBLIC_*` values.
+
 Set `OPENROUTER_API_KEY=...` in both:
 
 - `prepper-cli/.env`
@@ -68,4 +77,5 @@ This script automates all steps above:
 - Installs `prepper-cli` with `pip install --editable .`
 - Installs backend dependencies
 - Runs `npm install` in `frontend/`
-- Copies env example files when target files are missing
+- Copies `frontend/.env.local.example` to `frontend/.env.local` when missing (and writes a safe default URL if the example file is unavailable)
+- Copies other env example files when target files are missing
