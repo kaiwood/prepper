@@ -8,7 +8,7 @@ Prepper helps you practice interviews with an AI interviewer.
 
 ## Fresh Clone Setup
 
-Use the dedicated setup guide: [SETUP.md](./SETUP.md)
+Use the dedicated setup guide: [SETUP.md](./SETUP.md) or simply run `./setup.sh` from the project root.
 
 ## Run Both Dev Servers
 
