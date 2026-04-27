@@ -70,6 +70,7 @@ type InterviewStatus = {
 type ChatResponse = {
   reply?: string;
   error?: string;
+  interview_id?: string;
   interview_enabled?: boolean;
   interview_complete?: boolean;
   counted_question_roundtrips?: number;
@@ -169,6 +170,7 @@ export default function Home() {
     useState<DifficultyValue>("medium");
   const [interviewStatus, setInterviewStatus] =
     useState<InterviewStatus | null>(null);
+  const [interviewId, setInterviewId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
   const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>(
@@ -337,6 +339,10 @@ export default function Home() {
     if (!hasStarted || !message.trim() || loading || interviewCompleted) {
       return;
     }
+    if (interviewRatingEnabled && !interviewId) {
+      setError(ui.errorFallback);
+      return;
+    }
 
     const prompt = message.trim();
     const history = [...conversation];
@@ -349,7 +355,8 @@ export default function Home() {
     try {
       const payload: {
         message: string;
-        conversation_history: ConversationMessage[];
+        conversation_history?: ConversationMessage[];
+        interview_id?: string;
         system_prompt_name?: string;
         language: LanguageCode;
         max_question_roundtrips?: number;
@@ -360,15 +367,18 @@ export default function Home() {
         presence_penalty?: number;
       } = {
         message: prompt,
-        conversation_history: history,
         language,
       };
+      if (!interviewRatingEnabled) {
+        payload.conversation_history = history;
+      }
 
       if (selectedPrompt) {
         payload.system_prompt_name = selectedPrompt;
       }
 
       if (interviewRatingEnabled) {
+        payload.interview_id = interviewId ?? undefined;
         payload.max_question_roundtrips = questionRoundtripLimit;
       }
 
@@ -399,6 +409,9 @@ export default function Home() {
           { role: "assistant", content: data.reply ?? "" },
         ]);
         if (data.interview_enabled) {
+          if (typeof data.interview_id === "string" && data.interview_id) {
+            setInterviewId(data.interview_id);
+          }
           setInterviewStatus({
             enabled: true,
             interview_complete: Boolean(data.interview_complete),
@@ -411,6 +424,7 @@ export default function Home() {
             difficulty: data.difficulty,
           });
         } else {
+          setInterviewId(null);
           setInterviewStatus(null);
         }
       }
@@ -429,6 +443,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setInterviewStatus(null);
+    setInterviewId(null);
 
     try {
       const payload: {
@@ -473,7 +488,27 @@ export default function Home() {
         setError(data.error ?? ui.errorFallback);
       } else {
         setConversation([{ role: "assistant", content: data.reply ?? "" }]);
-        setInterviewStatus(null);
+        if (data.interview_enabled) {
+          setInterviewId(
+            typeof data.interview_id === "string" && data.interview_id
+              ? data.interview_id
+              : null,
+          );
+          setInterviewStatus({
+            enabled: true,
+            interview_complete: Boolean(data.interview_complete),
+            counted_question_roundtrips: data.counted_question_roundtrips ?? 0,
+            question_roundtrips_limit: data.question_roundtrips_limit ?? 0,
+            pass_threshold: data.pass_threshold ?? 0,
+            current_turn_type: data.current_turn_type ?? "other",
+            final_result: data.final_result,
+            metadata_warning: data.metadata_warning,
+            difficulty: data.difficulty,
+          });
+        } else {
+          setInterviewId(null);
+          setInterviewStatus(null);
+        }
       }
     } catch {
       setError(ui.errorBackendUnavailable);
@@ -772,6 +807,7 @@ export default function Home() {
           setMessage("");
           setError(null);
           setInterviewStatus(null);
+          setInterviewId(null);
           setAdvancedSettings(buildAdvancedSettings(selectedPromptMetadata));
           setSelectedDifficulty(
             selectedPromptMetadata?.difficulty_enabled
