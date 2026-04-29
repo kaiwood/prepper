@@ -762,6 +762,15 @@ def test_help_makes_candidate_flags_benchmark_only_clear():
     assert "required for benchmark-only options" in help_text
 
 
+def test_help_uses_wrapper_command_name_when_provided(monkeypatch):
+    monkeypatch.setenv("PREPPER_CLI_PROG", "./cli.sh")
+
+    help_text = main._build_parser().format_help()
+
+    assert help_text.startswith("usage: ./cli.sh ")
+    assert "python -m prepper_cli.main" not in help_text
+
+
 def test_help_lists_benchmark_options_in_expected_order():
     help_text = main._build_parser().format_help()
 

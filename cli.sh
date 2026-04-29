@@ -13,4 +13,4 @@ if [[ ! -x "$CLI_VENV_PYTHON" ]]; then
 fi
 
 cd "$CLI_DIR"
-exec "$CLI_VENV_PYTHON" -m prepper_cli.main "$@"
+PREPPER_CLI_PROG="./cli.sh" exec "$CLI_VENV_PYTHON" -m prepper_cli.main "$@"
