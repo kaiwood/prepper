@@ -1,3 +1,5 @@
+import io
+
 from prepper_cli import benchmark
 from prepper_cli.conversation import Conversation
 from prepper_cli.system_prompts import PromptDescriptor
@@ -151,23 +153,118 @@ def test_run_benchmark_interview_uses_defaults_and_returns_summary(monkeypatch):
 
     monkeypatch.setattr(benchmark, "score_interviewer_performance", fake_score_interviewer_performance)
 
+    output = io.StringIO()
+
     result = benchmark.run_benchmark_interview(
         interviewer_descriptor=interviewer,
         language="de",
         model="runtime-model",
         benchmark_model="benchmark-model",
+        output=output,
     )
 
     assert calls["run_turn"] == 2
     assert calls["candidate_reply"] == 1
     assert result["summary_json"]["mode"] == "benchmark"
-    assert result["summary_json"]["candidate_system_prompt"] == "benchmark_candidate_strong"
+    assert "candidate_system_prompt" not in result["summary_json"]
+    assert "candidate_profile" not in result["summary_json"]
+    assert "final_result" not in result["summary_json"]
+    assert "pass_threshold" not in result["summary_json"]
     assert result["summary_json"]["difficulty"] == "medium"
     assert result["summary_json"]["question_roundtrips_limit"] == 2
-    assert result["summary_json"]["final_result"]["passed"] is True
+    assert result["summary_json"]["models"] == {
+        "runtime": "runtime-model",
+        "benchmark_scoring": "benchmark-model",
+    }
+    assert result["summary_json"]["runtime_model"] == "runtime-model"
+    assert result["summary_json"]["benchmark_model"] == "benchmark-model"
+    assert result["summary_json"]["model_settings"]["temperature"] == 0.4
     assert result["summary_json"]["interviewer_result"]["passed"] is True
     assert result["conversation"][0]["role"] == "user"
     assert result["conversation"][1]["role"] == "assistant"
+
+    rendered = output.getvalue()
+    summary_index = rendered.index("## Evaluation Summary")
+    details_index = rendered.index("## Evaluation Details")
+    candidate_index = rendered.index("### Candidate Score")
+    interviewer_index = rendered.index("### Interviewer Score")
+    assert summary_index < details_index < candidate_index < interviewer_index
+    assert "candidate_overall_score: 8.00" in rendered
+    assert "interviewer_overall_score: 7.90" in rendered
+    assert "runtime_model: runtime-model" in rendered
+    assert "benchmark_model: benchmark-model" in rendered
+    assert "model_settings: temperature=0.4" in rendered
+
+
+def test_run_benchmark_interview_reports_default_model_when_model_is_omitted(
+    monkeypatch,
+):
+    interviewer = _make_descriptor("behavioral_focus")
+    monkeypatch.setenv("OPENROUTER_MODEL", "openrouter/default-from-env")
+
+    def fake_run_interview_turn(
+        message: str,
+        conversation: Conversation | None,
+        descriptor,
+        language,
+        question_limit,
+        pass_threshold,
+        model_settings,
+        difficulty,
+        model=None,
+    ):
+        assert conversation is not None
+        conversation.add_user_message(message)
+        conversation.add_assistant_reply("Done.")
+        return {
+            "reply": "Done.",
+            "turn_type": "other",
+            "question_count": 1,
+            "question_limit": question_limit,
+            "interview_complete": True,
+            "pass_threshold": pass_threshold,
+            "metadata_warning": False,
+            "final_result": {
+                "overall_score": 8.0,
+                "pass_threshold": pass_threshold,
+                "passed": True,
+                "criterion_scores": [],
+                "strengths": [],
+                "improvements": [],
+                "parse_warning": False,
+            },
+        }
+
+    monkeypatch.setattr(benchmark, "run_interview_turn", fake_run_interview_turn)
+    monkeypatch.setattr(
+        benchmark,
+        "score_interviewer_performance",
+        lambda **kwargs: {
+            "overall_score": 8.0,
+            "rubric_overall_score": 8.0,
+            "candidate_score_component": 8.0,
+            "weights": {"interviewer_rubric": 0.8, "candidate_outcome": 0.2},
+            "pass_threshold": 7.0,
+            "passed": True,
+            "criterion_scores": [],
+            "strengths": [],
+            "improvements": [],
+            "difficulty_alignment": "aligned",
+            "parse_warning": False,
+        },
+    )
+
+    result = benchmark.run_benchmark_interview(
+        interviewer_descriptor=interviewer,
+        output=io.StringIO(),
+    )
+
+    assert result["summary_json"]["models"] == {
+        "runtime": "openrouter/default-from-env",
+        "benchmark_scoring": "openrouter/default-from-env",
+    }
+    assert result["summary_json"]["runtime_model"] == "openrouter/default-from-env"
+    assert result["summary_json"]["benchmark_model"] == "openrouter/default-from-env"
 
 
 def test_run_benchmark_interview_rejects_invalid_difficulty():
@@ -296,9 +393,9 @@ def test_run_benchmark_interview_uses_good_candidate_profile_prompt(monkeypatch)
         model="runtime-model",
     )
 
-    assert result["summary_json"]["candidate_system_prompt"] == "benchmark_candidate_weak"
+    assert "candidate_system_prompt" not in result["summary_json"]
+    assert "candidate_profile" not in result["summary_json"]
     assert result["summary_json"]["language"] == "en"
-    assert result["summary_json"]["final_result"]["passed"] is False
     assert result["summary_json"]["interviewer_result"]["passed"] is False
 
 

@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import TextIO
 
 from .chat import get_chat_reply
-from .cli_output import print_final_result, print_interviewer_result, print_turn, write_line
+from .cli_output import print_benchmark_evaluation, print_turn, write_line
+from .config import resolve_model_name
 from .conversation import Conversation
 from .interview import resolve_pass_threshold, run_interview_turn, score_interviewer_performance
 from .system_prompts import PromptDescriptor
@@ -186,6 +187,8 @@ def run_benchmark_interview(
         presence_penalty_override=presence_penalty_override,
         max_tokens_override=max_tokens_override,
     )
+    runtime_model = resolve_model_name(model)
+    benchmark_scoring_model = resolve_model_name(benchmark_model or model)
     _print_header(
         output,
         interviewer_descriptor,
@@ -248,7 +251,6 @@ def run_benchmark_interview(
 
     write_line(output, "Interview complete.", enable_color=enable_color)
     write_line(output, "", enable_color=enable_color)
-    print_final_result(output, result.get("final_result"), enable_color=enable_color)
 
     interviewer_result = None
     candidate_result = result.get("final_result")
@@ -260,24 +262,34 @@ def run_benchmark_interview(
             difficulty=resolved_difficulty,
             candidate_overall_score=float(candidate_result.get("overall_score", 0.0)),
             interviewer_pass_threshold=interviewer_descriptor.interviewer_pass_threshold,
-            model=benchmark_model or model,
+            model=benchmark_scoring_model,
         )
-        print_interviewer_result(output, interviewer_result, enable_color=enable_color)
 
     summary_json = {
         "mode": "benchmark",
         "interviewer_system_prompt": interviewer_descriptor.id,
-        "candidate_system_prompt": f"benchmark_candidate_{candidate_profile}",
         "difficulty": resolved_difficulty,
         "language": language,
+        "models": {
+            "runtime": runtime_model,
+            "benchmark_scoring": benchmark_scoring_model,
+        },
+        "runtime_model": runtime_model,
+        "benchmark_model": benchmark_scoring_model,
+        "model_settings": model_settings,
         "question_roundtrips_limit": question_limit,
         "counted_question_roundtrips": result["question_count"],
         "interview_complete": result["interview_complete"],
         "current_turn_type": result["turn_type"],
-        "pass_threshold": pass_threshold,
-        "final_result": result.get("final_result"),
         "interviewer_result": interviewer_result,
     }
+
+    print_benchmark_evaluation(
+        output,
+        summary_json,
+        candidate_result=candidate_result,
+        enable_color=enable_color,
+    )
 
     return {
         "summary_json": summary_json,

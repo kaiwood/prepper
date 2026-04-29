@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
+DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.4-mini"
+
 
 @dataclass(frozen=True)
 class OpenRouterConfig:
@@ -23,6 +25,12 @@ def load_default_system_prompt_name() -> str:
     return default_system_prompt
 
 
+def resolve_model_name(model: str | None = None) -> str:
+    load_dotenv()
+    resolved = model or os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
+    return resolved.strip() or DEFAULT_OPENROUTER_MODEL
+
+
 def load_config() -> OpenRouterConfig:
     load_dotenv()
 
@@ -33,7 +41,7 @@ def load_config() -> OpenRouterConfig:
     base_url = os.environ.get(
         "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
     ).strip()
-    model = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini").strip()
+    model = resolve_model_name()
     default_system_prompt = load_default_system_prompt_name()
 
     return OpenRouterConfig(
