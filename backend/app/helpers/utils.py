@@ -27,7 +27,7 @@ def resolve_roundtrip_limit(
     if requested_limit is None:
         return default_limit
 
-    if not isinstance(requested_limit, int):
+    if isinstance(requested_limit, bool) or not isinstance(requested_limit, int):
         raise ValueError("max_question_roundtrips must be an integer")
 
     if requested_limit < min_limit or requested_limit > max_limit:

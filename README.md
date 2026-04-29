@@ -30,7 +30,7 @@ Run all tests from the project root with:
 ./run.sh --test
 ```
 
-This executes tests in order and stops on the first failure.
+This executes backend, prepper-cli, local tooling, and frontend tests in order. It stops on the first failure.
 
 You can still run suites individually:
 
@@ -51,6 +51,12 @@ backend/.venv/bin/python -m pytest backend/tests
 
 ```bash
 prepper-cli/.venv/bin/python -m pytest prepper-cli/tests
+```
+
+### Local tooling
+
+```bash
+backend/.venv/bin/python -m pytest tools
 ```
 
 ## Project Structure

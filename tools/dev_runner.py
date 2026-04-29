@@ -107,6 +107,12 @@ def run_test_mode(backend_python: str) -> int:
             PROJECT_ROOT / "prepper-cli",
             backend_env,
         ),
+        (
+            "tools-test",
+            [backend_python, "-m", "pytest", "tools", "-q"],
+            PROJECT_ROOT,
+            backend_env,
+        ),
         ("frontend-test", ["npm", "run", "test:unit"],
          FRONTEND_DIR, os.environ.copy()),
     ]
