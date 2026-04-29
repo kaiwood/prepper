@@ -226,8 +226,16 @@ prepper-cli --benchmark --system-prompt coding_focus --difficulty hard --questio
 Use one model for interview runtime and another for final interviewer scoring:
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-4o-mini --benchmark-model openai/gpt-4.1
+prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-5.4-mini --benchmark-model openai/gpt-4.1
 ```
+
+Print only comparable benchmark result JSON:
+
+```bash
+prepper-cli --benchmark-json --system-prompt behavioral_focus
+```
+
+The JSON result includes the runtime model, benchmark scoring model, and resolved runtime model settings.
 
 German benchmark run:
 
@@ -237,7 +245,10 @@ prepper-cli --benchmark --system-prompt behavioral_focus --language de --questio
 
 Notes:
 
-- `--strong-candidate` and `--weak-candidate` only work with `--benchmark`
+- `--benchmark` prints the live transcript and bottom evaluation summary
+- `--benchmark-json` runs benchmark mode without transcript output and prints interviewer result JSON
+- Use either `--benchmark` or `--benchmark-json`, not both
+- `--strong-candidate` and `--weak-candidate` only work in benchmark mode
 - If you omit both, benchmark uses the strong candidate profile
 - `--temperature`, `--top-p`, `--frequency-penalty`, `--presence-penalty`, and `--max-tokens` override runtime model settings
 

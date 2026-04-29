@@ -1,4 +1,6 @@
 import argparse
+import io
+import json
 import os
 import sys
 
@@ -90,7 +92,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--benchmark",
         action="store_true",
-        help="Run benchmark mode with simulated candidate responses (required for benchmark-only options)",
+        help="Run benchmark mode with simulated candidate responses and transcript output",
+    )
+    parser.add_argument(
+        "--benchmark-json",
+        action="store_true",
+        help="Benchmark-only: hide the transcript and print result JSON",
     )
     candidate_group = parser.add_mutually_exclusive_group()
     candidate_group.add_argument(
@@ -112,8 +119,11 @@ def _validate_benchmark_candidate_flags(
     parser: argparse.ArgumentParser,
     args: argparse.Namespace,
 ) -> None:
-    if (args.strong_candidate or args.weak_candidate) and not args.benchmark:
-        parser.error("--strong-candidate/--weak-candidate require --benchmark")
+    benchmark_mode = args.benchmark or args.benchmark_json
+    if args.benchmark and args.benchmark_json:
+        parser.error("--benchmark and --benchmark-json cannot be used together")
+    if (args.strong_candidate or args.weak_candidate) and not benchmark_mode:
+        parser.error("--strong-candidate/--weak-candidate require benchmark mode")
 
 
 def _resolve_system_prompt_name(selected_name: str | None) -> str:
@@ -365,6 +375,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         question_limit_override=args.question_limit,
         pass_threshold_override=args.pass_threshold,
         candidate_profile=candidate_profile,
+        output=io.StringIO() if args.benchmark_json else None,
         enable_color=args.color,
         model=args.model,
         benchmark_model=args.benchmark_model,
@@ -375,9 +386,9 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         max_tokens_override=args.max_tokens,
     )
 
-    # Benchmark mode prints the conversational transcript/final score from the
-    # benchmark runner; keep the machine-readable summary internal.
-    _ = result["summary_json"]
+    if args.benchmark_json:
+        print(json.dumps(result["summary_json"], indent=2, sort_keys=True))
+
     return 0
 
 
@@ -392,7 +403,7 @@ def main() -> int:
 
     _validate_benchmark_candidate_flags(parser, args)
 
-    if args.benchmark:
+    if args.benchmark or args.benchmark_json:
         try:
             return _run_benchmark(args)
         except Exception as exc:  # pragma: no cover - direct CLI safety net

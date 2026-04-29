@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from prepper_cli import main
@@ -405,6 +407,71 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
     assert captured.out == ""
 
 
+def test_benchmark_json_hides_transcript_and_prints_summary_json(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "--benchmark-json",
+            "--system-prompt",
+            "behavioral_focus",
+        ],
+    )
+
+    descriptor = _make_descriptor("behavioral_focus", name="Behavioral Interview")
+    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["behavioral_focus"])
+    monkeypatch.setattr(main, "load_prompt_descriptor", lambda _: descriptor)
+
+    called = {}
+
+    def fake_run_benchmark_interview(
+        interviewer_descriptor,
+        difficulty=None,
+        language=None,
+        question_limit_override=None,
+        pass_threshold_override=None,
+        candidate_profile="strong",
+        output=None,
+        enable_color=False,
+        model=None,
+        benchmark_model=None,
+        temperature_override=None,
+        top_p_override=None,
+        frequency_penalty_override=None,
+        presence_penalty_override=None,
+        max_tokens_override=None,
+    ):
+        called["output"] = output
+        called["enable_color"] = enable_color
+        output.write("transcript that should stay hidden\n")
+        return {
+            "summary_json": {
+                "mode": "benchmark",
+                "interviewer_system_prompt": interviewer_descriptor.id,
+                "interviewer_result": {"overall_score": 8.1, "passed": True},
+            },
+            "conversation": [{"role": "assistant", "content": "hidden"}],
+        }
+
+    monkeypatch.setattr(main, "run_benchmark_interview", fake_run_benchmark_interview)
+
+    exit_code = main.main()
+
+    assert exit_code == 0
+    assert called["output"] is not None
+    assert called["enable_color"] is False
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["mode"] == "benchmark"
+    assert payload["interviewer_result"]["overall_score"] == 8.1
+    assert "candidate_system_prompt" not in payload
+    assert "candidate_profile" not in payload
+    assert "final_result" not in payload
+    assert "conversation" not in payload
+    assert "transcript" not in captured.out
+
+
 def test_benchmark_mode_uses_explicit_weak_candidate_profile(monkeypatch, capsys):
     monkeypatch.setattr(
         "sys.argv",
@@ -494,6 +561,15 @@ def test_candidate_flags_require_benchmark(monkeypatch):
             "--strong-candidate",
         ],
     )
+
+    with pytest.raises(SystemExit) as exc:
+        main.main()
+
+    assert exc.value.code == 2
+
+
+def test_benchmark_and_benchmark_json_are_mutually_exclusive(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["prepper-cli", "--benchmark", "--benchmark-json"])
 
     with pytest.raises(SystemExit) as exc:
         main.main()
@@ -757,9 +833,12 @@ def test_help_makes_candidate_flags_benchmark_only_clear():
     assert "Response language code" in help_text
     assert "--color" in help_text
     assert "Enable colorized transcript output" in help_text
+    assert "--benchmark-json" in help_text
+    assert "hide the transcript and print result" in help_text
     assert "Benchmark-only: use a strong candidate simulation" in help_text
     assert "Benchmark-only: use a weak candidate simulation" in help_text
-    assert "required for benchmark-only options" in help_text
+    assert "simulated candidate responses" in help_text
+    assert "and transcript output" in help_text
 
 
 def test_help_uses_wrapper_command_name_when_provided(monkeypatch):
@@ -787,6 +866,7 @@ def test_help_lists_benchmark_options_in_expected_order():
     max_tokens_index = help_text.index("--max-tokens MAX_TOKENS")
     color_index = help_text.index("--color")
     benchmark_index = help_text.index("--benchmark")
+    benchmark_json_index = help_text.index("--benchmark-json")
     strong_index = help_text.index("--strong-candidate")
     weak_index = help_text.index("--weak-candidate")
 
@@ -795,4 +875,5 @@ def test_help_lists_benchmark_options_in_expected_order():
     assert temperature_index < top_p_index < frequency_penalty_index
     assert frequency_penalty_index < presence_penalty_index < max_tokens_index
     assert max_tokens_index < color_index
-    assert color_index < benchmark_index < strong_index < weak_index
+    assert color_index < benchmark_index < benchmark_json_index
+    assert benchmark_json_index < strong_index < weak_index

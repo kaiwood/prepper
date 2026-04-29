@@ -73,7 +73,7 @@ ensure_root_env() {
 OPENROUTER_API_KEY=
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 PREPPER_DEFAULT_SYSTEM_PROMPT=coding_focus
-OPENROUTER_MODEL=openai/gpt-5-mini
+OPENROUTER_MODEL=openai/gpt-5.4-mini
 EOF
   echo "Created $target with default OpenRouter settings"
 }

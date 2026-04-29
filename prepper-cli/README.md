@@ -35,7 +35,7 @@ From the monorepo root, create root `.env` (or export env vars):
 ```bash
 OPENROUTER_API_KEY=your_key_here
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_MODEL=openai/gpt-4o-mini
+OPENROUTER_MODEL=openai/gpt-5.4-mini
 PREPPER_DEFAULT_SYSTEM_PROMPT=coding_focus
 ```
 
@@ -128,12 +128,21 @@ prepper-cli --benchmark --system-prompt behavioral_focus --language de
 Use different models for runtime vs final benchmark scoring:
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-4o-mini --benchmark-model openai/gpt-4.1
+prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-5.4-mini --benchmark-model openai/gpt-4.1
 ```
+
+Print only the benchmark result as JSON, without the conversation transcript:
+
+```bash
+prepper-cli --benchmark-json --system-prompt behavioral_focus
+```
+
+The JSON result includes only interviewer scoring output plus run metadata, including the runtime model, benchmark scoring model, and resolved runtime model settings for comparing runs.
 
 ### Benchmark Flags Reference
 
-- `--benchmark`: required to run benchmark mode
+- `--benchmark`: run benchmark mode with live transcript output and a bottom evaluation summary
+- `--benchmark-json`: run benchmark mode without transcript output and print interviewer result JSON
 - `--strong-candidate`: use strong candidate simulation (default)
 - `--weak-candidate`: use weak candidate simulation
 - `--question-limit`: max question roundtrips
@@ -147,7 +156,7 @@ prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-4o-m
 - `--model`: model for runtime chat + candidate generation
 - `--benchmark-model`: model for final interviewer scoring pass
 
-Important: `--strong-candidate` and `--weak-candidate` are benchmark-only flags and will error without `--benchmark`.
+Important: `--benchmark` and `--benchmark-json` are mutually exclusive. `--strong-candidate` and `--weak-candidate` are benchmark-only flags.
 
 ## Prompt Front Matter
 
