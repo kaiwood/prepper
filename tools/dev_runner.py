@@ -1,20 +1,39 @@
 #!/usr/bin/env python3
 
 import os
-import signal
-import subprocess
 import sys
 import threading
-import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_DIR = PROJECT_ROOT / "backend"
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from tools import dev_server, test_runner  # noqa: E402
+
+
 PRINT_LOCK = threading.Lock()
+
+
+@dataclass(frozen=True)
+class RunnerArgs:
+    mode: str
+    test_suite: Optional[str] = None
+
+
+TEST_SELECTORS = {
+    "--all": "all",
+    "--backend": "backend",
+    "--frontend": "frontend",
+    "--cli": "cli",
+    "--tools": "tools",
+}
 
 
 def log(message: str) -> None:
@@ -31,11 +50,16 @@ def validate_layout() -> None:
 
 
 def print_usage() -> None:
-    log("Usage: ./run.sh [--dev | --test | --help | -h]")
-    log("  --dev   Run backend and frontend development servers (default).")
-    log("  --test  Run backend, prepper-cli, and frontend tests in sequence.")
-    log("  --help  Show this usage information and exit.")
-    log("  -h      Show this usage information and exit.")
+    log("Usage: ./run.sh [--dev | --test [--all | --backend | --frontend | --cli | --tools] | --help | -h]")
+    log("  --dev       Run backend and frontend development servers (default).")
+    log("  --test      Run all test suites unless a suite selector is provided.")
+    log("  --all       Run backend, prepper-cli, tooling, and frontend tests.")
+    log("  --backend   Run backend tests only.")
+    log("  --frontend  Run frontend tests only.")
+    log("  --cli       Run prepper-cli tests only.")
+    log("  --tools     Run local tooling tests only.")
+    log("  --help      Show this usage information and exit.")
+    log("  -h          Show this usage information and exit.")
 
 
 def resolve_backend_python() -> str:
@@ -47,227 +71,66 @@ def resolve_backend_python() -> str:
     return "python3"
 
 
-def stream_output(name: str, pipe) -> None:
-    if pipe is None:
-        return
+def parse_args(argv: List[str]) -> RunnerArgs:
+    if len(argv) == 0:
+        return RunnerArgs(mode="dev")
 
-    try:
-        for line in iter(pipe.readline, ""):
-            log(f"[{name}] {line.rstrip()}")
-    finally:
-        pipe.close()
+    if argv[0] in ("--help", "-h"):
+        if len(argv) != 1:
+            print_usage()
+            raise ValueError("Help does not accept additional flags.")
+        return RunnerArgs(mode="help")
+
+    if argv[0] == "--dev":
+        if len(argv) != 1:
+            print_usage()
+            raise ValueError("--dev does not accept additional flags.")
+        return RunnerArgs(mode="dev")
+
+    if argv[0] == "--test":
+        if len(argv) == 1:
+            return RunnerArgs(mode="test", test_suite="all")
+        if len(argv) == 2 and argv[1] in TEST_SELECTORS:
+            return RunnerArgs(mode="test", test_suite=TEST_SELECTORS[argv[1]])
+        print_usage()
+        if len(argv) > 2:
+            raise ValueError("Expected at most one test suite selector.")
+        raise ValueError(f"Unsupported test suite selector: {argv[1]}")
+
+    if argv[0] in TEST_SELECTORS:
+        print_usage()
+        raise ValueError(f"{argv[0]} must be used with --test.")
+
+    print_usage()
+    raise ValueError(f"Unsupported flag: {argv[0]}")
 
 
 def parse_mode(argv: List[str]) -> str:
-    if len(argv) == 0:
-        return "dev"
-
-    if len(argv) != 1:
-        print_usage()
-        raise ValueError("Expected at most one flag.")
-
-    flag = argv[0]
-    if flag == "--dev":
-        return "dev"
-    if flag == "--test":
-        return "test"
-    if flag in ("--help", "-h"):
-        return "help"
-
-    print_usage()
-    raise ValueError(f"Unsupported flag: {flag}")
-
-
-def run_command(name: str, cmd: List[str], cwd: Path, env: Optional[Dict[str, str]] = None) -> int:
-    log(f"[{name}] Running: {' '.join(cmd)}")
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
-
-    stream_output(name, proc.stdout)
-    return proc.wait()
-
-
-def run_test_mode(backend_python: str) -> int:
-    backend_env = os.environ.copy()
-    backend_env["PYTHONUNBUFFERED"] = "1"
-
-    test_steps = [
-        ("backend-test", [backend_python, "-m", "pytest",
-         "tests", "-q"], BACKEND_DIR, backend_env),
-        (
-            "prepper-cli-test",
-            [backend_python, "-m", "pytest", "tests", "-q"],
-            PROJECT_ROOT / "prepper-cli",
-            backend_env,
-        ),
-        (
-            "tools-test",
-            [backend_python, "-m", "pytest", "tools", "-q"],
-            PROJECT_ROOT,
-            backend_env,
-        ),
-        ("frontend-test", ["npm", "run", "test:unit"],
-         FRONTEND_DIR, os.environ.copy()),
-    ]
-
-    for name, cmd, cwd, env in test_steps:
-        code = run_command(name, cmd, cwd, env)
-        if code != 0:
-            log(f"[{name}] Failed with exit code {code}; stopping test run.")
-            return code
-
-    log("All test suites passed.")
-    return 0
-
-
-def start_processes(backend_python: str) -> Dict[str, subprocess.Popen]:
-    processes: Dict[str, subprocess.Popen] = {}
-
-    backend_env = os.environ.copy()
-    backend_env["PYTHONUNBUFFERED"] = "1"
-
-    processes["backend"] = subprocess.Popen(
-        [backend_python, "run.py"],
-        cwd=BACKEND_DIR,
-        env=backend_env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        preexec_fn=os.setsid,
-    )
-
-    processes["frontend"] = subprocess.Popen(
-        ["npm", "run", "dev"],
-        cwd=FRONTEND_DIR,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        preexec_fn=os.setsid,
-    )
-
-    return processes
-
-
-def send_group_signal(proc: subprocess.Popen, sig: signal.Signals) -> None:
-    if proc.poll() is not None:
-        return
-    try:
-        os.killpg(proc.pid, sig)
-    except ProcessLookupError:
-        pass
-
-
-def terminate_processes(processes: Dict[str, subprocess.Popen], timeout_seconds: float = 5.0) -> None:
-    for proc in processes.values():
-        send_group_signal(proc, signal.SIGTERM)
-
-    deadline = time.time() + timeout_seconds
-    while time.time() < deadline:
-        if all(proc.poll() is not None for proc in processes.values()):
-            break
-        time.sleep(0.1)
-
-    for proc in processes.values():
-        if proc.poll() is None:
-            send_group_signal(proc, signal.SIGKILL)
-
-    for proc in processes.values():
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            pass
+    return parse_args(argv).mode
 
 
 def main() -> int:
     validate_layout()
     try:
-        mode = parse_mode(sys.argv[1:])
+        args = parse_args(sys.argv[1:])
     except ValueError as err:
         log(f"Error: {err}")
         return 2
 
     backend_python = resolve_backend_python()
 
-    if mode == "help":
+    if args.mode == "help":
         print_usage()
         return 0
 
-    if mode == "test":
-        return run_test_mode(backend_python)
+    if args.mode == "test":
+        return test_runner.run_test_mode(
+            backend_python=backend_python,
+            suite=args.test_suite or "all",
+            log=log,
+        )
 
-    processes = start_processes(backend_python)
-
-    stream_threads: List[threading.Thread] = []
-    for name, proc in processes.items():
-        thread = threading.Thread(
-            target=stream_output, args=(name, proc.stdout), daemon=True)
-        thread.start()
-        stream_threads.append(thread)
-
-    backend_pid = processes["backend"].pid
-    frontend_pid = processes["frontend"].pid
-    log(f"Started backend (PID {backend_pid}) and frontend (PID {frontend_pid}).")
-    log("Press Ctrl+C to stop both services.")
-
-    stop_signal: Optional[signal.Signals] = None
-
-    def handle_signal(signum: int, _frame) -> None:
-        nonlocal stop_signal
-        stop_signal = signal.Signals(signum)
-
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
-
-    early_exit = False
-    early_exit_name: Optional[str] = None
-    early_exit_code: Optional[int] = None
-
-    while True:
-        if stop_signal is not None:
-            break
-
-        codes: Dict[str, Optional[int]] = {
-            name: proc.poll() for name, proc in processes.items()}
-        running = [name for name, code in codes.items() if code is None]
-        exited: List[Tuple[str, int]] = [
-            (name, code) for name, code in codes.items() if code is not None]
-
-        if len(exited) == len(processes):
-            break
-
-        if exited and running:
-            early_exit = True
-            early_exit_name, early_exit_code = exited[0]
-            break
-
-        time.sleep(0.1)
-
-    if early_exit and early_exit_name is not None:
-        log(f"{early_exit_name} exited first with code {early_exit_code}; stopping remaining services.")
-
-    terminate_processes(processes)
-
-    for thread in stream_threads:
-        thread.join(timeout=1)
-
-    final_codes = {name: proc.returncode for name, proc in processes.items()}
-
-    if stop_signal is not None:
-        return 130 if stop_signal == signal.SIGINT else 143
-
-    if not early_exit and all(code == 0 for code in final_codes.values()):
-        return 0
-
-    return 1
+    return dev_server.run_dev_server(backend_python=backend_python, log=log)
 
 
 if __name__ == "__main__":

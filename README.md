@@ -22,40 +22,36 @@ From the project root:
 
 You can also run modes explicitly:
 
+```bash
+./run.sh --dev
+```
+
 ## Testing
 
-Run all tests from the project root with:
+Run all tests from the project root with either command:
 
 ```bash
 ./run.sh --test
+./run.sh --test --all
 ```
 
 This executes backend, prepper-cli, local tooling, and frontend tests in order. It stops on the first failure.
 
-You can still run suites individually:
-
-### Frontend
+Run one suite at a time with:
 
 ```bash
-cd frontend
-npm run test:unit
+./run.sh --test --backend
+./run.sh --test --frontend
+./run.sh --test --cli
+./run.sh --test --tools
 ```
 
-### Backend
+You can still run the underlying commands manually when debugging a suite:
 
 ```bash
-backend/.venv/bin/python -m pytest backend/tests
-```
-
-### prepper-cli
-
-```bash
-prepper-cli/.venv/bin/python -m pytest prepper-cli/tests
-```
-
-### Local tooling
-
-```bash
+cd frontend && npm run test:unit
+(cd backend && .venv/bin/python -m pytest tests -q)
+(cd prepper-cli && .venv/bin/python -m pytest tests -q)
 backend/.venv/bin/python -m pytest tools
 ```
 
