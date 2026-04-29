@@ -4,6 +4,17 @@ from typing import Any
 
 from .chat import get_chat_reply
 from .conversation import Conversation
+from .interview_prompts import (
+    METADATA_PREFIX,
+    build_active_interview_system_prompt,
+    build_difficulty_instruction,
+    build_forced_closing_instruction,
+    build_forced_closing_system_prompt,
+    build_interview_opener_system_prompt,
+    build_metadata_contract_instruction,
+    build_prompt_with_difficulty,
+    build_runtime_interview_instruction,
+)
 from .system_prompts import PromptDescriptor
 
 _ROUNDTRIP_CLASSIFIER_PROMPT = (
@@ -11,7 +22,7 @@ _ROUNDTRIP_CLASSIFIER_PROMPT = (
     "QUESTION means the interviewer is asking a new substantive interview question. "
     "OTHER means clarification, acknowledgement, recap, or closing statement."
 )
-_METADATA_PREFIX = "[PREPPER_JSON]"
+_METADATA_PREFIX = METADATA_PREFIX
 _VALID_TURN_TYPES = {"QUESTION", "OTHER"}
 _FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
 _DEFAULT_INTERVIEWER_RUBRIC = (
@@ -71,31 +82,6 @@ def coerce_string_list(value: object, max_items: int = 3) -> list[str]:
     return normalized
 
 
-def build_difficulty_instruction(difficulty: str) -> str:
-    if difficulty == "easy":
-        return (
-            "\n\nDifficulty mode: Junior-level (easy). "
-            "Favor practical, well-scoped coding problems with lower ambiguity. "
-            "Offer concise hints when the candidate is clearly stuck. "
-            "Keep follow-ups implementation-focused and moderate in depth."
-        )
-
-    if difficulty == "hard":
-        return (
-            "\n\nDifficulty mode: Principal-level (hard). "
-            "Use more ambiguous, open-ended problems and probe system-level trade-offs. "
-            "Push deeper follow-ups on architecture, scaling, reliability, and constraints. "
-            "Keep hints minimal unless explicitly requested."
-        )
-
-    return (
-        "\n\nDifficulty mode: Senior-level (medium). "
-        "Use realistic production-oriented coding challenges with moderate ambiguity. "
-        "Expect strong trade-off reasoning, robust edge-case handling, and clear communication. "
-        "Provide limited hints only when appropriate."
-    )
-
-
 def resolve_pass_threshold(descriptor: PromptDescriptor, difficulty: str | None) -> float:
     if difficulty == "easy" and descriptor.easy_pass_threshold is not None:
         return descriptor.easy_pass_threshold
@@ -104,49 +90,6 @@ def resolve_pass_threshold(descriptor: PromptDescriptor, difficulty: str | None)
     if difficulty == "hard" and descriptor.hard_pass_threshold is not None:
         return descriptor.hard_pass_threshold
     return descriptor.pass_threshold
-
-
-def build_metadata_contract_instruction() -> str:
-    return (
-        "\n\nResponse format requirement: End EVERY interviewer reply with a single metadata suffix "
-        f"line in this exact format: {_METADATA_PREFIX} {{\"turn_type\":\"QUESTION|OTHER\",\"interview_complete\":true|false}}. "
-        "Do not add extra keys. Keep metadata valid JSON on a single line."
-    )
-
-
-def build_runtime_interview_instruction(
-    question_count: int,
-    question_limit: int,
-) -> str:
-    if question_count >= question_limit:
-        return (
-            "\n\nRuntime rule: You already asked the configured number of scored interview "
-            "questions. Do not ask another new question. Provide a concise closing response, "
-            "state that the interview is now over, and thank the candidate. "
-            "Set interview_complete to true in your metadata."
-        )
-
-    remaining = question_limit - question_count
-    return (
-        "\n\nRuntime rule: You are still in active interview mode. "
-        f"Scored interview questions asked so far: {question_count}/{question_limit}. "
-        f"Remaining scored questions: {remaining}. Ask at most one new focused question in this turn. "
-        "Clarifications are allowed but should be concise. "
-        "Set interview_complete to false unless this turn explicitly closes the interview."
-    )
-
-
-def build_forced_closing_instruction(
-    question_count: int,
-    question_limit: int,
-) -> str:
-    return (
-        "\n\nRuntime override: The interview must end now because the scored question "
-        f"roundtrip limit has been reached ({question_count}/{question_limit}). "
-        "Do not ask any new question. Provide a brief closing statement that clearly says "
-        "the interview is now over and thanks the candidate. "
-        "End with metadata using turn_type OTHER and interview_complete true."
-    )
 
 
 def parse_reply_metadata(raw_reply: str) -> dict[str, Any]:
@@ -208,10 +151,12 @@ def request_forced_closing_turn(
     model: str | None = None,
     include_diagnostics: bool = False,
 ) -> dict[str, Any]:
-    system_prompt = descriptor.content + build_metadata_contract_instruction()
-    if difficulty is not None:
-        system_prompt += build_difficulty_instruction(difficulty)
-    system_prompt += build_forced_closing_instruction(question_count, question_limit)
+    system_prompt = build_forced_closing_system_prompt(
+        descriptor=descriptor,
+        difficulty=difficulty,
+        question_count=question_count,
+        question_limit=question_limit,
+    )
 
     override_message = (
         "Runtime override: end the interview now and provide the final closing statement."
@@ -717,13 +662,11 @@ def run_interview_turn(
 
         return result
 
-    system_prompt = descriptor.content + build_metadata_contract_instruction()
-    if difficulty is not None:
-        system_prompt += build_difficulty_instruction(difficulty)
-
-    system_prompt += build_runtime_interview_instruction(
-        prior_question_count,
-        question_limit,
+    system_prompt = build_active_interview_system_prompt(
+        descriptor=descriptor,
+        difficulty=difficulty,
+        question_count=prior_question_count,
+        question_limit=question_limit,
     )
 
     chat_kwargs = {
