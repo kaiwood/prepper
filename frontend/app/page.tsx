@@ -13,6 +13,18 @@ import {
   type LanguageCode,
 } from "../lib/translations";
 import { hasSuspiciousPromptInjectionPattern } from "../lib/promptInjection.mjs";
+import {
+  ADVANCED_SETTING_CONFIG,
+  buildAdvancedSettings,
+  buildApiUrl,
+  buildChatPayload,
+  buildStartPayload,
+  clampAdvancedSetting,
+  formatAdvancedSettingValue,
+  resolveApiBaseUrl,
+  resolveDifficultySelection,
+  resolveQuestionRoundtripLimit,
+} from "../lib/appLogic.mjs";
 
 type DifficultyValue = "easy" | "medium" | "hard";
 
@@ -100,49 +112,9 @@ type AdvancedSettingConfig = {
 
 const DEFAULT_LANGUAGE: LanguageCode = "en";
 const LANGUAGE_CHANGE_EVENT = "prepper-language-change";
-const ADVANCED_SETTING_CONFIG: AdvancedSettingConfig[] = [
-  { key: "temperature", min: 0, max: 2, step: 0.1 },
-  { key: "top_p", min: 0, max: 1, step: 0.05 },
-  { key: "frequency_penalty", min: -2, max: 2, step: 0.1 },
-  { key: "presence_penalty", min: -2, max: 2, step: 0.1 },
-];
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:5000";
-
-function resolveApiBaseUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_API_URL;
-  if (!raw || raw === "undefined" || raw === "null") {
-    return DEFAULT_API_BASE_URL;
-  }
-
-  return raw.replace(/\/$/, "");
-}
-
-const API_BASE_URL = resolveApiBaseUrl();
-
-function buildApiUrl(path: string): string {
-  return `${API_BASE_URL}${path}`;
-}
-
-function buildAdvancedSettings(prompt?: PromptMetadata): AdvancedSettings {
-  return {
-    temperature: prompt?.temperature ?? 0.7,
-    top_p: prompt?.top_p ?? 1,
-    frequency_penalty: prompt?.frequency_penalty ?? 0,
-    presence_penalty: prompt?.presence_penalty ?? 0,
-  };
-}
-
-function clampAdvancedSetting(
-  value: number,
-  config: AdvancedSettingConfig,
-): number {
-  return Math.min(config.max, Math.max(config.min, value));
-}
-
-function formatAdvancedSettingValue(value: number, step: number): string {
-  const decimals = step < 0.1 ? 2 : 1;
-  return value.toFixed(decimals);
-}
+const API_BASE_URL = resolveApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+const TYPED_ADVANCED_SETTING_CONFIG =
+  ADVANCED_SETTING_CONFIG as AdvancedSettingConfig[];
 
 function readStoredLanguage(): LanguageCode {
   if (typeof window === "undefined") {
@@ -234,29 +206,8 @@ export default function Home() {
 
     const selected = prompts.find((prompt) => prompt.id === promptId);
     setAdvancedSettings(buildAdvancedSettings(selected));
-
-    if (!selected?.interview_rating_enabled) {
-      setQuestionRoundtripLimit(5);
-    } else {
-      const defaultLimit = selected.default_question_roundtrips;
-      setQuestionRoundtripLimit(
-        typeof defaultLimit === "number" ? defaultLimit : 5,
-      );
-    }
-
-    if (selected?.difficulty_enabled) {
-      const defaultDifficulty = selected.default_difficulty;
-      if (
-        defaultDifficulty &&
-        ["easy", "medium", "hard"].includes(defaultDifficulty)
-      ) {
-        setSelectedDifficulty(defaultDifficulty);
-      } else {
-        setSelectedDifficulty("medium");
-      }
-    } else {
-      setSelectedDifficulty("medium");
-    }
+    setQuestionRoundtripLimit(resolveQuestionRoundtripLimit(selected));
+    setSelectedDifficulty(resolveDifficultySelection(selected));
   };
 
   const handlePromptChange = (promptId: string) => {
@@ -297,7 +248,7 @@ export default function Home() {
       setPromptsError(null);
 
       try {
-        const res = await fetch(buildApiUrl("/api/prompts"));
+        const res = await fetch(buildApiUrl(API_BASE_URL, "/api/prompts"));
         const data: PromptsResponse = await res.json();
 
         if (!res.ok) {
@@ -379,35 +330,21 @@ export default function Home() {
         top_p?: number;
         frequency_penalty?: number;
         presence_penalty?: number;
-      } = {
-        message: prompt,
+      } = buildChatPayload({
+        prompt,
+        history,
+        interviewRatingEnabled,
+        interviewId,
+        selectedPrompt,
         language,
-      };
-      if (!interviewRatingEnabled) {
-        payload.conversation_history = history;
-      }
+        questionRoundtripLimit,
+        difficultyEnabled,
+        selectedDifficulty,
+        selectedPromptMetadata,
+        advancedSettings,
+      });
 
-      if (selectedPrompt) {
-        payload.system_prompt_name = selectedPrompt;
-      }
-
-      if (interviewRatingEnabled) {
-        payload.interview_id = interviewId ?? undefined;
-        payload.max_question_roundtrips = questionRoundtripLimit;
-      }
-
-      if (difficultyEnabled) {
-        payload.difficulty = selectedDifficulty;
-      }
-
-      if (selectedPromptMetadata) {
-        payload.temperature = advancedSettings.temperature;
-        payload.top_p = advancedSettings.top_p;
-        payload.frequency_penalty = advancedSettings.frequency_penalty;
-        payload.presence_penalty = advancedSettings.presence_penalty;
-      }
-
-      const res = await fetch(buildApiUrl("/api/chat"), {
+      const res = await fetch(buildApiUrl(API_BASE_URL, "/api/chat"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -468,26 +405,16 @@ export default function Home() {
         top_p?: number;
         frequency_penalty?: number;
         presence_penalty?: number;
-      } = {
+      } = buildStartPayload({
+        selectedPrompt,
         language,
-      };
+        difficultyEnabled,
+        selectedDifficulty,
+        selectedPromptMetadata,
+        advancedSettings,
+      });
 
-      if (selectedPrompt) {
-        payload.system_prompt_name = selectedPrompt;
-      }
-
-      if (difficultyEnabled) {
-        payload.difficulty = selectedDifficulty;
-      }
-
-      if (selectedPromptMetadata) {
-        payload.temperature = advancedSettings.temperature;
-        payload.top_p = advancedSettings.top_p;
-        payload.frequency_penalty = advancedSettings.frequency_penalty;
-        payload.presence_penalty = advancedSettings.presence_penalty;
-      }
-
-      const res = await fetch(buildApiUrl("/api/chat/start"), {
+      const res = await fetch(buildApiUrl(API_BASE_URL, "/api/chat/start"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -707,7 +634,7 @@ export default function Home() {
                 <p className="text-sm text-gray-500">
                   {ui.advancedSettingsHint}
                 </p>
-                {ADVANCED_SETTING_CONFIG.map((config) => {
+                {TYPED_ADVANCED_SETTING_CONFIG.map((config) => {
                   const value = advancedSettings[config.key];
                   const labelByKey: Record<AdvancedSettingField, string> = {
                     temperature: ui.temperatureLabel,

@@ -462,7 +462,7 @@ def test_benchmark_mode_uses_explicit_weak_candidate_profile(monkeypatch, capsys
 
     assert exit_code == 0
     assert called["interviewer"] == "behavioral_focus"
-    assert called["candidate_profile"] == "good"
+    assert called["candidate_profile"] == "weak"
     assert called["enable_color"] is False
 
     captured = capsys.readouterr()

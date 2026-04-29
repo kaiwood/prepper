@@ -160,6 +160,7 @@ def run_benchmark_interview(
     presence_penalty_override: float | None = None,
     max_tokens_override: int | None = None,
 ) -> dict:
+    _build_candidate_system_prompt(candidate_profile)
     conversation = Conversation()
 
     resolved_difficulty = _resolve_difficulty(interviewer_descriptor, difficulty)

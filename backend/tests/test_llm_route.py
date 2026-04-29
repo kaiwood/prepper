@@ -269,6 +269,114 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     assert coding["default_difficulty"] == "medium"
 
 
+def test_health_returns_ok():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "ok"}
+
+
+def test_prompts_returns_502_when_default_prompt_is_missing(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.prompts.list_system_prompt_names",
+        lambda: ["coding_focus"],
+    )
+    monkeypatch.setattr(
+        "app.routes.prompts.get_default_system_prompt_name",
+        lambda: "missing",
+    )
+
+    response = client.get("/api/prompts")
+
+    assert response.status_code == 502
+    assert response.get_json() == {
+        "error": "LLM request failed: Unknown system prompt 'missing'"
+    }
+
+
+def test_chat_options_preflight_returns_cors_headers():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.options(
+        "/api/chat",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["Access-Control-Allow-Origin"] == "http://localhost:3000"
+    assert "Content-Type" in response.headers["Access-Control-Allow-Headers"]
+
+
+def test_chat_start_options_preflight_returns_cors_headers():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.options(
+        "/api/chat/start",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["Access-Control-Allow-Origin"] == "http://localhost:3000"
+    assert "Content-Type" in response.headers["Access-Control-Allow-Headers"]
+
+
+def test_chat_rejects_legacy_system_prompt_field():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/chat",
+        json={"message": "hello", "system_prompt": "legacy"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "system_prompt is not supported"}
+
+
+def test_chat_start_rejects_legacy_system_prompt_field():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post("/api/chat/start", json={"system_prompt": "legacy"})
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "system_prompt is not supported"}
+
+
+def test_chat_rejects_invalid_conversation_history_role():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/chat",
+        json={
+            "message": "hello",
+            "conversation_history": [{"role": "system", "content": "nope"}],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "conversation_history contains an invalid role"
+    }
+
+
 def test_chat_rejects_non_string_difficulty(monkeypatch):
     app = create_app()
     client = app.test_client()
@@ -520,6 +628,76 @@ def test_chat_requires_interview_id_when_rating_enabled(monkeypatch):
     assert response.status_code == 400
     assert response.get_json() == {
         "error": "interview_id is required for interview chat"
+    }
+
+
+def test_chat_rejects_invalid_interview_id(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.chat.resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+        ),
+    )
+
+    response = client.post(
+        "/api/chat",
+        json={"message": "hello", "interview_id": "missing"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "invalid interview_id"}
+
+
+def test_chat_rejects_interview_id_for_different_prompt(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    descriptors = {
+        "coding_focus": _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+        ),
+        "behavioral_focus": _make_descriptor(
+            "behavioral_focus",
+            interview_rating_enabled=True,
+        ),
+    }
+
+    monkeypatch.setattr(
+        "app.routes.chat.resolve_prompt_descriptor",
+        lambda selected_name=None: descriptors[selected_name or "coding_focus"],
+    )
+    monkeypatch.setattr(
+        "app.routes.chat.get_interview_opener",
+        lambda **kwargs: (
+            "opening question\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    )
+
+    start_response = client.post(
+        "/api/chat/start",
+        json={"system_prompt_name": "coding_focus"},
+    )
+    assert start_response.status_code == 200
+    interview_id = start_response.get_json()["interview_id"]
+
+    response = client.post(
+        "/api/chat",
+        json={
+            "message": "hello",
+            "interview_id": interview_id,
+            "system_prompt_name": "behavioral_focus",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "interview_id does not match the selected system prompt"
     }
 
 
