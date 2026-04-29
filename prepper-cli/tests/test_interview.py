@@ -1,6 +1,9 @@
 from prepper_cli.conversation import Conversation
 from prepper_cli.interview import (
+    build_active_interview_system_prompt,
+    build_forced_closing_system_prompt,
     build_interviewer_scoring_system_prompt,
+    build_interview_opener_system_prompt,
     count_scored_questions,
     parse_interviewer_scoring_payload,
     parse_reply_metadata,
@@ -76,6 +79,53 @@ def test_count_scored_questions_fallback_handles_non_question_mark(monkeypatch):
     )
 
     assert count_scored_questions(conversation, None) == 1
+
+
+def test_build_interview_opener_system_prompt_includes_base_and_difficulty():
+    descriptor = _descriptor(content="Base interviewer prompt.")
+
+    prompt = build_interview_opener_system_prompt(descriptor, "hard")
+
+    assert "Base interviewer prompt." in prompt
+    assert "Difficulty mode: Principal-level (hard)." in prompt
+    assert "Response format requirement" not in prompt
+    assert "Runtime rule:" not in prompt
+
+
+def test_build_active_interview_system_prompt_includes_runtime_sections():
+    descriptor = _descriptor(content="Base interviewer prompt.")
+
+    prompt = build_active_interview_system_prompt(
+        descriptor=descriptor,
+        difficulty="medium",
+        question_count=1,
+        question_limit=3,
+    )
+
+    assert "Base interviewer prompt." in prompt
+    assert "Response format requirement" in prompt
+    assert "[PREPPER_JSON]" in prompt
+    assert "Difficulty mode: Senior-level (medium)." in prompt
+    assert "Scored interview questions asked so far: 1/3." in prompt
+    assert "Remaining scored questions: 2." in prompt
+
+
+def test_build_forced_closing_system_prompt_includes_closing_override():
+    descriptor = _descriptor(content="Base interviewer prompt.")
+
+    prompt = build_forced_closing_system_prompt(
+        descriptor=descriptor,
+        difficulty="easy",
+        question_count=3,
+        question_limit=3,
+    )
+
+    assert "Base interviewer prompt." in prompt
+    assert "Response format requirement" in prompt
+    assert "Difficulty mode: Junior-level (easy)." in prompt
+    assert "Runtime override: The interview must end now" in prompt
+    assert "roundtrip limit has been reached (3/3)." in prompt
+    assert "turn_type OTHER and interview_complete true" in prompt
 
 
 def test_run_interview_turn_strips_metadata_and_includes_final_result(monkeypatch):

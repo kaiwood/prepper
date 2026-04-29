@@ -71,16 +71,6 @@ def resolve_difficulty(
     return normalized
 
 
-def resolve_pass_threshold(descriptor: PromptDescriptor, difficulty: str | None) -> float:
-    if difficulty == "easy" and descriptor.easy_pass_threshold is not None:
-        return descriptor.easy_pass_threshold
-    if difficulty == "medium" and descriptor.medium_pass_threshold is not None:
-        return descriptor.medium_pass_threshold
-    if difficulty == "hard" and descriptor.hard_pass_threshold is not None:
-        return descriptor.hard_pass_threshold
-    return descriptor.pass_threshold
-
-
 def resolve_model_setting_override(name: str, value: object) -> float | None:
     if value is None:
         return None
@@ -126,31 +116,6 @@ def resolve_model_settings(
         ),
         "max_tokens": descriptor.max_tokens,
     }
-
-
-def build_difficulty_instruction(difficulty: str) -> str:
-    if difficulty == "easy":
-        return (
-            "\n\nDifficulty mode: Junior-level (easy). "
-            "Favor practical, well-scoped coding problems with lower ambiguity. "
-            "Offer concise hints when the candidate is clearly stuck. "
-            "Keep follow-ups implementation-focused and moderate in depth."
-        )
-
-    if difficulty == "hard":
-        return (
-            "\n\nDifficulty mode: Principal-level (hard). "
-            "Use more ambiguous, open-ended problems and probe system-level trade-offs. "
-            "Push deeper follow-ups on architecture, scaling, reliability, and constraints. "
-            "Keep hints minimal unless explicitly requested."
-        )
-
-    return (
-        "\n\nDifficulty mode: Senior-level (medium). "
-        "Use realistic production-oriented coding challenges with moderate ambiguity. "
-        "Expect strong trade-off reasoning, robust edge-case handling, and clear communication. "
-        "Provide limited hints only when appropriate."
-    )
 
 
 def resolve_prompt_descriptor(selected_name: str | None = None) -> PromptDescriptor:

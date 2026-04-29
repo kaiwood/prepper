@@ -6,10 +6,8 @@ from flask_cors import cross_origin
 from app import limiter
 from app.helpers.debug import debug_enabled, debug_request_context, format_debug_json
 from app.helpers.utils import (
-    build_difficulty_instruction,
     resolve_difficulty,
     resolve_model_settings,
-    resolve_pass_threshold,
     resolve_prompt_descriptor,
     resolve_roundtrip_limit,
 )
@@ -18,11 +16,13 @@ from prepper_cli import (
     get_chat_reply,
     get_interview_opener,
     parse_reply_metadata,
+    resolve_pass_threshold,
     run_interview_turn,
 )
-from prepper_cli.interview import (
-    build_forced_closing_instruction,
-    build_metadata_contract_instruction,
+from prepper_cli.interview_prompts import (
+    build_forced_closing_system_prompt,
+    build_interview_opener_system_prompt,
+    build_prompt_with_difficulty,
 )
 
 chat_bp = Blueprint("chat", __name__)
@@ -39,15 +39,15 @@ def _build_forced_closing_reply(
     question_limit: int,
     difficulty: str | None,
 ) -> str:
-    system_prompt = descriptor.content + build_metadata_contract_instruction()
-    if difficulty is not None:
-        system_prompt += build_difficulty_instruction(difficulty)
-    system_prompt += build_forced_closing_instruction(question_count, question_limit)
-
     raw_reply = get_chat_reply(
         "Runtime override: end the interview now and provide the final closing statement.",
         conversation=None,
-        system_prompt=system_prompt,
+        system_prompt=build_forced_closing_system_prompt(
+            descriptor=descriptor,
+            difficulty=difficulty,
+            question_count=question_count,
+            question_limit=question_limit,
+        ),
         language=language,
         temperature=model_settings["temperature"],
         top_p=model_settings["top_p"],
@@ -271,9 +271,7 @@ def chat():
             difficulty=session["difficulty"],
         )
     else:
-        system_prompt = descriptor.content
-        if resolved_difficulty is not None:
-            system_prompt += build_difficulty_instruction(resolved_difficulty)
+        system_prompt = build_prompt_with_difficulty(descriptor, resolved_difficulty)
 
         try:
             if debug_mode:
@@ -379,9 +377,10 @@ def chat_start():
             format_debug_json(model_settings),
         )
 
-    system_prompt = descriptor.content
-    if resolved_difficulty is not None:
-        system_prompt += build_difficulty_instruction(resolved_difficulty)
+    system_prompt = build_interview_opener_system_prompt(
+        descriptor,
+        resolved_difficulty,
+    )
 
     try:
         if debug_mode:
