@@ -24,6 +24,7 @@ You can also run modes explicitly:
 
 ```bash
 ./run.sh --dev
+./run.sh --dev --color
 ```
 
 ## Testing
@@ -33,6 +34,7 @@ Run all tests from the project root with either command:
 ```bash
 ./run.sh --test
 ./run.sh --test --all
+./run.sh --test --color
 ```
 
 This executes backend, prepper-cli, local tooling, and frontend tests in order. It stops on the first failure.
@@ -45,6 +47,8 @@ Run one suite at a time with:
 ./run.sh --test --cli
 ./run.sh --test --tools
 ```
+
+Add `--color` to force colored runner, pytest, Node test, and Next dev output when your terminal supports it.
 
 You can still run the underlying commands manually when debugging a suite:
 

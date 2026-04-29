@@ -25,6 +25,7 @@ PRINT_LOCK = threading.Lock()
 class RunnerArgs:
     mode: str
     test_suite: Optional[str] = None
+    enable_color: bool = False
 
 
 TEST_SELECTORS = {
@@ -50,7 +51,7 @@ def validate_layout() -> None:
 
 
 def print_usage() -> None:
-    log("Usage: ./run.sh [--dev | --test [--all | --backend | --frontend | --cli | --tools] | --help | -h]")
+    log("Usage: ./run.sh [--color] [--dev | --test [--all | --backend | --frontend | --cli | --tools] | --help | -h]")
     log("  --dev       Run backend and frontend development servers (default).")
     log("  --test      Run all test suites unless a suite selector is provided.")
     log("  --all       Run backend, prepper-cli, tooling, and frontend tests.")
@@ -58,6 +59,7 @@ def print_usage() -> None:
     log("  --frontend  Run frontend tests only.")
     log("  --cli       Run prepper-cli tests only.")
     log("  --tools     Run local tooling tests only.")
+    log("  --color     Force colored runner and child tool output.")
     log("  --help      Show this usage information and exit.")
     log("  -h          Show this usage information and exit.")
 
@@ -72,26 +74,37 @@ def resolve_backend_python() -> str:
 
 
 def parse_args(argv: List[str]) -> RunnerArgs:
+    enable_color = "--color" in argv
+    if argv.count("--color") > 1:
+        print_usage()
+        raise ValueError("--color can only be used once.")
+
+    argv = [arg for arg in argv if arg != "--color"]
+
     if len(argv) == 0:
-        return RunnerArgs(mode="dev")
+        return RunnerArgs(mode="dev", enable_color=enable_color)
 
     if argv[0] in ("--help", "-h"):
         if len(argv) != 1:
             print_usage()
             raise ValueError("Help does not accept additional flags.")
-        return RunnerArgs(mode="help")
+        return RunnerArgs(mode="help", enable_color=enable_color)
 
     if argv[0] == "--dev":
         if len(argv) != 1:
             print_usage()
             raise ValueError("--dev does not accept additional flags.")
-        return RunnerArgs(mode="dev")
+        return RunnerArgs(mode="dev", enable_color=enable_color)
 
     if argv[0] == "--test":
         if len(argv) == 1:
-            return RunnerArgs(mode="test", test_suite="all")
+            return RunnerArgs(mode="test", test_suite="all", enable_color=enable_color)
         if len(argv) == 2 and argv[1] in TEST_SELECTORS:
-            return RunnerArgs(mode="test", test_suite=TEST_SELECTORS[argv[1]])
+            return RunnerArgs(
+                mode="test",
+                test_suite=TEST_SELECTORS[argv[1]],
+                enable_color=enable_color,
+            )
         print_usage()
         if len(argv) > 2:
             raise ValueError("Expected at most one test suite selector.")
@@ -128,9 +141,14 @@ def main() -> int:
             backend_python=backend_python,
             suite=args.test_suite or "all",
             log=log,
+            enable_color=args.enable_color,
         )
 
-    return dev_server.run_dev_server(backend_python=backend_python, log=log)
+    return dev_server.run_dev_server(
+        backend_python=backend_python,
+        log=log,
+        enable_color=args.enable_color,
+    )
 
 
 if __name__ == "__main__":
