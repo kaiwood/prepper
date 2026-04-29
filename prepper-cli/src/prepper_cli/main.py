@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 
 from .benchmark import run_benchmark_interview
@@ -15,7 +16,10 @@ from .system_prompts import (
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Send prompts to OpenRouter")
+    parser = argparse.ArgumentParser(
+        description="Send prompts to OpenRouter",
+        prog=os.environ.get("PREPPER_CLI_PROG"),
+    )
     parser.add_argument(
         "--system-prompt",
         help="System prompt name from the prompts folder",
