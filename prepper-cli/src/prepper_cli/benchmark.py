@@ -202,6 +202,7 @@ def run_benchmark_interview(
 
     start_message = "I am ready for the interview. Please begin."
     turn_index = 1
+    question_count = 0
     result = run_interview_turn(
         message=start_message,
         conversation=conversation,
@@ -212,7 +213,9 @@ def run_benchmark_interview(
         model_settings=model_settings,
         difficulty=resolved_difficulty,
         model=model,
+        prior_question_count=question_count,
     )
+    question_count = result["question_count"]
 
     print_turn(output, "Interviewer", result["reply"], enable_color=enable_color)
 
@@ -245,7 +248,9 @@ def run_benchmark_interview(
             model_settings=model_settings,
             difficulty=resolved_difficulty,
             model=model,
+            prior_question_count=question_count,
         )
+        question_count = result["question_count"]
 
         print_turn(output, "Interviewer", result["reply"], enable_color=enable_color)
 

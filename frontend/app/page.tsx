@@ -400,6 +400,7 @@ export default function Home() {
       const payload: {
         system_prompt_name?: string;
         language: LanguageCode;
+        max_question_roundtrips?: number;
         difficulty?: DifficultyValue;
         temperature?: number;
         top_p?: number;
@@ -408,6 +409,7 @@ export default function Home() {
       } = buildStartPayload({
         selectedPrompt,
         language,
+        questionRoundtripLimit,
         difficultyEnabled,
         selectedDifficulty,
         selectedPromptMetadata,

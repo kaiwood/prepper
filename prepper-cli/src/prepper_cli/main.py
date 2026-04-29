@@ -256,6 +256,7 @@ def _run_interactive(
         print("Using system prompt: none")
 
     conversation = Conversation()
+    question_count = 0
     opener_message = "I am ready for the interview. Please begin."
     difficulty, question_limit, pass_threshold = _resolve_interview_settings(
         descriptor,
@@ -284,7 +285,9 @@ def _run_interactive(
                 model_settings=model_settings,
                 difficulty=difficulty,
                 model=model,
+                prior_question_count=question_count,
             )
+            question_count = result["question_count"]
             print_turn(None, "Interviewer", result["reply"], enable_color=enable_color)
             if result["interview_complete"]:
                 print_final_result(None, result["final_result"], enable_color=enable_color)
@@ -335,7 +338,9 @@ def _run_interactive(
                     model_settings=model_settings,
                     difficulty=difficulty,
                     model=model,
+                    prior_question_count=question_count,
                 )
+                question_count = result["question_count"]
                 print_turn(None, "Interviewer", result["reply"], enable_color=enable_color)
                 if result["interview_complete"]:
                     print_final_result(None, result["final_result"], enable_color=enable_color)

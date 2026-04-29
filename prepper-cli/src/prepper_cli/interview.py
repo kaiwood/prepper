@@ -25,6 +25,31 @@ _ROUNDTRIP_CLASSIFIER_PROMPT = (
 _METADATA_PREFIX = METADATA_PREFIX
 _VALID_TURN_TYPES = {"QUESTION", "OTHER"}
 _FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
+_FALLBACK_ACTIVE_QUESTION_EN = (
+    "Let's continue the interview: can you explain how your approach handles "
+    "one important edge case?"
+)
+_FALLBACK_ACTIVE_QUESTION_DE = (
+    "Lassen Sie uns im Interview fortfahren: Können Sie erläutern, wie Ihr "
+    "Ansatz einen wichtigen Randfall behandelt?"
+)
+_PREMATURE_CLOSING_PATTERNS = (
+    "interview is now over",
+    "interview is over",
+    "that concludes the interview",
+    "this concludes the interview",
+    "thanks for your time",
+    "thank you for your time",
+    "interview beendet",
+    "interview ist beendet",
+    "das interview ist beendet",
+    "damit ist das interview beendet",
+    "gespräch ist beendet",
+    "gespräch beendet",
+    "danke ihnen für ihre zeit",
+    "danke für ihre zeit",
+    "vielen dank für ihre zeit",
+)
 _DEFAULT_INTERVIEWER_RUBRIC = (
     "Question clarity",
     "Follow-up depth",
@@ -139,6 +164,129 @@ def _resolve_turn_type(
         return turn_type, classify_diagnostics
 
     return classify_assistant_turn(reply, language), None
+
+
+def _looks_like_premature_closing(reply: str) -> bool:
+    normalized = " ".join((reply or "").casefold().split())
+    return any(pattern in normalized for pattern in _PREMATURE_CLOSING_PATTERNS)
+
+
+def _build_repair_conversation(
+    conversation: Conversation | None,
+    current_message: str,
+) -> Conversation | None:
+    if conversation is None:
+        return None
+
+    messages = conversation.get_messages()
+    normalized_current = (current_message or "").strip()
+    if (
+        len(messages) >= 2
+        and messages[-1]["role"] == "assistant"
+        and messages[-2]["role"] == "user"
+        and messages[-2]["content"] == normalized_current
+    ):
+        return Conversation.from_messages(messages[:-2])
+
+    return Conversation.from_messages(messages)
+
+
+def _fallback_active_question(language: str | None) -> str:
+    return (
+        _FALLBACK_ACTIVE_QUESTION_DE
+        if language == "de"
+        else _FALLBACK_ACTIVE_QUESTION_EN
+    )
+
+
+def request_active_repair_turn(
+    message: str,
+    conversation: Conversation | None,
+    descriptor: PromptDescriptor,
+    language: str | None,
+    model_settings: dict[str, float | int],
+    question_count: int,
+    question_limit: int,
+    difficulty: str | None = None,
+    model: str | None = None,
+    include_diagnostics: bool = False,
+    treat_candidate_input_as_untrusted: bool = False,
+) -> dict[str, Any]:
+    system_prompt = (
+        build_active_interview_system_prompt(
+            descriptor=descriptor,
+            difficulty=difficulty,
+            question_count=question_count,
+            question_limit=question_limit,
+        )
+        + "\n\nRuntime correction: Your previous candidate-facing reply attempted to close "
+        "or end the interview before the configured scored-question target was reached. "
+        "Replace it with an active interview continuation. Ask exactly one focused follow-up "
+        "or next scored question. Do not apologize, do not mention this correction, and do not "
+        "say goodbye. End with metadata using turn_type QUESTION and interview_complete false."
+    )
+    repair_conversation = _build_repair_conversation(conversation, message)
+
+    chat_kwargs = {
+        "conversation": repair_conversation,
+        "system_prompt": system_prompt,
+        "language": language,
+        "temperature": model_settings["temperature"],
+        "top_p": model_settings["top_p"],
+        "frequency_penalty": model_settings["frequency_penalty"],
+        "presence_penalty": model_settings["presence_penalty"],
+        "max_tokens": model_settings["max_tokens"],
+        "model": model,
+    }
+    if treat_candidate_input_as_untrusted:
+        chat_kwargs["treat_input_as_untrusted"] = True
+
+    diagnostics: dict[str, Any] = {}
+    if include_diagnostics:
+        raw_reply, chat_diagnostics = get_chat_reply(
+            message,
+            include_diagnostics=True,
+            **chat_kwargs,
+        )
+        diagnostics["turn_chat"] = chat_diagnostics
+    else:
+        raw_reply = get_chat_reply(
+            message,
+            **chat_kwargs,
+        )
+
+    parsed_reply = parse_reply_metadata(raw_reply)
+    clean_reply = parsed_reply["reply"]
+    metadata = parsed_reply["metadata"] if isinstance(parsed_reply["metadata"], dict) else {}
+    turn_type, classify_diagnostics = _resolve_turn_type(
+        metadata,
+        clean_reply,
+        language,
+        include_diagnostics,
+    )
+    if include_diagnostics and classify_diagnostics is not None:
+        diagnostics["turn_classifier"] = classify_diagnostics
+    if include_diagnostics:
+        diagnostics["raw_turn_reply"] = raw_reply
+        diagnostics["parsed_turn_reply"] = parsed_reply
+
+    metadata_complete = metadata.get("interview_complete")
+    repaired_still_closes = (
+        metadata_complete is True
+        or turn_type != "question"
+        or _looks_like_premature_closing(clean_reply)
+    )
+    if repaired_still_closes:
+        clean_reply = _fallback_active_question(language)
+        turn_type = "question"
+
+    return {
+        "reply": clean_reply,
+        "turn_type": turn_type,
+        "metadata_valid": parsed_reply["metadata_valid"] and not repaired_still_closes,
+        "metadata": metadata,
+        "diagnostics": diagnostics,
+    }
 
 
 def request_forced_closing_turn(
@@ -595,17 +743,27 @@ def run_interview_turn(
     model: str | None = None,
     include_diagnostics: bool = False,
     treat_candidate_input_as_untrusted: bool = False,
+    prior_question_count: int | None = None,
 ) -> dict[str, Any]:
     diagnostics: dict[str, Any] = {}
 
-    prior_question_count = count_scored_questions(conversation, language)
+    if prior_question_count is None:
+        current_question_count = count_scored_questions(conversation, language)
+    else:
+        if not isinstance(prior_question_count, int) or isinstance(
+            prior_question_count, bool
+        ):
+            raise ValueError("prior_question_count must be a non-negative integer")
+        if prior_question_count < 0:
+            raise ValueError("prior_question_count must be a non-negative integer")
+        current_question_count = min(prior_question_count, question_limit)
 
-    if prior_question_count >= question_limit:
+    if current_question_count >= question_limit:
         forced_turn = request_forced_closing_turn(
             descriptor=descriptor,
             language=language,
             model_settings=model_settings,
-            question_count=prior_question_count,
+            question_count=current_question_count,
             question_limit=question_limit,
             difficulty=difficulty,
             model=model,
@@ -665,7 +823,7 @@ def run_interview_turn(
     system_prompt = build_active_interview_system_prompt(
         descriptor=descriptor,
         difficulty=difficulty,
-        question_count=prior_question_count,
+        question_count=current_question_count,
         question_limit=question_limit,
     )
 
@@ -715,7 +873,7 @@ def run_interview_turn(
     if include_diagnostics and classify_diagnostics is not None:
         diagnostics["turn_classifier"] = classify_diagnostics
 
-    count_after = prior_question_count + (1 if turn_type == "question" else 0)
+    count_after = current_question_count + (1 if turn_type == "question" else 0)
     count_after = min(count_after, question_limit)
 
     metadata_interview_complete = metadata.get("interview_complete")
@@ -724,45 +882,47 @@ def run_interview_turn(
     )
 
     reached_limit = count_after >= question_limit
-    model_provided_valid_closing = metadata_complete is True and turn_type == "other"
-
-    # Important: only force-close once the candidate has already answered the
-    # final counted question (i.e., prior count is already at limit).
-    needs_forced_closing = (
-        prior_question_count >= question_limit and not model_provided_valid_closing
+    attempted_early_completion = (
+        metadata_complete is True and count_after < question_limit
     )
+    attempted_closing_text = (
+        count_after < question_limit and _looks_like_premature_closing(clean_reply)
+    )
+    needs_active_repair = attempted_early_completion or attempted_closing_text
+    metadata_warning = not parsed_reply["metadata_valid"] or needs_active_repair
 
-    metadata_warning = not parsed_reply["metadata_valid"]
-
-    if needs_forced_closing:
-        forced_turn = request_forced_closing_turn(
+    if needs_active_repair:
+        repair_turn = request_active_repair_turn(
+            message=message,
+            conversation=conversation,
             descriptor=descriptor,
             language=language,
             model_settings=model_settings,
-            question_count=count_after,
+            question_count=current_question_count,
             question_limit=question_limit,
             difficulty=difficulty,
+            model=model,
             include_diagnostics=include_diagnostics,
+            treat_candidate_input_as_untrusted=treat_candidate_input_as_untrusted,
         )
-
-        clean_reply = forced_turn["reply"]
-        turn_type = forced_turn["turn_type"]
-        metadata_warning = not forced_turn["metadata_valid"]
-
-        if include_diagnostics:
-            diagnostics["forced_closing"] = forced_turn["diagnostics"]
-
+        clean_reply = repair_turn["reply"]
+        turn_type = repair_turn["turn_type"]
+        count_after = current_question_count + (1 if turn_type == "question" else 0)
+        count_after = min(count_after, question_limit)
+        reached_limit = count_after >= question_limit
+        metadata_complete = False
         if conversation is not None:
             conversation.replace_last_assistant_reply(clean_reply)
+        if include_diagnostics:
+            diagnostics["active_repair"] = repair_turn["diagnostics"]
+        metadata_warning = True
 
-        interview_complete = True
+    # If this turn asks the final allowed question, keep interview open so
+    # the candidate can answer that question in the next round.
+    if turn_type == "question" and reached_limit:
+        interview_complete = False
     else:
-        # If this turn asks the final allowed question, keep interview open so
-        # the candidate can answer that question in the next round.
-        if turn_type == "question" and reached_limit:
-            interview_complete = False
-        else:
-            interview_complete = metadata_complete if metadata_complete is not None else False
+        interview_complete = metadata_complete if metadata_complete is not None else False
 
     final_result = None
     if interview_complete:

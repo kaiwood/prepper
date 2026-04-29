@@ -81,6 +81,155 @@ def test_count_scored_questions_fallback_handles_non_question_mark(monkeypatch):
     assert count_scored_questions(conversation, None) == 1
 
 
+def test_run_interview_turn_uses_authoritative_count_with_clean_history(monkeypatch):
+    descriptor = _descriptor(default_question_roundtrips=5)
+    conversation = Conversation.from_messages(
+        [
+            {"role": "assistant", "content": "Clean question 1"},
+            {"role": "user", "content": "Answer 1"},
+            {"role": "assistant", "content": "Clean question 2"},
+            {"role": "user", "content": "Answer 2"},
+            {"role": "assistant", "content": "Clean question 3"},
+            {"role": "user", "content": "Answer 3"},
+            {"role": "assistant", "content": "Clean question 4"},
+        ]
+    )
+
+    monkeypatch.setattr(
+        "prepper_cli.interview.classify_assistant_turn",
+        lambda *_: (_ for _ in ()).throw(AssertionError("classifier should not be called")),
+    )
+
+    def fake_get_chat_reply(message, **kwargs):
+        assert "Scored interview questions asked so far: 4/5." in kwargs["system_prompt"]
+        raw_reply = (
+            "Final scored question\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        )
+        active_conversation = kwargs.get("conversation")
+        if active_conversation is not None:
+            active_conversation.add_user_message(message)
+            active_conversation.add_assistant_reply(raw_reply)
+        return raw_reply
+
+    monkeypatch.setattr("prepper_cli.interview.get_chat_reply", fake_get_chat_reply)
+
+    result = run_interview_turn(
+        message="Answer 4",
+        conversation=conversation,
+        descriptor=descriptor,
+        language=None,
+        question_limit=5,
+        pass_threshold=7.0,
+        model_settings={
+            "temperature": 0.3,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 300,
+        },
+        prior_question_count=4,
+    )
+
+    assert result["question_count"] == 5
+    assert result["interview_complete"] is False
+    assert result["metadata_warning"] is False
+    assert conversation.get_messages()[-1]["content"] == "Final scored question"
+
+
+def test_run_interview_turn_rejects_early_completion_before_limit(monkeypatch):
+    descriptor = _descriptor(default_question_roundtrips=5)
+    conversation = Conversation.from_messages([])
+
+    def fake_get_chat_reply(message, **kwargs):
+        assert not message.startswith("Score this interview transcript")
+        raw_reply = (
+            "Thanks, that concludes the interview.\n"
+            "[PREPPER_JSON] {\"turn_type\":\"OTHER\",\"interview_complete\":true}"
+        )
+        active_conversation = kwargs.get("conversation")
+        if active_conversation is not None:
+            active_conversation.add_user_message(message)
+            active_conversation.add_assistant_reply(raw_reply)
+        return raw_reply
+
+    monkeypatch.setattr("prepper_cli.interview.get_chat_reply", fake_get_chat_reply)
+
+    result = run_interview_turn(
+        message="Answer 3",
+        conversation=conversation,
+        descriptor=descriptor,
+        language=None,
+        question_limit=5,
+        pass_threshold=7.0,
+        model_settings={
+            "temperature": 0.3,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 300,
+        },
+        prior_question_count=3,
+    )
+
+    assert result["question_count"] == 4
+    assert result["interview_complete"] is False
+    assert result["metadata_warning"] is True
+    assert result["final_result"] is None
+    assert "interview is now over" not in result["reply"].lower()
+    assert "concludes the interview" not in result["reply"].lower()
+    assert conversation.get_messages()[-1]["content"] == result["reply"]
+
+
+def test_run_interview_turn_repairs_closing_text_when_metadata_stays_open(monkeypatch):
+    descriptor = _descriptor(default_question_roundtrips=5)
+    conversation = Conversation.from_messages([])
+    replies = [
+        (
+            "Vielen Dank, damit ist das Interview beendet.\n"
+            "[PREPPER_JSON] {\"turn_type\":\"OTHER\",\"interview_complete\":false}"
+        ),
+        (
+            "Welche Randfälle würden Sie bei diesem Ansatz noch testen?\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    ]
+
+    def fake_get_chat_reply(message, **kwargs):
+        raw_reply = replies.pop(0)
+        active_conversation = kwargs.get("conversation")
+        if active_conversation is not None:
+            active_conversation.add_user_message(message)
+            active_conversation.add_assistant_reply(raw_reply)
+        return raw_reply
+
+    monkeypatch.setattr("prepper_cli.interview.get_chat_reply", fake_get_chat_reply)
+
+    result = run_interview_turn(
+        message="Answer 3",
+        conversation=conversation,
+        descriptor=descriptor,
+        language="de",
+        question_limit=5,
+        pass_threshold=7.0,
+        model_settings={
+            "temperature": 0.3,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 300,
+        },
+        prior_question_count=3,
+    )
+
+    assert result["reply"] == "Welche Randfälle würden Sie bei diesem Ansatz noch testen?"
+    assert result["turn_type"] == "question"
+    assert result["question_count"] == 4
+    assert result["interview_complete"] is False
+    assert result["metadata_warning"] is True
+    assert "Interview beendet" not in conversation.get_messages()[-1]["content"]
+
+
 def test_build_interview_opener_system_prompt_includes_base_and_difficulty():
     descriptor = _descriptor(content="Base interviewer prompt.")
 
@@ -108,6 +257,8 @@ def test_build_active_interview_system_prompt_includes_runtime_sections():
     assert "Difficulty mode: Senior-level (medium)." in prompt
     assert "Scored interview questions asked so far: 1/3." in prompt
     assert "Remaining scored questions: 2." in prompt
+    assert "Do not close the interview" in prompt
+    assert "Set interview_complete to false." in prompt
 
 
 def test_build_forced_closing_system_prompt_includes_closing_override():
@@ -173,6 +324,7 @@ def test_run_interview_turn_strips_metadata_and_includes_final_result(monkeypatc
             "presence_penalty": 0.0,
             "max_tokens": 300,
         },
+        prior_question_count=1,
     )
 
     assert result["reply"].startswith("Thanks for your answers")

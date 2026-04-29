@@ -732,6 +732,83 @@ def test_chat_start_returns_interview_id_for_interview_prompt(monkeypatch):
     assert data["question_roundtrips_limit"] == 5
 
 
+def test_chat_start_stores_selected_limit_and_session_count(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+
+    monkeypatch.setattr(
+        "app.routes.chat.resolve_prompt_descriptor",
+        lambda selected_name=None: _make_descriptor(
+            "coding_focus",
+            interview_rating_enabled=True,
+            default_question_roundtrips=5,
+            min_question_roundtrips=1,
+            max_question_roundtrips=10,
+        ),
+    )
+    monkeypatch.setattr(
+        "app.routes.chat.get_interview_opener",
+        lambda **kwargs: (
+            "opening question\n"
+            "[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+        ),
+    )
+
+    captured = {}
+
+    def fake_run_interview_turn(
+        message,
+        conversation,
+        descriptor,
+        language,
+        question_limit,
+        pass_threshold,
+        model_settings,
+        difficulty=None,
+        prior_question_count=None,
+        **kwargs,
+    ):
+        captured["question_limit"] = question_limit
+        captured["prior_question_count"] = prior_question_count
+        return {
+            "reply": "follow-up question",
+            "turn_type": "question",
+            "question_count": prior_question_count + 1,
+            "question_limit": question_limit,
+            "interview_complete": False,
+            "pass_threshold": pass_threshold,
+            "metadata_warning": False,
+            "final_result": None,
+        }
+
+    monkeypatch.setattr("app.routes.chat.run_interview_turn",
+                        fake_run_interview_turn)
+
+    start_response = client.post(
+        "/api/chat/start",
+        json={"max_question_roundtrips": 4},
+    )
+    assert start_response.status_code == 200
+    start_data = start_response.get_json()
+    assert start_data["counted_question_roundtrips"] == 1
+    assert start_data["question_roundtrips_limit"] == 4
+
+    response = client.post(
+        "/api/chat",
+        json={
+            "message": "candidate answer",
+            "interview_id": start_data["interview_id"],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert captured["question_limit"] == 4
+    assert captured["prior_question_count"] == 1
+    assert data["counted_question_roundtrips"] == 2
+    assert data["question_roundtrips_limit"] == 4
+
+
 def test_chat_keeps_interview_closed_after_completion(monkeypatch):
     app = create_app()
     client = app.test_client()
