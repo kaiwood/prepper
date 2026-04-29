@@ -1,3 +1,4 @@
+import io
 import sys
 from types import SimpleNamespace
 
@@ -21,7 +22,21 @@ def test_parse_mode_defaults_to_dev():
         (["--test", "--frontend"], dev_runner.RunnerArgs(mode="test", test_suite="frontend")),
         (["--test", "--cli"], dev_runner.RunnerArgs(mode="test", test_suite="cli")),
         (["--test", "--tools"], dev_runner.RunnerArgs(mode="test", test_suite="tools")),
+        (["--color"], dev_runner.RunnerArgs(mode="dev", enable_color=True)),
+        (["--dev", "--color"], dev_runner.RunnerArgs(mode="dev", enable_color=True)),
+        (["--color", "--dev"], dev_runner.RunnerArgs(mode="dev", enable_color=True)),
+        (["--test", "--color"], dev_runner.RunnerArgs(mode="test", test_suite="all", enable_color=True)),
+        (["--color", "--test"], dev_runner.RunnerArgs(mode="test", test_suite="all", enable_color=True)),
+        (
+            ["--test", "--backend", "--color"],
+            dev_runner.RunnerArgs(mode="test", test_suite="backend", enable_color=True),
+        ),
+        (
+            ["--color", "--test", "--frontend"],
+            dev_runner.RunnerArgs(mode="test", test_suite="frontend", enable_color=True),
+        ),
         (["--help"], dev_runner.RunnerArgs(mode="help")),
+        (["--help", "--color"], dev_runner.RunnerArgs(mode="help", enable_color=True)),
         (["-h"], dev_runner.RunnerArgs(mode="help")),
     ],
 )
@@ -37,6 +52,7 @@ def test_parse_args_accepts_known_flags(argv, expected):
         (["--test", "--unknown"], "Unsupported test suite selector"),
         (["--backend"], "--backend must be used with --test"),
         (["--unknown"], "Unsupported flag"),
+        (["--color", "--color"], "--color can only be used once"),
     ],
 )
 def test_parse_args_rejects_invalid_combinations(argv, match):
@@ -79,6 +95,25 @@ def test_select_test_suites_defaults_to_all_in_order():
     assert suites[3].cmd == ["npm", "run", "test:unit"]
     assert suites[0].env is not None
     assert suites[0].env["PYTHONUNBUFFERED"] == "1"
+    assert "FORCE_COLOR" not in suites[0].env
+
+
+def test_select_test_suites_can_enable_color(monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
+
+    suites = test_runner.select_test_suites("python", "all", enable_color=True)
+
+    assert suites[0].cmd == ["python", "-m", "pytest", "tests", "-q", "--color=yes"]
+    assert suites[1].cmd == ["python", "-m", "pytest", "tests", "-q", "--color=yes"]
+    assert suites[2].cmd == ["python", "-m", "pytest", "tools", "-q", "--color=yes"]
+    assert suites[3].cmd == ["npm", "run", "test:unit"]
+    for suite in suites[:3]:
+        assert suite.env is not None
+        assert "FORCE_COLOR" not in suite.env
+        assert suite.env["NO_COLOR"] == "1"
+    assert suites[3].env is not None
+    assert suites[3].env["FORCE_COLOR"] == "1"
+    assert "NO_COLOR" not in suites[3].env
 
 
 @pytest.mark.parametrize(
@@ -99,7 +134,7 @@ def test_select_test_suites_can_select_one_suite(selector, expected_name):
 def test_run_test_mode_runs_all_suites_in_order(monkeypatch):
     calls = []
 
-    def fake_run_command(name, cmd, cwd, env, log):
+    def fake_run_command(name, cmd, cwd, env, log, enable_color=False):
         calls.append((name, cmd, cwd, env.get("PYTHONUNBUFFERED")))
         return 0
 
@@ -114,10 +149,28 @@ def test_run_test_mode_runs_all_suites_in_order(monkeypatch):
     ]
 
 
+def test_run_test_mode_passes_color_to_commands(monkeypatch):
+    calls = []
+
+    def fake_run_command(name, cmd, cwd, env, log, enable_color=False):
+        calls.append((name, enable_color))
+        return 0
+
+    monkeypatch.setattr(test_runner, "run_command", fake_run_command)
+
+    assert test_runner.run_test_mode("python", "all", lambda _message: None, enable_color=True) == 0
+    assert calls == [
+        ("backend-test", True),
+        ("prepper-cli-test", True),
+        ("tools-test", True),
+        ("frontend-test", True),
+    ]
+
+
 def test_run_test_mode_runs_one_suite(monkeypatch):
     calls = []
 
-    def fake_run_command(name, cmd, cwd, env, log):
+    def fake_run_command(name, cmd, cwd, env, log, enable_color=False):
         calls.append(name)
         return 0
 
@@ -130,7 +183,7 @@ def test_run_test_mode_runs_one_suite(monkeypatch):
 def test_run_test_mode_stops_on_first_failure(monkeypatch):
     calls = []
 
-    def fake_run_command(name, cmd, cwd, env, log):
+    def fake_run_command(name, cmd, cwd, env, log, enable_color=False):
         calls.append(name)
         return 7 if name == "prepper-cli-test" else 0
 
@@ -159,6 +212,44 @@ def test_start_processes_configures_dev_server_commands(monkeypatch):
     assert calls[1][0][0] == ["npm", "run", "dev"]
     assert calls[1][1]["cwd"] == dev_server.FRONTEND_DIR
     assert calls[1][1]["preexec_fn"] == dev_server.os.setsid
+
+
+def test_start_processes_can_enable_color(monkeypatch):
+    calls = []
+
+    def fake_popen(*args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(pid=100 + len(calls), stdout=None)
+
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setattr(dev_server.subprocess, "Popen", fake_popen)
+
+    processes = dev_server.start_processes("python", enable_color=True)
+
+    assert list(processes.keys()) == ["backend", "frontend"]
+    assert calls[0][1]["env"]["PYTHONUNBUFFERED"] == "1"
+    assert calls[0][1]["env"]["FORCE_COLOR"] == "1"
+    assert "NO_COLOR" not in calls[0][1]["env"]
+    assert calls[1][1]["env"]["FORCE_COLOR"] == "1"
+    assert "NO_COLOR" not in calls[1][1]["env"]
+
+
+def test_stream_output_colorizes_only_prefix():
+    messages = []
+    pipe = io.StringIO("child \033[31moutput\033[0m\n")
+
+    dev_server.stream_output("backend", pipe, messages.append, enable_color=True)
+
+    assert messages == ["\033[32m[backend]\033[0m child \033[31moutput\033[0m"]
+
+
+def test_test_runner_stream_output_colorizes_only_prefix():
+    messages = []
+    pipe = io.StringIO("child output\n")
+
+    test_runner.stream_output("frontend-test", pipe, messages.append, enable_color=True)
+
+    assert messages == ["\033[34m[frontend-test]\033[0m child output"]
 
 
 def test_validate_layout_exits_when_required_dirs_missing(monkeypatch, tmp_path):

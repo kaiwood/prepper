@@ -13,23 +13,44 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
 LogFn = Callable[[str], None]
 
+ANSI_BLUE = "\033[34m"
+ANSI_GREEN = "\033[32m"
+ANSI_RESET = "\033[0m"
 
-def stream_output(name: str, pipe, log: LogFn) -> None:
+
+def color_env(env: Dict[str, str], enable_color: bool) -> Dict[str, str]:
+    if enable_color:
+        env["FORCE_COLOR"] = "1"
+        env.pop("NO_COLOR", None)
+    return env
+
+
+def format_prefix(name: str, enable_color: bool) -> str:
+    prefix = f"[{name}]"
+    if not enable_color:
+        return prefix
+
+    color = ANSI_GREEN if name == "backend" else ANSI_BLUE
+    return f"{color}{prefix}{ANSI_RESET}"
+
+
+def stream_output(name: str, pipe, log: LogFn, enable_color: bool = False) -> None:
     if pipe is None:
         return
 
     try:
         for line in iter(pipe.readline, ""):
-            log(f"[{name}] {line.rstrip()}")
+            log(f"{format_prefix(name, enable_color)} {line.rstrip()}")
     finally:
         pipe.close()
 
 
-def start_processes(backend_python: str) -> Dict[str, subprocess.Popen]:
+def start_processes(backend_python: str, enable_color: bool = False) -> Dict[str, subprocess.Popen]:
     processes: Dict[str, subprocess.Popen] = {}
 
-    backend_env = os.environ.copy()
+    backend_env = color_env(os.environ.copy(), enable_color)
     backend_env["PYTHONUNBUFFERED"] = "1"
+    frontend_env = color_env(os.environ.copy(), enable_color)
 
     processes["backend"] = subprocess.Popen(
         [backend_python, "run.py"],
@@ -45,6 +66,7 @@ def start_processes(backend_python: str) -> Dict[str, subprocess.Popen]:
     processes["frontend"] = subprocess.Popen(
         ["npm", "run", "dev"],
         cwd=FRONTEND_DIR,
+        env=frontend_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -85,13 +107,15 @@ def terminate_processes(processes: Dict[str, subprocess.Popen], timeout_seconds:
             pass
 
 
-def run_dev_server(backend_python: str, log: LogFn) -> int:
-    processes = start_processes(backend_python)
+def run_dev_server(backend_python: str, log: LogFn, enable_color: bool = False) -> int:
+    processes = start_processes(backend_python, enable_color=enable_color)
 
     stream_threads: List[threading.Thread] = []
     for name, proc in processes.items():
         thread = threading.Thread(
-            target=stream_output, args=(name, proc.stdout, log), daemon=True
+            target=stream_output,
+            args=(name, proc.stdout, log, enable_color),
+            daemon=True,
         )
         thread.start()
         stream_threads.append(thread)
