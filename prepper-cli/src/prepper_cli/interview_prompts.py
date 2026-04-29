@@ -54,7 +54,10 @@ def build_runtime_interview_instruction(
         f"Scored interview questions asked so far: {question_count}/{question_limit}. "
         f"Remaining scored questions: {remaining}. Ask at most one new focused question in this turn. "
         "Clarifications are allowed but should be concise. "
-        "Set interview_complete to false unless this turn explicitly closes the interview."
+        "Do not close the interview, do not say the interview is over, and do not thank the candidate for their time. "
+        "Set interview_complete to false. "
+        "Only the runtime override after the configured question limit may end the interview. "
+        "Do not call a question final unless it is the last remaining scored question."
     )
 
 

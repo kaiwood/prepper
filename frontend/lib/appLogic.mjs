@@ -105,6 +105,7 @@ export function buildChatPayload({
 export function buildStartPayload({
   selectedPrompt,
   language,
+  questionRoundtripLimit,
   difficultyEnabled,
   selectedDifficulty,
   selectedPromptMetadata,
@@ -120,6 +121,13 @@ export function buildStartPayload({
 
   if (difficultyEnabled) {
     payload.difficulty = selectedDifficulty;
+  }
+
+  if (
+    selectedPromptMetadata?.interview_rating_enabled &&
+    typeof questionRoundtripLimit === "number"
+  ) {
+    payload.max_question_roundtrips = questionRoundtripLimit;
   }
 
   if (selectedPromptMetadata) {

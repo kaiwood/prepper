@@ -133,6 +133,7 @@ test("builds start payload with prompt, difficulty, and model settings", () => {
     buildStartPayload({
       selectedPrompt: "coding_focus",
       language: "en",
+      questionRoundtripLimit: 4,
       difficultyEnabled: true,
       selectedDifficulty: "easy",
       selectedPromptMetadata: promptMetadata,
@@ -146,6 +147,7 @@ test("builds start payload with prompt, difficulty, and model settings", () => {
     {
       language: "en",
       system_prompt_name: "coding_focus",
+      max_question_roundtrips: 4,
       difficulty: "easy",
       temperature: 0.4,
       top_p: 0.95,

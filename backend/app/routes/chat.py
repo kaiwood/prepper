@@ -227,6 +227,7 @@ def chat():
                 "model_settings": session["model_settings"],
                 "difficulty": session["difficulty"],
                 "treat_candidate_input_as_untrusted": True,
+                "prior_question_count": session["question_count"],
             }
             if debug_mode:
                 interview_kwargs["include_diagnostics"] = True
@@ -258,7 +259,7 @@ def chat():
                 format_debug_json(turn_result.get("debug", {})),
             )
 
-        session["question_count"] = max(session["question_count"], turn_result["question_count"])
+        session["question_count"] = turn_result["question_count"]
         session["interview_complete"] = bool(turn_result["interview_complete"])
         if session["interview_complete"]:
             session["final_result"] = turn_result.get("final_result")
