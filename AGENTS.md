@@ -15,7 +15,8 @@ Prepper is interview-prep tooling only.
 prepper/
 |- backend/      # Flask API
 |- frontend/     # Next.js app (App Router, TypeScript, Tailwind)
-`- prepper-cli/  # Python package consumed by CLI + backend
+|- prepper-cli/  # Python package consumed by CLI + backend
+`- tools/        # Local development helper scripts
 ```
 
 Services run independently (no Docker/orchestration in repo defaults).
