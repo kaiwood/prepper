@@ -8,6 +8,7 @@ from prepper_cli.interview import (
     parse_interviewer_scoring_payload,
     parse_reply_metadata,
     request_active_repair_turn,
+    request_forced_closing_turn,
     run_interview_turn,
 )
 from prepper_cli.system_prompts import PromptDescriptor
@@ -411,7 +412,39 @@ def test_build_forced_closing_system_prompt_includes_closing_override():
     assert "Difficulty mode: Junior-level (easy)." in prompt
     assert "Runtime override: The interview must end now" in prompt
     assert "roundtrip limit has been reached (3/3)." in prompt
+    assert "Do not introduce or reintroduce yourself" in prompt
     assert "turn_type OTHER and interview_complete true" in prompt
+
+
+def test_request_forced_closing_turn_replaces_self_introduction(monkeypatch):
+    descriptor = _descriptor(content="Base interviewer prompt.")
+
+    def fake_get_chat_reply(*args, **kwargs):
+        return (
+            "Thanks — that concludes the interview. I’m Mr. Winslow, Senior Software "
+            "Engineering Interviewer. I appreciate your time today.\n"
+            "[PREPPER_JSON] {\"turn_type\":\"OTHER\",\"interview_complete\":true}"
+        )
+
+    monkeypatch.setattr("prepper_cli.interview.get_chat_reply", fake_get_chat_reply)
+
+    result = request_forced_closing_turn(
+        descriptor=descriptor,
+        language=None,
+        model_settings={
+            "temperature": 0.3,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "max_tokens": 300,
+        },
+        question_count=3,
+        question_limit=3,
+    )
+
+    assert result["reply"] == "Thank you for your time today. The interview is now over."
+    assert result["turn_type"] == "other"
+    assert result["metadata_valid"] is False
 
 
 def test_run_interview_turn_strips_metadata_and_includes_final_result(monkeypatch):
