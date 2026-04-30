@@ -23,7 +23,7 @@ CLI_VENV_PYTHON = CLI_DIR / ".venv" / "bin" / "python"
 if __package__ in (None, ""):
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools import dev_server, setup_runner, test_runner  # noqa: E402
+from tools import dev_servers, bootstrap, suite_runner  # noqa: E402
 
 
 PRINT_LOCK = threading.Lock()
@@ -172,7 +172,7 @@ def _option_line(flags: str, description: str, theme) -> str:
 def validate_layout() -> None:
     if not BACKEND_DIR.is_dir() or not FRONTEND_DIR.is_dir() or not CLI_DIR.is_dir():
         log(
-            "Error: tools/dev_runner.py must be run from the prepper project root (with backend/, frontend/, and prepper-cli/)."
+            "Error: tools/local_cli.py must be run from the prepper project root (with backend/, frontend/, and prepper-cli/)."
         )
         sys.exit(1)
 
@@ -375,7 +375,7 @@ def main() -> int:
 
     if args.mode == "setup":
         try:
-            return setup_runner.run_setup(log=log)
+            return bootstrap.run_setup(log=log)
         except ValueError as err:
             log(f"Error: {err}")
             return 1
@@ -384,14 +384,14 @@ def main() -> int:
         return run_cli_mode(args.cli_args)
 
     if args.mode == "test":
-        return test_runner.run_test_mode(
+        return suite_runner.run_test_mode(
             backend_python=backend_python,
             suite=args.test_suite or "all",
             log=log,
             enable_color=args.enable_color,
         )
 
-    return dev_server.run_dev_server(
+    return dev_servers.run_dev_servers(
         backend_python=backend_python,
         log=log,
         enable_color=args.enable_color,

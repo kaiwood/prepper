@@ -107,7 +107,7 @@ def terminate_processes(processes: Dict[str, subprocess.Popen], timeout_seconds:
             pass
 
 
-def run_dev_server(backend_python: str, log: LogFn, enable_color: bool = False) -> int:
+def run_dev_servers(backend_python: str, log: LogFn, enable_color: bool = False) -> int:
     processes = start_processes(backend_python, enable_color=enable_color)
 
     stream_threads: List[threading.Thread] = []
