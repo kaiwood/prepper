@@ -227,6 +227,72 @@ def test_get_chat_reply_includes_guardrail_without_other_system_prompts(monkeypa
     }
 
 
+def test_get_chat_reply_retries_with_inlined_system_messages_when_role_is_unsupported(monkeypatch):
+    calls = []
+
+    def fake_create(*, model, messages, **kwargs):
+        calls.append(messages)
+        if len(calls) == 1:
+            raise RuntimeError(
+                "Only user, assistant and tool roles are supported, got system."
+            )
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="assistant reply"))]
+        )
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    monkeypatch.setattr(
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
+    )
+
+    reply = get_chat_reply("hello", system_prompt="You are a coach.", language="de")
+
+    assert reply == "assistant reply"
+    assert calls[0][0]["role"] == "system"
+    assert calls[1] == [
+        {
+            "role": "user",
+            "content": (
+                "System instructions for this conversation:\n"
+                f"{_PROMPT_INJECTION_GUARDRAIL}\n\n"
+                "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.\n\n"
+                "You are a coach.\n\n"
+                "Conversation begins below.\n\n"
+                "hello"
+            ),
+        }
+    ]
+
+
+def test_get_chat_reply_does_not_retry_for_other_errors(monkeypatch):
+    calls = 0
+
+    def fake_create(*, model, messages, **kwargs):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("Connection error.")
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    monkeypatch.setattr(
+        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
+    )
+
+    try:
+        get_chat_reply("hello")
+    except RuntimeError as exc:
+        assert str(exc) == "Connection error."
+    else:
+        raise AssertionError("expected RuntimeError")
+
+    assert calls == 1
+
+
 def test_get_chat_reply_wraps_only_current_message_when_untrusted(monkeypatch):
     captured_messages = []
 
