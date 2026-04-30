@@ -35,7 +35,7 @@ From the monorepo root, create root `.env` (or export env vars):
 ```bash
 OPENROUTER_API_KEY=your_key_here
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_MODEL=openai/gpt-5.4-mini
+OPENROUTER_MODEL=openai/gpt-5.4
 PREPPER_DEFAULT_SYSTEM_PROMPT=coding_focus
 ```
 
@@ -128,7 +128,7 @@ prepper-cli --benchmark --system-prompt behavioral_focus --language de
 Use different models for runtime vs final benchmark scoring:
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-5.4-mini --benchmark-model openai/gpt-4.1
+prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-5.4 --benchmark-model openai/gpt-4.1
 ```
 
 Print only the benchmark result as JSON, without the conversation transcript:
@@ -170,7 +170,7 @@ temperature: 0.3
 top_p: 1.0
 frequency_penalty: 0.2
 presence_penalty: 0.0
-max_tokens: 700
+max_tokens: 5000
 ---
 ```
 
