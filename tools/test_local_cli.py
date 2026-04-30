@@ -9,12 +9,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools import local_cli, dev_servers, bootstrap, suite_runner
+from tools import local_cli, dev_servers, bootstrap, option_browser, suite_runner
 
 
-def test_parse_mode_defaults_to_dev():
-    assert local_cli.parse_mode([]) == "dev"
-    assert local_cli.parse_args([]) == local_cli.RunnerArgs(mode="dev")
+def test_parse_mode_defaults_to_option_browser():
+    assert local_cli.parse_mode([]) == "browser"
+    assert local_cli.parse_args([]) == local_cli.RunnerArgs(mode="browser")
 
 
 @pytest.mark.parametrize(
@@ -22,6 +22,9 @@ def test_parse_mode_defaults_to_dev():
     [
         (["--dev"], local_cli.RunnerArgs(mode="dev")),
         (["-d"], local_cli.RunnerArgs(mode="dev")),
+        (["--dev", "--all"], local_cli.RunnerArgs(mode="dev", dev_target="all")),
+        (["--dev", "--backend"], local_cli.RunnerArgs(mode="dev", dev_target="backend")),
+        (["--dev", "--frontend"], local_cli.RunnerArgs(mode="dev", dev_target="frontend")),
         (["--setup"], local_cli.RunnerArgs(mode="setup")),
         (["--test"], local_cli.RunnerArgs(mode="test", test_suite="all")),
         (["-t"], local_cli.RunnerArgs(mode="test", test_suite="all")),
@@ -31,10 +34,11 @@ def test_parse_mode_defaults_to_dev():
         (["--test", "--frontend"], local_cli.RunnerArgs(mode="test", test_suite="frontend")),
         (["--test", "--cli"], local_cli.RunnerArgs(mode="test", test_suite="cli")),
         (["--test", "--tools"], local_cli.RunnerArgs(mode="test", test_suite="tools")),
-        (["--color"], local_cli.RunnerArgs(mode="dev", enable_color=True)),
+        (["--color"], local_cli.RunnerArgs(mode="browser", enable_color=True)),
         (["--dev", "--color"], local_cli.RunnerArgs(mode="dev", enable_color=True)),
         (["-d", "--color"], local_cli.RunnerArgs(mode="dev", enable_color=True)),
         (["--color", "--dev"], local_cli.RunnerArgs(mode="dev", enable_color=True)),
+        (["--color", "--dev", "--frontend"], local_cli.RunnerArgs(mode="dev", dev_target="frontend", enable_color=True)),
         (["--test", "--color"], local_cli.RunnerArgs(mode="test", test_suite="all", enable_color=True)),
         (["-t", "--color"], local_cli.RunnerArgs(mode="test", test_suite="all", enable_color=True)),
         (["--color", "--test"], local_cli.RunnerArgs(mode="test", test_suite="all", enable_color=True)),
@@ -85,6 +89,20 @@ def test_parse_mode_defaults_to_dev():
                 cli_args=("--benchmark", "--color", "--interview-style", "behavioral_focus"),
             ),
         ),
+        (
+            ["--benchmark-json", "--interview-style", "behavioral_focus"],
+            local_cli.RunnerArgs(
+                mode="interactive",
+                cli_args=("--benchmark-json", "--interview-style", "behavioral_focus"),
+            ),
+        ),
+        (
+            ["--color", "--benchmark-json", "--interview-style", "behavioral_focus"],
+            local_cli.RunnerArgs(
+                mode="interactive",
+                cli_args=("--benchmark-json", "--color", "--interview-style", "behavioral_focus"),
+            ),
+        ),
         (["--help"], local_cli.RunnerArgs(mode="help")),
         (["--help", "--color"], local_cli.RunnerArgs(mode="help", enable_color=True)),
         (["-h"], local_cli.RunnerArgs(mode="help")),
@@ -97,13 +115,12 @@ def test_parse_args_accepts_known_flags(argv, expected):
 @pytest.mark.parametrize(
     ("argv", "match"),
     [
-        (["--dev", "--frontend"], "--dev does not accept additional flags"),
+        (["--dev", "--frontend", "--backend"], "accepts at most one dev target selector"),
         (["-d", "--benchmark"], "benchmark cannot be combined with dev mode"),
         (["--test", "--backend", "--frontend"], "Expected at most one test suite selector"),
         (["--test", "--benchmark"], "benchmark cannot be combined with test mode"),
         (["--test", "--unknown"], "Unsupported test suite selector"),
         (["--backend"], "--backend must be used with --test"),
-        (["--benchmark-json"], "--benchmark-json is a prepper-cli flag"),
         (["--unknown"], "Unsupported flag"),
         (["--color", "--color"], "--color can only be used once"),
     ],
@@ -126,8 +143,12 @@ def test_print_usage_groups_modes(monkeypatch):
     assert "[--list-interview-styles]" in help_text
     assert "[--temperature TEMPERATURE]" in help_text
     assert "[--benchmark-model BENCHMARK_MODEL]" in help_text
+    assert "Option browser:" in help_text
+    assert "Open the interactive option browser" in help_text
+    assert "Browser keys: arrows move" in help_text
     assert "Setup:" in help_text
     assert "Dev servers:" in help_text
+    assert "--dev --frontend" in help_text
     assert "Tests:" in help_text
     assert "Interactive CLI:" in help_text
     assert "Benchmark:" in help_text
@@ -166,6 +187,119 @@ def test_main_can_force_colored_help(monkeypatch):
 
     assert local_cli.main() == 0
     assert "\033[1;34mUsage:\033[0m" in "\n".join(messages)
+
+
+def test_main_runs_selected_browser_command(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(local_cli, "validate_layout", lambda: None)
+    monkeypatch.setattr(local_cli, "resolve_backend_python", lambda: "python")
+    monkeypatch.setattr("sys.argv", ["prepper.sh"])
+    monkeypatch.setattr(option_browser, "run", lambda force_color=False: ("--test", "--tools"))
+    monkeypatch.setattr(
+        suite_runner,
+        "run_test_mode",
+        lambda backend_python, suite, log, enable_color=False: calls.append((backend_python, suite, enable_color)) or 0,
+    )
+
+    assert local_cli.main() == 0
+    assert calls == [("python", "tools", False)]
+
+
+def test_main_exits_when_browser_is_cancelled(monkeypatch):
+    monkeypatch.setattr(local_cli, "validate_layout", lambda: None)
+    monkeypatch.setattr(local_cli, "resolve_backend_python", lambda: "python")
+    monkeypatch.setattr("sys.argv", ["prepper.sh", "--color"])
+    monkeypatch.setattr(option_browser, "run", lambda force_color=False: ())
+
+    assert local_cli.main() == 0
+
+
+def test_option_browser_builds_dev_command():
+    assert option_browser.build_argv(
+        "dev",
+        {"target": "frontend", "color": True},
+    ) == ("--dev", "--frontend", "--color")
+
+
+def test_option_browser_builds_test_command():
+    assert option_browser.build_argv(
+        "test",
+        {"suite": "tools", "color": False},
+    ) == ("--test", "--tools")
+
+
+def test_option_browser_builds_interactive_command():
+    assert option_browser.build_argv(
+        "interactive",
+        {
+            "style": "coding_focus",
+            "difficulty": "hard",
+            "language": "de",
+            "question_limit": "3",
+            "pass_threshold": "7.5",
+            "model": "openai/gpt-5.4",
+            "temperature": "0.2",
+            "top_p": "",
+            "frequency_penalty": "",
+            "presence_penalty": "",
+            "max_tokens": "900",
+            "color": True,
+        },
+    ) == (
+        "--interactive",
+        "--interview-style",
+        "coding_focus",
+        "--difficulty",
+        "hard",
+        "--language",
+        "de",
+        "--question-limit",
+        "3",
+        "--pass-threshold",
+        "7.5",
+        "--model",
+        "openai/gpt-5.4",
+        "--temperature",
+        "0.2",
+        "--max-tokens",
+        "900",
+        "--color",
+    )
+
+
+def test_option_browser_builds_benchmark_json_command():
+    assert option_browser.build_argv(
+        "benchmark",
+        {
+            "output": "json",
+            "style": "behavioral_focus",
+            "candidate": "weak",
+            "difficulty": "",
+            "language": "fr",
+            "question_limit": "2",
+            "pass_threshold": "",
+            "model": "",
+            "benchmark_model": "openai/gpt-4.1",
+            "temperature": "",
+            "top_p": "",
+            "frequency_penalty": "",
+            "presence_penalty": "",
+            "max_tokens": "",
+            "color": False,
+        },
+    ) == (
+        "--benchmark-json",
+        "--interview-style",
+        "behavioral_focus",
+        "--language",
+        "fr",
+        "--question-limit",
+        "2",
+        "--weak-candidate",
+        "--benchmark-model",
+        "openai/gpt-4.1",
+    )
 
 
 def test_resolve_backend_python_prefers_backend_venv(monkeypatch, tmp_path):
@@ -427,6 +561,22 @@ def test_start_processes_can_enable_color(monkeypatch):
     assert "NO_COLOR" not in calls[0][1]["env"]
     assert calls[1][1]["env"]["FORCE_COLOR"] == "1"
     assert "NO_COLOR" not in calls[1][1]["env"]
+
+
+def test_start_processes_can_select_one_dev_target(monkeypatch):
+    calls = []
+
+    def fake_popen(*args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(pid=100 + len(calls), stdout=None)
+
+    monkeypatch.setattr(dev_servers.subprocess, "Popen", fake_popen)
+
+    processes = dev_servers.start_processes("python", target="backend")
+
+    assert list(processes.keys()) == ["backend"]
+    assert len(calls) == 1
+    assert calls[0][0][0] == ["python", "run.py"]
 
 
 def test_stream_output_colorizes_only_prefix():

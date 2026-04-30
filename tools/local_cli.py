@@ -23,7 +23,7 @@ CLI_VENV_PYTHON = CLI_DIR / ".venv" / "bin" / "python"
 if __package__ in (None, ""):
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools import dev_servers, bootstrap, suite_runner  # noqa: E402
+from tools import dev_servers, bootstrap, option_browser, suite_runner  # noqa: E402
 
 
 PRINT_LOCK = threading.Lock()
@@ -32,6 +32,7 @@ PRINT_LOCK = threading.Lock()
 @dataclass(frozen=True)
 class RunnerArgs:
     mode: str
+    dev_target: str = "all"
     test_suite: Optional[str] = None
     enable_color: bool = False
     cli_args: Tuple[str, ...] = ()
@@ -43,6 +44,12 @@ TEST_SELECTORS = {
     "--frontend": "frontend",
     "--cli": "cli",
     "--tools": "tools",
+}
+
+DEV_SELECTORS = {
+    "--all": "all",
+    "--backend": "backend",
+    "--frontend": "frontend",
 }
 
 
@@ -184,6 +191,9 @@ def print_usage(force_color: bool = False) -> None:
             _summary_option("[-h]", theme),
             _summary_option("[--setup]", theme),
             _summary_option("[--dev | -d]", theme),
+            _summary_option("[--all]", theme),
+            _summary_option("[--backend]", theme),
+            _summary_option("[--frontend]", theme),
             _summary_option("[--test | -t]", theme),
             _summary_option("[--all]", theme),
             _summary_option("[--backend]", theme),
@@ -213,12 +223,19 @@ def print_usage(force_color: bool = False) -> None:
 
     log(_usage_line(summary, theme))
     log("")
+    log(_heading("Option browser:", theme))
+    log(_option_line("(no flags)", "Open the interactive option browser.", theme))
+    log(_option_line("--color", "Open the option browser with color enabled.", theme))
+    log("  Browser keys: arrows move, Enter selects/runs, Space toggles, ? shows help, Esc goes back.")
+    log("")
     log(_heading("Setup:", theme))
     log(_option_line("--setup", "Create env files, Python venvs, and install dependencies.", theme))
     log("")
     log(_heading("Dev servers:", theme))
     log(_option_line("--dev, -d", "Run backend and frontend development servers.", theme))
-    log("  (no mode)                       Same as --dev.")
+    log(_option_line("--dev --all", "Run backend and frontend development servers.", theme))
+    log(_option_line("--dev --backend", "Run backend development server only.", theme))
+    log(_option_line("--dev --frontend", "Run frontend development server only.", theme))
     log(_option_line("--color", "With --dev, force colored runner and child output.", theme))
     log("")
     log(_heading("Tests:", theme))
@@ -236,7 +253,7 @@ def print_usage(force_color: bool = False) -> None:
     log("")
     log(_heading("Benchmark:", theme))
     log(_option_line("--benchmark, -b [cli flags]", "Run prepper-cli benchmark mode.", theme))
-    log(_option_line("--benchmark-json", "Print benchmark result JSON; use after --interactive.", theme))
+    log(_option_line("--benchmark-json", "Run benchmark mode without transcript output and print result JSON.", theme))
     log(_option_line("--strong-candidate", "Use strong candidate simulation (default).", theme))
     log(_option_line("--weak-candidate", "Use weak candidate simulation.", theme))
     log(_option_line("--difficulty easy|medium|hard", "Override interviewer difficulty.", theme))
@@ -288,8 +305,14 @@ def parse_args(argv: List[str]) -> RunnerArgs:
             cli_args=("--benchmark", "--color", *tuple(argv[1:])),
         )
 
+    if len(argv) > 0 and argv[0] == "--benchmark-json":
+        return RunnerArgs(
+            mode="interactive",
+            cli_args=("--benchmark-json", *cli_color_args, *tuple(argv[1:])),
+        )
+
     if len(argv) == 0:
-        return RunnerArgs(mode="dev", enable_color=enable_color)
+        return RunnerArgs(mode="browser", enable_color=enable_color)
 
     if argv[0] in ("--help", "-h"):
         if len(argv) != 1:
@@ -298,12 +321,19 @@ def parse_args(argv: List[str]) -> RunnerArgs:
         return RunnerArgs(mode="help", enable_color=enable_color)
 
     if argv[0] in ("--dev", "-d"):
+        if len(argv) == 1:
+            return RunnerArgs(mode="dev", enable_color=enable_color)
+        if len(argv) == 2 and argv[1] in DEV_SELECTORS:
+            return RunnerArgs(
+                mode="dev",
+                dev_target=DEV_SELECTORS[argv[1]],
+                enable_color=enable_color,
+            )
         if len(argv) != 1:
             print_usage()
             if "--benchmark" in argv[1:] or "-b" in argv[1:]:
                 raise ValueError("benchmark cannot be combined with dev mode; use ./prepper.sh --benchmark ...")
-            raise ValueError(f"{argv[0]} does not accept additional flags except --color.")
-        return RunnerArgs(mode="dev", enable_color=enable_color)
+            raise ValueError(f"{argv[0]} accepts at most one dev target selector and --color.")
 
     if argv[0] == "--setup":
         if len(argv) != 1:
@@ -332,7 +362,7 @@ def parse_args(argv: List[str]) -> RunnerArgs:
         print_usage()
         raise ValueError(f"{argv[0]} must be used with --test.")
 
-    if argv[0] in ("--benchmark-json", "--strong-candidate", "--weak-candidate"):
+    if argv[0] in ("--strong-candidate", "--weak-candidate"):
         print_usage()
         raise ValueError(f"{argv[0]} is a prepper-cli flag; use ./prepper.sh --interactive {argv[0]} ...")
 
@@ -342,6 +372,14 @@ def parse_args(argv: List[str]) -> RunnerArgs:
 
 def parse_mode(argv: List[str]) -> str:
     return parse_args(argv).mode
+
+
+def run_browser_mode(force_color: bool = False) -> Optional[RunnerArgs]:
+    selected_argv = option_browser.run(force_color=force_color)
+    if not selected_argv:
+        return None
+
+    return parse_args(list(selected_argv))
 
 
 def run_cli_mode(cli_args: Tuple[str, ...]) -> int:
@@ -369,6 +407,19 @@ def main() -> int:
 
     backend_python = resolve_backend_python()
 
+    if args.mode == "browser":
+        try:
+            selected_args = run_browser_mode(force_color=args.enable_color)
+        except option_browser.OptionBrowserError as err:
+            log(f"Error: {err}")
+            return 2
+        except ValueError as err:
+            log(f"Error: {err}")
+            return 2
+        if selected_args is None:
+            return 0
+        args = selected_args
+
     if args.mode == "help":
         print_usage(force_color=args.enable_color)
         return 0
@@ -394,6 +445,7 @@ def main() -> int:
     return dev_servers.run_dev_servers(
         backend_python=backend_python,
         log=log,
+        target=args.dev_target,
         enable_color=args.enable_color,
     )
 
