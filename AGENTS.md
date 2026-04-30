@@ -84,6 +84,15 @@ When instructions conflict with implementation, follow current code behavior and
 - CLI supports interactive interview flow and benchmark mode; preserve flag behavior in `main.py`.
 - Keep config and OpenRouter client creation centralized (`config.py`, `client.py`).
 
+## Prompt Refinement Rules
+
+- Start from the existing prompt files and shared prompt builders in `prepper-cli`.
+- Keep prompt changes minimal, readable, and aligned with live interview behavior.
+- Do not create parallel prompt implementations in backend or frontend code.
+- Preserve the metadata contract and the rule that active interviews must not include goodbye or closing language before the configured question limit.
+- For GPT-5.4 interview prompt tuning, prefer explicit self-checks, strict output contracts, and focused verification over API or model-routing changes.
+- Update focused prompt/interview tests when changing prompt behavior, and use benchmark output as the quality signal for interviewer refinements.
+
 ## Validation Commands
 
 Run only what is relevant to your change.

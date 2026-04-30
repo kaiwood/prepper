@@ -364,16 +364,27 @@ def test_build_active_interview_system_prompt_includes_runtime_sections():
     assert "Base interviewer prompt." in prompt
     assert "Response format requirement" in prompt
     assert "[PREPPER_JSON]" in prompt
+    assert "The metadata suffix must be the final line of the reply." in prompt
+    assert "Do not wrap it in Markdown fences, explain it, repeat it, or add extra keys." in prompt
+    assert "verify the metadata is valid JSON on a single line" in prompt
     assert "Difficulty mode: Senior-level (medium)." in prompt
     assert "Scored interview questions asked so far: 1/3." in prompt
     assert "Remaining scored questions: 2." in prompt
     assert "Active interview stage guidance" in prompt
     assert "Stage focus: probe one edge case" in prompt
     assert "Ground the next question in the candidate's latest answer" in prompt
+    assert "Completing a previously requested artifact has priority" in prompt
     assert "exact pseudocode" in prompt
+    assert "ask for that exact missing artifact" in prompt
+    assert "ask for a complete polished algorithm or pseudocode" in prompt
     assert "Do not repeat a prior interviewer question" in prompt
     assert "Do not close the interview" in prompt
     assert "Set interview_complete to false." in prompt
+    assert "Before replying in active interview mode, silently check" in prompt
+    assert "the reply asks exactly one candidate-facing question" in prompt
+    assert "usually 1-3 short sentences before metadata" in prompt
+    assert "the reply does not use bullets, numbered lists, or checklist wording" in prompt
+    assert "interview_complete false and turn_type matching the visible reply" in prompt
 
 
 def test_build_active_interview_system_prompt_includes_behavioral_stage_guidance():
@@ -395,6 +406,7 @@ def test_build_active_interview_system_prompt_includes_behavioral_stage_guidance
     assert "Stage focus: make the result measurable" in prompt
     assert "named decision, concrete action" in prompt
     assert "Ask exactly one candidate-facing question." in prompt
+    assert "Before replying in active interview mode, silently check" in prompt
 
 
 def test_build_forced_closing_system_prompt_includes_closing_override():
@@ -409,6 +421,7 @@ def test_build_forced_closing_system_prompt_includes_closing_override():
 
     assert "Base interviewer prompt." in prompt
     assert "Response format requirement" in prompt
+    assert "The metadata suffix must be the final line of the reply." in prompt
     assert "Difficulty mode: Junior-level (easy)." in prompt
     assert "Runtime override: The interview must end now" in prompt
     assert "roundtrip limit has been reached (3/3)." in prompt
@@ -731,7 +744,7 @@ def test_run_interview_turn_uses_fallback_goodbye_when_post_limit_close_metadata
     assert "[PREPPER_JSON]" not in messages[-1]["content"]
 
 
-def test_parse_interviewer_scoring_payload_uses_weighted_formula():
+def test_parse_interviewer_scoring_payload_uses_interviewer_rubric_score():
     descriptor = _descriptor()
     raw_payload = (
         "{"
@@ -759,7 +772,8 @@ def test_parse_interviewer_scoring_payload_uses_weighted_formula():
 
     assert parsed["rubric_overall_score"] == 8.5
     assert parsed["candidate_score_component"] == 6.0
-    assert parsed["overall_score"] == 8.0
+    assert parsed["overall_score"] == 8.5
+    assert parsed["weights"] == {"interviewer_rubric": 1.0, "candidate_outcome": 0.0}
     assert parsed["passed"] is True
     assert parsed["difficulty_alignment"] == "aligned"
     assert len(parsed["criterion_scores"]) == 6

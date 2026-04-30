@@ -109,8 +109,8 @@ _DEFAULT_INTERVIEWER_RUBRIC = (
     "Adaptation to candidate responses",
     "Difficulty calibration",
 )
-_INTERVIEWER_RUBRIC_WEIGHT = 0.8
-_CANDIDATE_OUTCOME_WEIGHT = 0.2
+_INTERVIEWER_RUBRIC_WEIGHT = 1.0
+_CANDIDATE_OUTCOME_WEIGHT = 0.0
 _VALID_DIFFICULTY_ALIGNMENT = {"aligned", "underchallenging", "overchallenging", "unknown"}
 
 
@@ -655,7 +655,7 @@ def parse_interviewer_scoring_payload(
         interviewer_overall = sum(row["score"] for row in criterion_scores) / len(criterion_scores)
 
     candidate_component = clamp_score(candidate_overall_score)
-    weighted_score = clamp_score(
+    overall_score = clamp_score(
         (interviewer_overall * _INTERVIEWER_RUBRIC_WEIGHT)
         + (candidate_component * _CANDIDATE_OUTCOME_WEIGHT)
     )
@@ -677,7 +677,7 @@ def parse_interviewer_scoring_payload(
     )
 
     return {
-        "overall_score": weighted_score,
+        "overall_score": overall_score,
         "rubric_overall_score": interviewer_overall,
         "candidate_score_component": candidate_component,
         "weights": {
@@ -685,7 +685,7 @@ def parse_interviewer_scoring_payload(
             "candidate_outcome": _CANDIDATE_OUTCOME_WEIGHT,
         },
         "pass_threshold": interviewer_pass_threshold,
-        "passed": weighted_score >= interviewer_pass_threshold,
+        "passed": overall_score >= interviewer_pass_threshold,
         "criterion_scores": criterion_scores,
         "strengths": strengths,
         "improvements": improvements,
