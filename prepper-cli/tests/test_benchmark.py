@@ -277,6 +277,101 @@ def test_run_benchmark_interview_keeps_counting_after_early_close(monkeypatch):
     )
 
 
+def test_run_benchmark_interview_uses_non_repeating_fallbacks_after_repair_failure(
+    monkeypatch,
+):
+    interviewer = _make_descriptor("coding_focus")
+    active_replies = [
+        "Question 1\n[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}",
+        "Question 2\n[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}",
+        "Thanks, that concludes the interview.\n[PREPPER_JSON] {\"turn_type\":\"OTHER\",\"interview_complete\":true}",
+        "Thanks, that concludes the interview.\n[PREPPER_JSON] {\"turn_type\":\"OTHER\",\"interview_complete\":true}",
+        "Thanks, that concludes the interview.\n[PREPPER_JSON] {\"turn_type\":\"OTHER\",\"interview_complete\":true}",
+        "Thanks, that concludes the interview.\n[PREPPER_JSON] {\"turn_type\":\"OTHER\",\"interview_complete\":true}",
+        "Question 5\n[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}",
+    ]
+    candidate_calls = {"count": 0}
+
+    def fake_interviewer_get_chat_reply(message, **kwargs):
+        system_prompt = kwargs.get("system_prompt") or ""
+        if message.startswith("Score this interview transcript"):
+            return (
+                "{\"overall_score\":8.0,\"criterion_scores\":{\"Story structure\":8.0,"
+                "\"Communication\":8.0},\"strengths\":[\"Clear\"],"
+                "\"improvements\":[\"More detail\"]}"
+            )
+
+        if "Runtime override: The interview must end now" in system_prompt:
+            return (
+                "Thanks for your time today. The interview is now over.\n"
+                "[PREPPER_JSON] {\"turn_type\":\"OTHER\",\"interview_complete\":true}"
+            )
+
+        raw_reply = active_replies.pop(0)
+        active_conversation = kwargs.get("conversation")
+        if active_conversation is not None:
+            active_conversation.add_user_message(message)
+            active_conversation.add_assistant_reply(raw_reply)
+        return raw_reply
+
+    def fake_candidate_get_chat_reply(*args, **kwargs):
+        candidate_calls["count"] += 1
+        return f"Candidate answer {candidate_calls['count']}"
+
+    monkeypatch.setattr(interview_module, "get_chat_reply", fake_interviewer_get_chat_reply)
+    monkeypatch.setattr(benchmark, "get_chat_reply", fake_candidate_get_chat_reply)
+    monkeypatch.setattr(
+        benchmark,
+        "score_interviewer_performance",
+        lambda **kwargs: {
+            "overall_score": 8.0,
+            "rubric_overall_score": 8.0,
+            "candidate_score_component": 8.0,
+            "weights": {"interviewer_rubric": 0.8, "candidate_outcome": 0.2},
+            "pass_threshold": 7.0,
+            "passed": True,
+            "criterion_scores": [],
+            "strengths": [],
+            "improvements": [],
+            "difficulty_alignment": "aligned",
+            "parse_warning": False,
+        },
+    )
+
+    result = benchmark.run_benchmark_interview(
+        interviewer_descriptor=interviewer,
+        question_limit_override=5,
+        output=io.StringIO(),
+    )
+
+    assistant_messages = [
+        message["content"]
+        for message in result["conversation"]
+        if message["role"] == "assistant"
+    ]
+    fallback_messages = [
+        message
+        for message in assistant_messages
+        if message.startswith("Let's make one operation precise")
+        or message.startswith("Let's check correctness")
+    ]
+
+    assert result["summary_json"]["counted_question_roundtrips"] == 5
+    assert result["summary_json"]["interview_complete"] is True
+    assert active_replies == []
+    assert candidate_calls["count"] == 5
+    assert len(fallback_messages) == 2
+    assert len(set(fallback_messages)) == 2
+    assert all(
+        "[PREPPER_JSON]" not in message["content"]
+        for message in result["conversation"]
+    )
+    assert all(
+        "concludes the interview" not in message["content"]
+        for message in result["conversation"]
+    )
+
+
 def test_run_benchmark_interview_reports_default_model_when_model_is_omitted(
     monkeypatch,
 ):

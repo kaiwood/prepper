@@ -25,19 +25,63 @@ _ROUNDTRIP_CLASSIFIER_PROMPT = (
 _METADATA_PREFIX = METADATA_PREFIX
 _VALID_TURN_TYPES = {"QUESTION", "OTHER"}
 _FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
-_FALLBACK_ACTIVE_QUESTION_EN = (
-    "Let's continue the interview: can you explain how your approach handles "
-    "one important edge case?"
-)
-_FALLBACK_ACTIVE_QUESTION_DE = (
-    "Lassen Sie uns im Interview fortfahren: Können Sie erläutern, wie Ihr "
-    "Ansatz einen wichtigen Randfall behandelt?"
-)
+_FALLBACK_ACTIVE_QUESTIONS = {
+    "coding": {
+        "en": (
+            "Let's continue with a concrete follow-up: what edge cases would you test, and how would your solution handle them?",
+            "Let's make that concrete: for one small tricky input, what is the next state change your algorithm makes?",
+            "Let's make one operation precise: can you write its pseudocode-level steps and time cost?",
+            "Let's check correctness with one focused case: what invariant must always stay true?",
+            "Let's close with one technical check: what edge case or amortized-cost guarantee must your solution handle correctly?",
+        ),
+        "de": (
+            "Lassen Sie uns beim technischen Thema bleiben: Welche Randfälle würden Sie testen, und wie behandelt Ihr Ansatz sie?",
+            "Machen wir das konkret: Welche nächste Zustandsänderung macht Ihr Algorithmus bei einer kleinen schwierigen Eingabe?",
+            "Machen wir eine Operation präzise: Können Sie ihre Pseudocode-Schritte und Laufzeit nennen?",
+            "Prüfen wir die Korrektheit an einem Fokuspunkt: Welche Invariante muss immer erhalten bleiben?",
+            "Schließen wir mit einer technischen Prüfung: Welchen Randfall oder welche amortisierte Laufzeitgarantie muss Ihre Lösung korrekt behandeln?",
+        ),
+    },
+    "behavioral": {
+        "en": (
+            "Let's continue with the situation: what was the context, and what outcome were you responsible for?",
+            "Let's focus on your ownership: what specific actions and decisions did you personally drive?",
+            "Let's examine the trade-off: what options did you consider, and why did you choose that path?",
+            "Let's make the impact concrete: what changed measurably because of your work?",
+            "Let's reflect on the result: what would you do differently if you faced the same situation again?",
+        ),
+        "de": (
+            "Lassen Sie uns mit der Situation fortfahren: Was war der Kontext, und für welches Ergebnis waren Sie verantwortlich?",
+            "Konzentrieren wir uns auf Ihren Beitrag: Welche konkreten Handlungen und Entscheidungen haben Sie persönlich vorangetrieben?",
+            "Betrachten wir die Abwägung: Welche Optionen hatten Sie, und warum haben Sie diesen Weg gewählt?",
+            "Machen wir die Wirkung konkret: Was hat sich durch Ihre Arbeit messbar verändert?",
+            "Reflektieren wir das Ergebnis: Was würden Sie beim nächsten Mal anders machen?",
+        ),
+    },
+    "general": {
+        "en": (
+            "Let's continue with a focused follow-up: what is the most important assumption behind your answer?",
+            "Let's make that concrete: what exact steps would you take next?",
+            "Let's probe the risk: what could go wrong, and how would you handle it?",
+            "Let's discuss trade-offs: what alternative did you consider, and why did you choose this path?",
+            "Let's finish the thread: what result would show that your approach worked?",
+        ),
+        "de": (
+            "Lassen Sie uns mit einer gezielten Nachfrage fortfahren: Welche wichtigste Annahme steckt hinter Ihrer Antwort?",
+            "Machen wir das konkret: Welche genauen Schritte würden Sie als Nächstes gehen?",
+            "Prüfen wir das Risiko: Was könnte schiefgehen, und wie würden Sie damit umgehen?",
+            "Sprechen wir über Abwägungen: Welche Alternative haben Sie betrachtet, und warum wählen Sie diesen Weg?",
+            "Schließen wir den Punkt ab: Welches Ergebnis würde zeigen, dass Ihr Ansatz funktioniert hat?",
+        ),
+    },
+}
 _PREMATURE_CLOSING_PATTERNS = (
     "interview is now over",
     "interview is over",
     "that concludes the interview",
     "this concludes the interview",
+    "close the interview now",
+    "close interview now",
     "thanks for your time",
     "thank you for your time",
     "interview beendet",
@@ -191,12 +235,24 @@ def _build_repair_conversation(
     return Conversation.from_messages(messages)
 
 
-def _fallback_active_question(language: str | None) -> str:
-    return (
-        _FALLBACK_ACTIVE_QUESTION_DE
-        if language == "de"
-        else _FALLBACK_ACTIVE_QUESTION_EN
-    )
+def _interview_fallback_family(descriptor: PromptDescriptor) -> str:
+    prompt_identity = f"{descriptor.id} {descriptor.name}".casefold()
+    if "behavior" in prompt_identity:
+        return "behavioral"
+    if "coding" in prompt_identity or "technical" in prompt_identity:
+        return "coding"
+    return "general"
+
+
+def _fallback_active_question(
+    descriptor: PromptDescriptor,
+    language: str | None,
+    question_count: int,
+) -> str:
+    family = _interview_fallback_family(descriptor)
+    language_key = "de" if language == "de" else "en"
+    bank = _FALLBACK_ACTIVE_QUESTIONS[family][language_key]
+    return bank[max(0, question_count) % len(bank)]
 
 
 def request_active_repair_turn(
@@ -272,12 +328,17 @@ def request_active_repair_turn(
 
     metadata_complete = metadata.get("interview_complete")
     repaired_still_closes = (
-        metadata_complete is True
+        not clean_reply.strip()
+        or metadata_complete is True
         or turn_type != "question"
         or _looks_like_premature_closing(clean_reply)
     )
     if repaired_still_closes:
-        clean_reply = _fallback_active_question(language)
+        clean_reply = _fallback_active_question(
+            descriptor=descriptor,
+            language=language,
+            question_count=question_count,
+        )
         turn_type = "question"
 
     return {
@@ -523,6 +584,9 @@ def build_interviewer_scoring_system_prompt(
         "You are an expert evaluator of interviewer performance. "
         "Evaluate ONLY interviewer behavior in the transcript. "
         "Do not evaluate candidate quality directly except where candidate outcome reflects interview guidance quality. "
+        "A weak or uncertain candidate can still receive a low candidate score after a strong interview. "
+        "Do not penalize interviewer rubric scores merely because the candidate failed to answer well; "
+        "penalize only when the interviewer missed clear opportunities to clarify, adapt, challenge, or guide the candidate. "
         "Return strict JSON with keys: interviewer_overall_score, criterion_scores, strengths, improvements, difficulty_alignment. "
         "criterion_scores must be an object where each rubric criterion maps to a 0-10 number. "
         "difficulty_alignment must be one of: aligned, underchallenging, overchallenging, unknown. "
@@ -888,7 +952,10 @@ def run_interview_turn(
     attempted_closing_text = (
         count_after < question_limit and _looks_like_premature_closing(clean_reply)
     )
-    needs_active_repair = attempted_early_completion or attempted_closing_text
+    attempted_empty_reply = not clean_reply.strip()
+    needs_active_repair = (
+        attempted_early_completion or attempted_closing_text or attempted_empty_reply
+    )
     metadata_warning = not parsed_reply["metadata_valid"] or needs_active_repair
 
     if needs_active_repair:
