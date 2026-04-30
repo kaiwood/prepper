@@ -91,6 +91,7 @@ Language + color:
 
 ```bash
 prepper-cli --color --language de --system-prompt behavioral_focus
+prepper-cli --color --language fr --system-prompt behavioral_focus
 ```
 
 Exit with `exit` or `quit`.
@@ -129,10 +130,11 @@ Override pass threshold:
 prepper-cli --benchmark --system-prompt coding_focus --pass-threshold 8.0
 ```
 
-German benchmark:
+German and French benchmark:
 
 ```bash
 prepper-cli --benchmark --system-prompt behavioral_focus --language de
+prepper-cli --benchmark --system-prompt behavioral_focus --language fr
 ```
 
 Use different models for runtime vs final benchmark scoring:
