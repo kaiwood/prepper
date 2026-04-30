@@ -71,7 +71,7 @@ prepper/
 ## Backend Setup
 
 ```bash
-cp .env.example .env           # then set OPENROUTER_API_KEY
+cp .env.example .env           # then set LLM_API_KEY or OPENROUTER_API_KEY
 cd backend
 python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
@@ -80,6 +80,38 @@ python run.py
 ```
 
 Backend URL: `http://127.0.0.1:5000`
+
+### LLM Backend
+
+The app uses an OpenAI-compatible chat completions client. The generic env names below are preferred:
+
+```env
+LLM_API_KEY=your_key_here
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=openai/gpt-5.4
+```
+
+The existing `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `OPENROUTER_MODEL` names still work as fallbacks.
+
+For a local llama.cpp server:
+
+```bash
+llama-server \
+  -m /path/to/Ministral-3-3B-Instruct-2512-Q4_K_M.gguf \
+  -c 16384 \
+  --host 127.0.0.1 \
+  --port 8080
+```
+
+Then set root `.env`:
+
+```env
+LLM_API_KEY=local-dummy
+LLM_BASE_URL=http://127.0.0.1:8080/v1
+LLM_MODEL=ministral
+```
+
+Use an instruct GGUF model for interview/chat behavior.
 
 ### Backend API
 
@@ -127,13 +159,15 @@ temperature: 0.3
 top_p: 1.0
 frequency_penalty: 0.2
 presence_penalty: 0.0
-max_tokens: 5000
+max_tokens: 1200
 ---
 ```
 
 These settings are applied automatically when a prompt is selected.
 
 CLI default behavior: if you do not pass model-setting override flags, `prepper-cli` uses these prompt-file values.
+
+The bundled interview prompts currently default `max_tokens` to `1200`; lower this further when running local models with small context windows.
 
 ## CLI (`prepper-cli`)
 

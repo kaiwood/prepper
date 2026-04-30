@@ -2,6 +2,7 @@ import pytest
 
 from app.helpers.utils import (
     resolve_difficulty,
+    resolve_max_tokens_override,
     resolve_model_setting_override,
     resolve_model_settings,
     resolve_roundtrip_limit,
@@ -107,3 +108,23 @@ def test_resolve_model_settings_merges_overrides_with_prompt_defaults():
         "presence_penalty": -0.3,
         "max_tokens": 700,
     }
+
+
+def test_resolve_max_tokens_override_accepts_positive_integer():
+    assert resolve_max_tokens_override(1200) == 1200
+
+
+def test_resolve_max_tokens_override_rejects_bool_and_non_positive_values():
+    with pytest.raises(ValueError, match="max_tokens must be an integer"):
+        resolve_max_tokens_override(True)
+
+    with pytest.raises(ValueError, match="max_tokens must be between"):
+        resolve_max_tokens_override(0)
+
+
+def test_resolve_model_settings_allows_max_tokens_override():
+    descriptor = _make_descriptor(max_tokens=1200)
+
+    settings = resolve_model_settings({"max_tokens": 900}, descriptor)
+
+    assert settings["max_tokens"] == 900

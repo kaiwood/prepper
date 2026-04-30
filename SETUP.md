@@ -14,7 +14,7 @@ From the project root:
 ```bash
 # 0) root env file (shared by prepper-cli and backend)
 cp .env.example .env           # if .env does not exist
-# set OPENROUTER_API_KEY in .env
+# set LLM_API_KEY or OPENROUTER_API_KEY in .env
 
 # 1) prepper-cli venv + editable install
 cd prepper-cli
@@ -57,7 +57,15 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:5000
 
 If you change `frontend/.env.local`, restart the frontend dev server so Next.js picks up the new `NEXT_PUBLIC_*` values.
 
-Set `OPENROUTER_API_KEY=...` in root `.env`.
+Set `LLM_API_KEY=...` in root `.env`. The older `OPENROUTER_API_KEY=...` name is still supported.
+
+For local llama.cpp, point the shared root `.env` at the OpenAI-compatible server:
+
+```env
+LLM_API_KEY=local-dummy
+LLM_BASE_URL=http://127.0.0.1:8080/v1
+LLM_MODEL=ministral
+```
 
 ## One-Command Setup
 
