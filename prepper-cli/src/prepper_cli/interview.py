@@ -94,6 +94,13 @@ _PREMATURE_CLOSING_PATTERNS = (
     "danke für ihre zeit",
     "vielen dank für ihre zeit",
 )
+_SELF_INTRODUCTION_PATTERNS = (
+    "i'm ",
+    "i am ",
+    "my name is ",
+    "ich bin ",
+    "mein name ist ",
+)
 _DEFAULT_INTERVIEWER_RUBRIC = (
     "Question clarity",
     "Follow-up depth",
@@ -213,6 +220,11 @@ def _resolve_turn_type(
 def _looks_like_premature_closing(reply: str) -> bool:
     normalized = " ".join((reply or "").casefold().split())
     return any(pattern in normalized for pattern in _PREMATURE_CLOSING_PATTERNS)
+
+
+def _looks_like_self_introduction(reply: str) -> bool:
+    normalized = " ".join((reply or "").casefold().replace("’", "'").split())
+    return any(pattern in normalized for pattern in _SELF_INTRODUCTION_PATTERNS)
 
 
 def _build_repair_conversation(
@@ -405,7 +417,8 @@ def request_forced_closing_turn(
     clean_reply = parsed_reply["reply"] or _FALLBACK_CLOSING_REPLY
     metadata = parsed_reply["metadata"] if isinstance(parsed_reply["metadata"], dict) else {}
 
-    if not parsed_reply["metadata_valid"]:
+    closing_reintroduced_self = _looks_like_self_introduction(clean_reply)
+    if not parsed_reply["metadata_valid"] or closing_reintroduced_self:
         clean_reply = _FALLBACK_CLOSING_REPLY
         turn_type = "other"
     else:
@@ -425,7 +438,7 @@ def request_forced_closing_turn(
     return {
         "reply": clean_reply,
         "turn_type": turn_type,
-        "metadata_valid": parsed_reply["metadata_valid"],
+        "metadata_valid": parsed_reply["metadata_valid"] and not closing_reintroduced_self,
         "metadata": metadata,
         "diagnostics": diagnostics,
     }

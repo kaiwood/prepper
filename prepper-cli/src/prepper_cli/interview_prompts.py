@@ -156,6 +156,7 @@ def build_forced_closing_instruction(
         f"roundtrip limit has been reached ({question_count}/{question_limit}). "
         "Do not ask any new question. Provide a brief closing statement that clearly says "
         "the interview is now over and thanks the candidate. "
+        "Do not introduce or reintroduce yourself, and do not mention your name or title. "
         "End with metadata using turn_type OTHER and interview_complete true."
     )
 
