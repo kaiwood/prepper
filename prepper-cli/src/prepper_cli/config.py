@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
-DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.4-mini"
+DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.4"
 
 
 @dataclass(frozen=True)

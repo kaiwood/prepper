@@ -127,7 +127,7 @@ temperature: 0.3
 top_p: 1.0
 frequency_penalty: 0.2
 presence_penalty: 0.0
-max_tokens: 700
+max_tokens: 5000
 ---
 ```
 
@@ -226,7 +226,7 @@ prepper-cli --benchmark --system-prompt coding_focus --difficulty hard --questio
 Use one model for interview runtime and another for final interviewer scoring:
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-5.4-mini --benchmark-model openai/gpt-4.1
+prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-5.4 --benchmark-model openai/gpt-4.1
 ```
 
 Print only comparable benchmark result JSON:
