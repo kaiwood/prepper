@@ -14,7 +14,7 @@ Use the dedicated setup guide: [SETUP.md](./SETUP.md) or run setup from the proj
 ./prepper.sh --setup
 ```
 
-## Run Both Dev Servers
+## Run Prepper
 
 From the project root:
 
@@ -22,15 +22,30 @@ From the project root:
 ./prepper.sh
 ```
 
-`./prepper.sh` defaults to `--dev` mode. This starts backend and frontend together and prints both logs in one terminal. Press `Ctrl+C` to stop both.
+`./prepper.sh` opens an interactive option browser. Use the arrow keys to move, `Enter` to select or review a command, `Space` to toggle checkbox options, `?` for help, and `Esc` to go back. Pressing `Esc` on the first screen exits the browser.
+
+The browser groups commands by Dev, Benchmark, Test, Interactive, and Setup. It shows the exact command before running it. Setup asks for a `y/n` confirmation because it creates env files, Python virtualenvs, and installs dependencies.
+
+Pass `--color` with no other flags to open the browser with color enabled:
+
+```bash
+./prepper.sh --color
+```
+
+## Run Dev Servers
 
 You can also run modes explicitly:
 
 ```bash
 ./prepper.sh --dev
 ./prepper.sh -d
+./prepper.sh --dev --all
+./prepper.sh --dev --backend
+./prepper.sh --dev --frontend
 ./prepper.sh --dev --color
 ```
+
+`--dev` and `--dev --all` start backend and frontend together and print both logs in one terminal. Press `Ctrl+C` to stop all services. Use `--backend` or `--frontend` when you only need one side.
 
 ## Testing
 
@@ -54,7 +69,7 @@ Run one suite at a time with:
 ./prepper.sh --test --tools
 ```
 
-Add `--color` to `--dev` or `--test` to force colored runner, pytest, Node test, and Next dev output when your terminal supports it. For interactive prepper-cli transcripts, pass `--color` after `--interactive` or `-i`. Benchmark transcripts started with `--benchmark` or `-b` use colored output by default.
+Add `--color` to `--dev` or `--test` to force colored runner, pytest, Node test, and Next dev output when your terminal supports it. For interactive prepper-cli transcripts, pass `--color` with `--interactive` or `-i`. Benchmark transcripts started with `--benchmark` or `-b` use colored output by default.
 
 You can still run the underlying commands manually when debugging a suite:
 
@@ -276,6 +291,7 @@ Use one model for interview runtime and another for final interviewer scoring:
 Print only comparable benchmark result JSON:
 
 ```bash
+./prepper.sh --benchmark-json --interview-style behavioral_focus
 ./prepper.sh -i --benchmark-json --interview-style behavioral_focus
 ```
 

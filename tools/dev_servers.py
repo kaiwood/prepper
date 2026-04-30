@@ -45,34 +45,40 @@ def stream_output(name: str, pipe, log: LogFn, enable_color: bool = False) -> No
         pipe.close()
 
 
-def start_processes(backend_python: str, enable_color: bool = False) -> Dict[str, subprocess.Popen]:
+def start_processes(
+    backend_python: str,
+    enable_color: bool = False,
+    target: str = "all",
+) -> Dict[str, subprocess.Popen]:
     processes: Dict[str, subprocess.Popen] = {}
 
     backend_env = color_env(os.environ.copy(), enable_color)
     backend_env["PYTHONUNBUFFERED"] = "1"
     frontend_env = color_env(os.environ.copy(), enable_color)
 
-    processes["backend"] = subprocess.Popen(
-        [backend_python, "run.py"],
-        cwd=BACKEND_DIR,
-        env=backend_env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        preexec_fn=os.setsid,
-    )
+    if target in {"all", "backend"}:
+        processes["backend"] = subprocess.Popen(
+            [backend_python, "run.py"],
+            cwd=BACKEND_DIR,
+            env=backend_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            preexec_fn=os.setsid,
+        )
 
-    processes["frontend"] = subprocess.Popen(
-        ["npm", "run", "dev"],
-        cwd=FRONTEND_DIR,
-        env=frontend_env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        preexec_fn=os.setsid,
-    )
+    if target in {"all", "frontend"}:
+        processes["frontend"] = subprocess.Popen(
+            ["npm", "run", "dev"],
+            cwd=FRONTEND_DIR,
+            env=frontend_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            preexec_fn=os.setsid,
+        )
 
     return processes
 
@@ -107,8 +113,20 @@ def terminate_processes(processes: Dict[str, subprocess.Popen], timeout_seconds:
             pass
 
 
-def run_dev_servers(backend_python: str, log: LogFn, enable_color: bool = False) -> int:
-    processes = start_processes(backend_python, enable_color=enable_color)
+def run_dev_servers(
+    backend_python: str,
+    log: LogFn,
+    enable_color: bool = False,
+    target: str = "all",
+) -> int:
+    if target not in {"all", "backend", "frontend"}:
+        raise ValueError(f"Unsupported dev target: {target}")
+
+    processes = start_processes(
+        backend_python,
+        enable_color=enable_color,
+        target=target,
+    )
 
     stream_threads: List[threading.Thread] = []
     for name, proc in processes.items():
@@ -120,10 +138,10 @@ def run_dev_servers(backend_python: str, log: LogFn, enable_color: bool = False)
         thread.start()
         stream_threads.append(thread)
 
-    backend_pid = processes["backend"].pid
-    frontend_pid = processes["frontend"].pid
-    log(f"Started backend (PID {backend_pid}) and frontend (PID {frontend_pid}).")
-    log("Press Ctrl+C to stop both services.")
+    started = ", ".join(f"{name} (PID {proc.pid})" for name, proc in processes.items())
+    log(f"Started {started}.")
+    stop_text = "all services" if len(processes) > 1 else "the service"
+    log(f"Press Ctrl+C to stop {stop_text}.")
 
     stop_signal: Optional[signal.Signals] = None
 
