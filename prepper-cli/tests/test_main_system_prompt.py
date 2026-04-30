@@ -127,7 +127,7 @@ def test_interactive_selection_applies_selected_prompt(monkeypatch):
 
 def test_system_prompt_starts_interview_immediately(monkeypatch, capsys):
     monkeypatch.setattr(
-        "sys.argv", ["prepper-cli", "--system-prompt", "behavioral_focus"])
+        "sys.argv", ["prepper-cli", "--interview-style", "behavioral_focus"])
     monkeypatch.setattr(main, "list_system_prompt_names",
                         lambda: ["behavioral_focus"])
     monkeypatch.setattr(main, "get_default_system_prompt_name",
@@ -167,8 +167,26 @@ def test_system_prompt_starts_interview_immediately(monkeypatch, capsys):
     assert "Opening question" in captured.out
 
 
+def test_system_prompt_alias_still_starts_interview(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv", ["prepper-cli", "--system-prompt", "behavioral_focus"])
+    monkeypatch.setattr(main, "list_system_prompt_names",
+                        lambda: ["behavioral_focus"])
+    monkeypatch.setattr(main, "get_default_system_prompt_name",
+                        lambda: "behavioral_focus")
+    monkeypatch.setattr(main, "load_prompt_descriptor",
+                        lambda name: _make_descriptor(name))
+
+    inputs = iter(["quit"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    monkeypatch.setattr(main, "get_chat_reply", lambda *args, **kwargs: "Opening question")
+
+    assert main.main() == 0
+    assert "Opening question" in capsys.readouterr().out
+
+
 def test_list_system_prompts_option_prints_prompt_names(monkeypatch, capsys):
-    monkeypatch.setattr("sys.argv", ["prepper-cli", "--list-system-prompts"])
+    monkeypatch.setattr("sys.argv", ["prepper-cli", "--list-interview-styles"])
     monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["a", "b"])
 
     exit_code = main.main()
@@ -178,9 +196,17 @@ def test_list_system_prompts_option_prints_prompt_names(monkeypatch, capsys):
     assert captured.out == "a\nb\n"
 
 
+def test_list_system_prompts_alias_still_prints_prompt_names(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["prepper-cli", "--list-system-prompts"])
+    monkeypatch.setattr(main, "list_system_prompt_names", lambda: ["a", "b"])
+
+    assert main.main() == 0
+    assert capsys.readouterr().out == "a\nb\n"
+
+
 def test_interactive_rating_prompt_stops_when_interview_completes(monkeypatch, capsys):
     monkeypatch.setattr(
-        "sys.argv", ["prepper-cli", "--system-prompt", "coding_focus"])
+        "sys.argv", ["prepper-cli", "--interview-style", "coding_focus"])
     monkeypatch.setattr(main, "list_system_prompt_names",
                         lambda: ["coding_focus"])
     monkeypatch.setattr(
@@ -256,7 +282,7 @@ def test_benchmark_mode_dispatches_with_selected_prompts(monkeypatch, capsys):
             "prepper-cli",
             "--benchmark",
             "--color",
-            "--system-prompt",
+            "--interview-style",
             "coding_focus",
             "--difficulty",
             "hard",
@@ -348,7 +374,7 @@ def test_benchmark_mode_uses_default_candidate_profile(monkeypatch, capsys):
         [
             "prepper-cli",
             "--benchmark",
-            "--system-prompt",
+            "--interview-style",
             "behavioral_focus",
         ],
     )
@@ -413,7 +439,7 @@ def test_benchmark_json_hides_transcript_and_prints_summary_json(monkeypatch, ca
         [
             "prepper-cli",
             "--benchmark-json",
-            "--system-prompt",
+            "--interview-style",
             "behavioral_focus",
         ],
     )
@@ -478,7 +504,7 @@ def test_benchmark_mode_uses_explicit_weak_candidate_profile(monkeypatch, capsys
         [
             "prepper-cli",
             "--benchmark",
-            "--system-prompt",
+            "--interview-style",
             "behavioral_focus",
             "--weak-candidate",
         ],
@@ -583,7 +609,7 @@ def test_color_flag_is_allowed_in_interactive_mode(monkeypatch):
         [
             "prepper-cli",
             "--color",
-            "--system-prompt",
+            "--interview-style",
             "coding_focus",
         ],
     )
@@ -616,7 +642,7 @@ def test_language_flag_is_forwarded_in_interactive_mode(monkeypatch):
             "prepper-cli",
             "--language",
             "de",
-            "--system-prompt",
+            "--interview-style",
             "coding_focus",
         ],
     )
@@ -647,7 +673,7 @@ def test_interactive_passes_interview_overrides(monkeypatch):
         "sys.argv",
         [
             "prepper-cli",
-            "--system-prompt",
+            "--interview-style",
             "coding_focus",
             "--difficulty",
             "hard",
@@ -731,7 +757,7 @@ def test_interactive_passes_model_setting_overrides(monkeypatch):
         "sys.argv",
         [
             "prepper-cli",
-            "--system-prompt",
+            "--interview-style",
             "coding_focus",
             "--temperature",
             "0.2",
@@ -783,7 +809,7 @@ def test_benchmark_mode_passes_model_setting_overrides(monkeypatch):
         [
             "prepper-cli",
             "--benchmark",
-            "--system-prompt",
+            "--interview-style",
             "behavioral_focus",
             "--temperature",
             "0.2",
@@ -824,6 +850,12 @@ def test_benchmark_mode_passes_model_setting_overrides(monkeypatch):
 def test_help_makes_candidate_flags_benchmark_only_clear():
     help_text = main._build_parser().format_help()
 
+    assert "--interview-style INTERVIEW_STYLE" in help_text
+    assert "Interview style to use" in help_text
+    assert "--list-interview-styles" in help_text
+    assert "List available interview styles and exit" in help_text
+    assert "--system-prompt" not in help_text
+    assert "--list-system-prompts" not in help_text
     assert "--language {en,de,fr}" in help_text
     assert "--temperature TEMPERATURE" in help_text
     assert "--top-p TOP_P" in help_text
@@ -833,6 +865,7 @@ def test_help_makes_candidate_flags_benchmark_only_clear():
     assert "Response language code" in help_text
     assert "--color" in help_text
     assert "Enable colorized transcript output" in help_text
+    assert "-b, --benchmark" in help_text
     assert "--benchmark-json" in help_text
     assert "hide the transcript and print result" in help_text
     assert "Benchmark-only: use a strong candidate simulation" in help_text
@@ -842,11 +875,11 @@ def test_help_makes_candidate_flags_benchmark_only_clear():
 
 
 def test_help_uses_wrapper_command_name_when_provided(monkeypatch):
-    monkeypatch.setenv("PREPPER_CLI_PROG", "./cli.sh")
+    monkeypatch.setenv("PREPPER_CLI_PROG", "./prepper.sh --interactive")
 
     help_text = main._build_parser().format_help()
 
-    assert help_text.startswith("usage: ./cli.sh ")
+    assert help_text.startswith("usage: ./prepper.sh --interactive ")
     assert "python -m prepper_cli.main" not in help_text
 
 

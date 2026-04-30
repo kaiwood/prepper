@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools import dev_runner, dev_server, test_runner
+from tools import dev_runner, dev_server, setup_runner, test_runner
 
 
 def test_parse_mode_defaults_to_dev():
@@ -16,16 +16,22 @@ def test_parse_mode_defaults_to_dev():
     ("argv", "expected"),
     [
         (["--dev"], dev_runner.RunnerArgs(mode="dev")),
+        (["-d"], dev_runner.RunnerArgs(mode="dev")),
+        (["--setup"], dev_runner.RunnerArgs(mode="setup")),
         (["--test"], dev_runner.RunnerArgs(mode="test", test_suite="all")),
+        (["-t"], dev_runner.RunnerArgs(mode="test", test_suite="all")),
         (["--test", "--all"], dev_runner.RunnerArgs(mode="test", test_suite="all")),
         (["--test", "--backend"], dev_runner.RunnerArgs(mode="test", test_suite="backend")),
+        (["-t", "--backend"], dev_runner.RunnerArgs(mode="test", test_suite="backend")),
         (["--test", "--frontend"], dev_runner.RunnerArgs(mode="test", test_suite="frontend")),
         (["--test", "--cli"], dev_runner.RunnerArgs(mode="test", test_suite="cli")),
         (["--test", "--tools"], dev_runner.RunnerArgs(mode="test", test_suite="tools")),
         (["--color"], dev_runner.RunnerArgs(mode="dev", enable_color=True)),
         (["--dev", "--color"], dev_runner.RunnerArgs(mode="dev", enable_color=True)),
+        (["-d", "--color"], dev_runner.RunnerArgs(mode="dev", enable_color=True)),
         (["--color", "--dev"], dev_runner.RunnerArgs(mode="dev", enable_color=True)),
         (["--test", "--color"], dev_runner.RunnerArgs(mode="test", test_suite="all", enable_color=True)),
+        (["-t", "--color"], dev_runner.RunnerArgs(mode="test", test_suite="all", enable_color=True)),
         (["--color", "--test"], dev_runner.RunnerArgs(mode="test", test_suite="all", enable_color=True)),
         (
             ["--test", "--backend", "--color"],
@@ -34,6 +40,45 @@ def test_parse_mode_defaults_to_dev():
         (
             ["--color", "--test", "--frontend"],
             dev_runner.RunnerArgs(mode="test", test_suite="frontend", enable_color=True),
+        ),
+        (
+            ["--interactive", "--color", "--interview-style", "behavioral_focus"],
+            dev_runner.RunnerArgs(
+                mode="interactive",
+                cli_args=("--color", "--interview-style", "behavioral_focus"),
+            ),
+        ),
+        (
+            ["-i", "--help"],
+            dev_runner.RunnerArgs(mode="interactive", cli_args=("--help",)),
+        ),
+        (
+            ["--color", "-i", "--interview-style", "behavioral_focus"],
+            dev_runner.RunnerArgs(
+                mode="interactive",
+                cli_args=("--color", "--interview-style", "behavioral_focus"),
+            ),
+        ),
+        (
+            ["--benchmark", "--interview-style", "behavioral_focus"],
+            dev_runner.RunnerArgs(
+                mode="interactive",
+                cli_args=("--benchmark", "--color", "--interview-style", "behavioral_focus"),
+            ),
+        ),
+        (
+            ["--color", "-b", "--interview-style", "behavioral_focus"],
+            dev_runner.RunnerArgs(
+                mode="interactive",
+                cli_args=("--benchmark", "--color", "--interview-style", "behavioral_focus"),
+            ),
+        ),
+        (
+            ["-b", "--color", "--interview-style", "behavioral_focus"],
+            dev_runner.RunnerArgs(
+                mode="interactive",
+                cli_args=("--benchmark", "--color", "--interview-style", "behavioral_focus"),
+            ),
         ),
         (["--help"], dev_runner.RunnerArgs(mode="help")),
         (["--help", "--color"], dev_runner.RunnerArgs(mode="help", enable_color=True)),
@@ -48,9 +93,12 @@ def test_parse_args_accepts_known_flags(argv, expected):
     ("argv", "match"),
     [
         (["--dev", "--frontend"], "--dev does not accept additional flags"),
+        (["-d", "--benchmark"], "benchmark cannot be combined with dev mode"),
         (["--test", "--backend", "--frontend"], "Expected at most one test suite selector"),
+        (["--test", "--benchmark"], "benchmark cannot be combined with test mode"),
         (["--test", "--unknown"], "Unsupported test suite selector"),
         (["--backend"], "--backend must be used with --test"),
+        (["--benchmark-json"], "--benchmark-json is a prepper-cli flag"),
         (["--unknown"], "Unsupported flag"),
         (["--color", "--color"], "--color can only be used once"),
     ],
@@ -58,6 +106,61 @@ def test_parse_args_accepts_known_flags(argv, expected):
 def test_parse_args_rejects_invalid_combinations(argv, match):
     with pytest.raises(ValueError, match=match):
         dev_runner.parse_args(argv)
+
+
+def test_print_usage_groups_modes(monkeypatch):
+    messages = []
+
+    monkeypatch.setattr(dev_runner, "log", messages.append)
+
+    dev_runner.print_usage()
+    help_text = "\n".join(messages)
+
+    assert "Usage: ./prepper.sh [-h] [--setup]" in help_text
+    assert "[--interview-style INTERVIEW_STYLE]" in help_text
+    assert "[--list-interview-styles]" in help_text
+    assert "[--temperature TEMPERATURE]" in help_text
+    assert "[--benchmark-model BENCHMARK_MODEL]" in help_text
+    assert "Setup:" in help_text
+    assert "Dev servers:" in help_text
+    assert "Tests:" in help_text
+    assert "Interactive CLI:" in help_text
+    assert "Benchmark:" in help_text
+    assert "--interactive --help" in help_text
+    assert "--temperature N" in help_text
+    assert "--top-p N" in help_text
+    assert "--frequency-penalty N" in help_text
+    assert "--presence-penalty N" in help_text
+    assert "--max-tokens N" in help_text
+    assert "--benchmark-model MODEL" in help_text
+    assert "transcript color is on by default" in help_text
+
+
+def test_print_usage_can_use_argparse_colors(monkeypatch):
+    messages = []
+
+    monkeypatch.setenv("PYTHON_COLORS", "1")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(dev_runner, "log", messages.append)
+
+    dev_runner.print_usage()
+    help_text = "\n".join(messages)
+
+    assert "\033[1;34mUsage:\033[0m" in help_text
+    assert "[\033[36m--interview-style\033[0m \033[33mINTERVIEW_STYLE\033[0m]" in help_text
+    assert "[\033[36m--temperature\033[0m \033[33mTEMPERATURE\033[0m]" in help_text
+    assert "\033[1;36m--max-tokens\033[0m \033[1;33mN\033[0m" in help_text
+
+
+def test_main_can_force_colored_help(monkeypatch):
+    messages = []
+
+    monkeypatch.setattr(dev_runner, "log", messages.append)
+    monkeypatch.setattr(dev_runner, "validate_layout", lambda: None)
+    monkeypatch.setattr("sys.argv", ["prepper.sh", "--help", "--color"])
+
+    assert dev_runner.main() == 0
+    assert "\033[1;34mUsage:\033[0m" in "\n".join(messages)
 
 
 def test_resolve_backend_python_prefers_backend_venv(monkeypatch, tmp_path):
@@ -77,6 +180,93 @@ def test_resolve_backend_python_falls_back_to_current_interpreter(monkeypatch, t
     monkeypatch.setattr(dev_runner, "BACKEND_DIR", tmp_path / "backend")
 
     assert dev_runner.resolve_backend_python() == sys.executable
+
+
+def test_run_cli_mode_requires_prepper_cli_venv(monkeypatch, tmp_path):
+    messages = []
+
+    monkeypatch.setattr(dev_runner, "CLI_VENV_PYTHON", tmp_path / "python")
+    monkeypatch.setattr(dev_runner, "log", messages.append)
+
+    assert dev_runner.run_cli_mode(("--help",)) == 1
+    assert "prepper-cli virtualenv is missing" in messages[0]
+    assert "Run ./prepper.sh --setup" in messages[1]
+
+
+def test_run_cli_mode_forwards_args_with_wrapper_prog(monkeypatch, tmp_path):
+    calls = []
+    cli_dir = tmp_path / "prepper-cli"
+    cli_dir.mkdir()
+    python_path = tmp_path / "python"
+    python_path.write_text("#!/bin/sh\n", encoding="utf-8")
+    python_path.chmod(0o755)
+
+    def fake_call(cmd, cwd, env):
+        calls.append((cmd, cwd, env["PREPPER_CLI_PROG"]))
+        return 0
+
+    monkeypatch.setattr(dev_runner, "CLI_DIR", cli_dir)
+    monkeypatch.setattr(dev_runner, "CLI_VENV_PYTHON", python_path)
+    monkeypatch.setattr(dev_runner.subprocess, "call", fake_call)
+
+    assert dev_runner.run_cli_mode(("--benchmark", "--color", "--interview-style", "behavioral_focus")) == 0
+    assert calls == [
+        (
+            [str(python_path), "-m", "prepper_cli.main", "--benchmark", "--color", "--interview-style", "behavioral_focus"],
+            cli_dir,
+            "./prepper.sh --interactive",
+        )
+    ]
+
+
+def test_setup_runner_validates_layout(monkeypatch, tmp_path):
+    monkeypatch.setattr(setup_runner, "PREPPER_CLI_DIR", tmp_path / "prepper-cli")
+    monkeypatch.setattr(setup_runner, "BACKEND_DIR", tmp_path / "backend")
+    monkeypatch.setattr(setup_runner, "FRONTEND_DIR", tmp_path / "frontend")
+
+    with pytest.raises(ValueError, match="project root"):
+        setup_runner.validate_layout()
+
+
+def test_setup_runner_creates_missing_env_files_from_examples(monkeypatch, tmp_path):
+    messages = []
+    frontend_dir = tmp_path / "frontend"
+    frontend_dir.mkdir()
+    (tmp_path / ".env.example").write_text("LLM_API_KEY=\n", encoding="utf-8")
+    (frontend_dir / ".env.local.example").write_text(
+        "NEXT_PUBLIC_API_URL=http://127.0.0.1:5000\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(setup_runner, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(setup_runner, "FRONTEND_DIR", frontend_dir)
+
+    setup_runner.ensure_env_files(messages.append)
+
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == "LLM_API_KEY=\n"
+    assert (frontend_dir / ".env.local").read_text(encoding="utf-8").startswith("NEXT_PUBLIC_API_URL=")
+    assert len(messages) == 2
+
+
+def test_setup_runner_builds_expected_install_commands(tmp_path):
+    cli_python = tmp_path / "prepper-cli" / ".venv" / "bin" / "python"
+    backend_python = tmp_path / "backend" / ".venv" / "bin" / "python"
+
+    commands = setup_runner.setup_commands(cli_python, backend_python)
+
+    assert commands[0] == (
+        [str(cli_python), "-m", "pip", "install", "--upgrade", "pip"],
+        setup_runner.PREPPER_CLI_DIR,
+    )
+    assert commands[1][0] == [
+        str(cli_python),
+        "-m",
+        "pip",
+        "install",
+        "--editable",
+        str(setup_runner.PREPPER_CLI_DIR),
+    ]
+    assert commands[-1] == (["npm", "install"], setup_runner.FRONTEND_DIR)
 
 
 def test_select_test_suites_defaults_to_all_in_order():
@@ -263,4 +453,4 @@ def test_validate_layout_exits_when_required_dirs_missing(monkeypatch, tmp_path)
         dev_runner.validate_layout()
 
     assert exc.value.code == 1
-    assert "backend/ and frontend/" in messages[0]
+    assert "backend/, frontend/, and prepper-cli/" in messages[0]

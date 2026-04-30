@@ -8,23 +8,28 @@ Prepper helps you practice interviews with an AI interviewer.
 
 ## Fresh Clone Setup
 
-Use the dedicated setup guide: [SETUP.md](./SETUP.md) or simply run `./setup.sh` from the project root.
+Use the dedicated setup guide: [SETUP.md](./SETUP.md) or run setup from the project root:
+
+```bash
+./prepper.sh --setup
+```
 
 ## Run Both Dev Servers
 
 From the project root:
 
 ```bash
-./run.sh
+./prepper.sh
 ```
 
-`./run.sh` defaults to `--dev` mode. This starts backend and frontend together and prints both logs in one terminal. Press `Ctrl+C` to stop both.
+`./prepper.sh` defaults to `--dev` mode. This starts backend and frontend together and prints both logs in one terminal. Press `Ctrl+C` to stop both.
 
 You can also run modes explicitly:
 
 ```bash
-./run.sh --dev
-./run.sh --dev --color
+./prepper.sh --dev
+./prepper.sh -d
+./prepper.sh --dev --color
 ```
 
 ## Testing
@@ -32,9 +37,10 @@ You can also run modes explicitly:
 Run all tests from the project root with either command:
 
 ```bash
-./run.sh --test
-./run.sh --test --all
-./run.sh --test --color
+./prepper.sh --test
+./prepper.sh -t
+./prepper.sh --test --all
+./prepper.sh --test --color
 ```
 
 This executes backend, prepper-cli, local tooling, and frontend tests in order. It stops on the first failure.
@@ -42,13 +48,13 @@ This executes backend, prepper-cli, local tooling, and frontend tests in order. 
 Run one suite at a time with:
 
 ```bash
-./run.sh --test --backend
-./run.sh --test --frontend
-./run.sh --test --cli
-./run.sh --test --tools
+./prepper.sh --test --backend
+./prepper.sh --test --frontend
+./prepper.sh --test --cli
+./prepper.sh --test --tools
 ```
 
-Add `--color` to force colored runner, pytest, Node test, and Next dev output when your terminal supports it.
+Add `--color` to `--dev` or `--test` to force colored runner, pytest, Node test, and Next dev output when your terminal supports it. For interactive prepper-cli transcripts, pass `--color` after `--interactive` or `-i`. Benchmark transcripts started with `--benchmark` or `-b` use colored output by default.
 
 You can still run the underlying commands manually when debugging a suite:
 
@@ -65,7 +71,8 @@ backend/.venv/bin/python -m pytest tools
 prepper/
 |- backend/
 |- frontend/
-`- prepper-cli/
+|- prepper-cli/
+`- tools/
 ```
 
 ## Backend Setup
@@ -181,7 +188,7 @@ pip install -e .
 
 ### Core Usage
 
-Interactive mode is the default (there is no `--interactive` flag):
+Interactive mode is the default when you run the installed `prepper-cli` command directly:
 
 ```bash
 prepper-cli
@@ -190,52 +197,53 @@ prepper-cli
 From the project root, you can run the same CLI without activating `prepper-cli/.venv` manually:
 
 ```bash
-./cli.sh
+./prepper.sh --interactive
+./prepper.sh -i
 ```
 
 Help and all other flags are passed through unchanged:
 
 ```bash
-./cli.sh --help
-./cli.sh --system-prompt coding_focus --difficulty hard
+./prepper.sh --interactive --help
+./prepper.sh -i --interview-style coding_focus --difficulty hard
 ```
 
 Pick a specific interviewer style:
 
 ```bash
-prepper-cli --system-prompt coding_focus
+prepper-cli --interview-style coding_focus
 ```
 
 List available prompts:
 
 ```bash
-prepper-cli --list-system-prompts
+prepper-cli --list-interview-styles
 ```
 
 Interview tuning:
 
 ```bash
-prepper-cli --system-prompt coding_focus --difficulty hard --question-limit 4 --pass-threshold 7.5
+prepper-cli --interview-style coding_focus --difficulty hard --question-limit 4 --pass-threshold 7.5
 ```
 
 Model settings overrides:
 
 ```bash
-prepper-cli --system-prompt coding_focus --temperature 0.2 --top-p 0.9 --frequency-penalty 0.3 --presence-penalty -0.2 --max-tokens 500
+prepper-cli --interview-style coding_focus --temperature 0.2 --top-p 0.9 --frequency-penalty 0.3 --presence-penalty -0.2 --max-tokens 500
 ```
 
 Color + language:
 
 ```bash
-prepper-cli --color --language de --system-prompt behavioral_focus
-prepper-cli --color --language fr --system-prompt behavioral_focus
+./prepper.sh -i --color --language de --interview-style behavioral_focus
+./prepper.sh -i --color --language fr --interview-style behavioral_focus
 ```
 
 ### Benchmark Mode (Important)
 
 Benchmark mode runs a full simulated interview between:
 
-- interviewer prompt (`--system-prompt`)
+- interviewer style (`--interview-style`)
 - simulated candidate (`strong` by default, or `--weak-candidate`)
 
 Use it to compare prompt quality and interviewer strictness.
@@ -243,31 +251,32 @@ Use it to compare prompt quality and interviewer strictness.
 Run a default benchmark (strong candidate):
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus
+./prepper.sh --benchmark --interview-style behavioral_focus
+./prepper.sh -b --interview-style behavioral_focus
 ```
 
 Simulate a weak candidate:
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus --weak-candidate
+./prepper.sh -b --interview-style behavioral_focus --weak-candidate
 ```
 
 Short, strict coding benchmark:
 
 ```bash
-prepper-cli --benchmark --system-prompt coding_focus --difficulty hard --question-limit 3 --pass-threshold 8.0
+./prepper.sh -b --interview-style coding_focus --difficulty hard --question-limit 3 --pass-threshold 8.0
 ```
 
 Use one model for interview runtime and another for final interviewer scoring:
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus --model openai/gpt-5.4 --benchmark-model openai/gpt-4.1
+./prepper.sh -b --interview-style behavioral_focus --model openai/gpt-5.4 --benchmark-model openai/gpt-4.1
 ```
 
 Print only comparable benchmark result JSON:
 
 ```bash
-prepper-cli --benchmark-json --system-prompt behavioral_focus
+./prepper.sh -i --benchmark-json --interview-style behavioral_focus
 ```
 
 The JSON result includes the runtime model, benchmark scoring model, and resolved runtime model settings.
@@ -275,13 +284,14 @@ The JSON result includes the runtime model, benchmark scoring model, and resolve
 German and French benchmark run:
 
 ```bash
-prepper-cli --benchmark --system-prompt behavioral_focus --language de --question-limit 2
-prepper-cli --benchmark --system-prompt behavioral_focus --language fr --question-limit 2
+./prepper.sh -b --interview-style behavioral_focus --language de --question-limit 2
+./prepper.sh -b --interview-style behavioral_focus --language fr --question-limit 2
 ```
 
 Notes:
 
 - `--benchmark` prints the live transcript and bottom evaluation summary
+- `-b` is the short alias for `--benchmark`
 - `--benchmark-json` runs benchmark mode without transcript output and prints interviewer result JSON
 - Use either `--benchmark` or `--benchmark-json`, not both
 - `--strong-candidate` and `--weak-candidate` only work in benchmark mode

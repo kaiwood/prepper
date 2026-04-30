@@ -100,7 +100,7 @@ Run only what is relevant to your change.
 - Backend tests: `cd backend && .venv/bin/python -m pytest tests -q`
 - Frontend tests: `cd frontend && npm run test:unit`
 - prepper-cli tests: `cd prepper-cli && .venv/bin/python -m pytest tests -q`
-- Full dev runner (root): `./run.sh`
+- Full dev runner (root): `./prepper.sh`
 
 ## Change Discipline
 
