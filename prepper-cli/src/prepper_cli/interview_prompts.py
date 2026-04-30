@@ -22,9 +22,10 @@ def build_difficulty_instruction(difficulty: str) -> str:
 
     return (
         "\n\nDifficulty mode: Senior-level (medium). "
-        "Use realistic production-oriented coding challenges with moderate ambiguity. "
+        "Use realistic implementation challenges with moderate ambiguity. "
+        "Avoid open-ended architecture, distributed systems, or concurrency-heavy designs unless they are narrowly scoped. "
         "Expect strong trade-off reasoning, robust edge-case handling, and clear communication. "
-        "Provide limited hints only when appropriate."
+        "Provide limited framing hints when they help the candidate make a precise answer."
     )
 
 
@@ -58,6 +59,91 @@ def build_runtime_interview_instruction(
         "Set interview_complete to false. "
         "Only the runtime override after the configured question limit may end the interview. "
         "Do not call a question final unless it is the last remaining scored question."
+    )
+
+
+def _interview_stage_family(descriptor: PromptDescriptor) -> str:
+    prompt_identity = f"{descriptor.id} {descriptor.name}".casefold()
+    if "behavior" in prompt_identity:
+        return "behavioral"
+    if "coding" in prompt_identity or "technical" in prompt_identity:
+        return "coding"
+    return "general"
+
+
+def _select_stage_focus(stages: tuple[str, ...], question_count: int) -> str:
+    stage_index = max(0, min(question_count, len(stages) - 1))
+    return stages[stage_index]
+
+
+def build_active_stage_instruction(
+    descriptor: PromptDescriptor,
+    question_count: int,
+    question_limit: int,
+) -> str:
+    family = _interview_stage_family(descriptor)
+    next_question_number = min(question_count + 1, question_limit)
+
+    if family == "behavioral":
+        stage_focus = _select_stage_focus(
+            (
+                "establish the STAR situation, task, and intended outcome",
+                "force concrete ownership, actions, and decisions with specific examples",
+                "probe trade-offs, conflict, constraints, and decision rationale",
+                "make the result measurable and connect it to stakeholders or business impact",
+                "ask for reflection, lessons learned, or what they would do differently",
+            ),
+            question_count,
+        )
+        weak_answer_guidance = (
+            "If the latest answer is vague, ask for a named decision, concrete action, "
+            "measurable result, or exact stakeholder impact instead of moving to a new story. "
+        )
+    elif family == "coding":
+        stage_focus = _select_stage_focus(
+            (
+                "present a scoped implementation problem with concrete inputs, outputs, constraints, and one example",
+                "probe one edge case with a manageable trace and ask for the next exact state change",
+                "ask for pseudocode for one important operation or branch, plus its complexity",
+                "check one correctness invariant or one missing edge case from the candidate's last answer",
+                "use the final active question for one technical proof, edge case, or complexity guarantee still missing",
+            ),
+            question_count,
+        )
+        weak_answer_guidance = (
+            "If the latest answer is vague or hedged, briefly frame the missing concept, then ask for exact pseudocode, a worked trace, "
+            "a correctness invariant, or the precise state stored before broad trade-offs. "
+            "A framing hint may name one viable structure or convention, but must not solve the whole problem. "
+            "Do not leave exact formulas, index arithmetic, or complexity analysis until the final active question. "
+        )
+    else:
+        stage_focus = _select_stage_focus(
+            (
+                "establish the candidate's approach and key assumptions",
+                "probe missing details, constraints, and edge cases",
+                "ask for concrete steps and decision rationale",
+                "challenge trade-offs, correctness, and measurable impact",
+                "ask for reflection, alternatives, or lessons learned",
+            ),
+            question_count,
+        )
+        weak_answer_guidance = (
+            "If the latest answer is vague, ask for one concrete example, exact next step, "
+            "or decision rationale before changing topic. "
+        )
+
+    return (
+        "\n\nActive interview stage guidance: "
+        f"The next scored question is {next_question_number}/{question_limit}. "
+        f"Stage focus: {stage_focus}. "
+        "Use this focus as guidance, not as a script. "
+        "Ground the next question in the candidate's latest answer and ask for the most important missing detail. "
+        f"{weak_answer_guidance}"
+        "Keep all numeric limits, examples, and assumptions consistent with the original problem statement. "
+        "Ask one concise question, not a multi-part checklist or numbered list. "
+        "If the previous answer missed your request, adapt by narrowing to the next smallest concrete step instead of repeating the same broad prompt. "
+        "Do not repeat a prior interviewer question or restate the same fallback wording. "
+        "Ask exactly one candidate-facing question."
     )
 
 
@@ -103,6 +189,13 @@ def build_active_interview_system_prompt(
     ]
     if difficulty is not None:
         sections.append(build_difficulty_instruction(difficulty))
+    sections.append(
+        build_active_stage_instruction(
+            descriptor=descriptor,
+            question_count=question_count,
+            question_limit=question_limit,
+        )
+    )
     sections.append(build_runtime_interview_instruction(question_count, question_limit))
     return "".join(sections)
 
