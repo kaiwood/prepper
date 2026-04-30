@@ -115,14 +115,14 @@ def print_interviewer_result(
         write_line(output, "", enable_color=enable_color)
     write_line(
         output,
-        f"Weighted score: {interviewer_result['overall_score']:.2f} / 10.00 | "
+        f"Interviewer score: {interviewer_result['overall_score']:.2f} / 10.00 | "
         f"Threshold: {interviewer_result['pass_threshold']:.2f} | "
         f"Passed: {str(interviewer_result['passed']).lower()}",
         enable_color=enable_color,
     )
     write_line(
         output,
-        f"Rubric-only score: {interviewer_result['rubric_overall_score']:.2f} | "
+        f"Rubric score: {interviewer_result['rubric_overall_score']:.2f} | "
         f"Candidate component: {interviewer_result['candidate_score_component']:.2f}",
         enable_color=enable_color,
     )

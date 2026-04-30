@@ -33,7 +33,9 @@ def build_metadata_contract_instruction() -> str:
     return (
         "\n\nResponse format requirement: End EVERY interviewer reply with a single metadata suffix "
         f"line in this exact format: {METADATA_PREFIX} {{\"turn_type\":\"QUESTION|OTHER\",\"interview_complete\":true|false}}. "
-        "Do not add extra keys. Keep metadata valid JSON on a single line."
+        "The metadata suffix must be the final line of the reply. "
+        "Do not wrap it in Markdown fences, explain it, repeat it, or add extra keys. "
+        "Before finishing, verify the metadata is valid JSON on a single line and matches the visible reply."
     )
 
 
@@ -106,7 +108,7 @@ def build_active_stage_instruction(
                 "probe one edge case with a manageable trace and ask for the next exact state change",
                 "ask for pseudocode for one important operation or branch, plus its complexity",
                 "check one correctness invariant or one missing edge case from the candidate's last answer",
-                "use the final active question for one technical proof, edge case, or complexity guarantee still missing",
+                "use the final active question to request a complete polished algorithm or the most important missing edge case, invariant, or complexity guarantee",
             ),
             question_count,
         )
@@ -138,12 +140,27 @@ def build_active_stage_instruction(
         f"Stage focus: {stage_focus}. "
         "Use this focus as guidance, not as a script. "
         "Ground the next question in the candidate's latest answer and ask for the most important missing detail. "
+        "Completing a previously requested artifact has priority over advancing to the next stage. "
         f"{weak_answer_guidance}"
         "Keep all numeric limits, examples, and assumptions consistent with the original problem statement. "
         "Ask one concise question, not a multi-part checklist or numbered list. "
-        "If the previous answer missed your request, adapt by narrowing to the next smallest concrete step instead of repeating the same broad prompt. "
+        "If the previous answer missed your request, adapt by narrowing to the next smallest concrete step instead of repeating the same broad prompt or moving to a new concept. "
+        "For coding interviews, if the candidate did not provide requested pseudocode, trace, state update, or complexity detail, ask for that exact missing artifact before asking broader trade-off questions. "
+        "Late in a coding interview, if the candidate's solution is still imprecise, ask for a complete polished algorithm or pseudocode instead of only probing another narrow invariant. "
         "Do not repeat a prior interviewer question or restate the same fallback wording. "
         "Ask exactly one candidate-facing question."
+    )
+
+
+def build_active_reply_self_check_instruction() -> str:
+    return (
+        "\n\nBefore replying in active interview mode, silently check: "
+        "the reply asks exactly one candidate-facing question; "
+        "the question is grounded in the candidate's latest answer and the current stage focus; "
+        "the visible text is concise professional interviewer prose, usually 1-3 short sentences before metadata; "
+        "the reply does not use bullets, numbered lists, or checklist wording; "
+        "the reply does not close the interview, say the interview is over, or thank the candidate for their time; "
+        "the final line is exactly one valid metadata suffix, with interview_complete false and turn_type matching the visible reply."
     )
 
 
@@ -197,6 +214,7 @@ def build_active_interview_system_prompt(
             question_limit=question_limit,
         )
     )
+    sections.append(build_active_reply_self_check_instruction())
     sections.append(build_runtime_interview_instruction(question_count, question_limit))
     return "".join(sections)
 
