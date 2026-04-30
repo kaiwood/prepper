@@ -21,6 +21,12 @@ prepper/
 
 Services run independently (no Docker/orchestration in repo defaults).
 
+## File Naming
+
+- Python test files must start with `test_`.
+- Non-test helper modules must not start with `test_`.
+- In `tools/`, use clear responsibility names like `bootstrap.py`, `dev_servers.py`, `local_cli.py`, and `suite_runner.py`.
+
 ## Environment and Dependency Rules
 
 ### Python (backend and prepper-cli)
