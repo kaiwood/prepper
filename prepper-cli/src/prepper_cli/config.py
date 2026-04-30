@@ -27,19 +27,30 @@ def load_default_system_prompt_name() -> str:
 
 def resolve_model_name(model: str | None = None) -> str:
     load_dotenv()
-    resolved = model or os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
+    resolved = (
+        model
+        or os.environ.get("LLM_MODEL")
+        or os.environ.get("OPENROUTER_MODEL")
+        or DEFAULT_OPENROUTER_MODEL
+    )
     return resolved.strip() or DEFAULT_OPENROUTER_MODEL
 
 
 def load_config() -> OpenRouterConfig:
     load_dotenv()
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    api_key = (
+        os.environ.get("LLM_API_KEY")
+        or os.environ.get("OPENROUTER_API_KEY")
+        or ""
+    ).strip()
     if not api_key:
-        raise ValueError("OPENROUTER_API_KEY is required")
+        raise ValueError("LLM_API_KEY or OPENROUTER_API_KEY is required")
 
-    base_url = os.environ.get(
-        "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
+    base_url = (
+        os.environ.get("LLM_BASE_URL")
+        or os.environ.get("OPENROUTER_BASE_URL")
+        or "https://openrouter.ai/api/v1"
     ).strip()
     model = resolve_model_name()
     default_system_prompt = load_default_system_prompt_name()

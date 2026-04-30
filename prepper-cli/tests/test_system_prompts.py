@@ -94,7 +94,7 @@ def test_load_prompt_descriptor_returns_correct_fields():
     assert descriptor.top_p == pytest.approx(1.0)
     assert descriptor.frequency_penalty == pytest.approx(0.2)
     assert descriptor.presence_penalty == pytest.approx(0.0)
-    assert descriptor.max_tokens == 5000
+    assert descriptor.max_tokens == 1200
     assert descriptor.interview_rating_enabled is True
     assert descriptor.default_question_roundtrips == 5
     assert descriptor.min_question_roundtrips == 1
@@ -121,7 +121,7 @@ def test_load_prompt_descriptor_behavioral_focus():
     assert descriptor.id == "behavioral_focus"
     assert descriptor.name == "Behavioral Interview"
     assert descriptor.temperature == pytest.approx(0.5)
-    assert descriptor.max_tokens == 5000
+    assert descriptor.max_tokens == 1200
     assert descriptor.interview_rating_enabled is True
     assert descriptor.pass_threshold == pytest.approx(7.0)
 

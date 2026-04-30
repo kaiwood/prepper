@@ -11,6 +11,8 @@ _MODEL_SETTING_BOUNDS = {
     "frequency_penalty": (-2.0, 2.0),
     "presence_penalty": (-2.0, 2.0),
 }
+_MIN_MAX_TOKENS = 1
+_MAX_MAX_TOKENS = 100000
 
 
 def resolve_roundtrip_limit(
@@ -86,6 +88,21 @@ def resolve_model_setting_override(name: str, value: object) -> float | None:
     return numeric_value
 
 
+def resolve_max_tokens_override(value: object) -> int | None:
+    if value is None:
+        return None
+
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("max_tokens must be an integer")
+
+    if value < _MIN_MAX_TOKENS or value > _MAX_MAX_TOKENS:
+        raise ValueError(
+            f"max_tokens must be between {_MIN_MAX_TOKENS} and {_MAX_MAX_TOKENS}"
+        )
+
+    return value
+
+
 def resolve_model_settings(
     data: dict,
     descriptor: PromptDescriptor,
@@ -100,6 +117,7 @@ def resolve_model_settings(
     presence_penalty = resolve_model_setting_override(
         "presence_penalty", data.get("presence_penalty")
     )
+    max_tokens = resolve_max_tokens_override(data.get("max_tokens"))
 
     return {
         "temperature": descriptor.temperature if temperature is None else temperature,
@@ -114,7 +132,7 @@ def resolve_model_settings(
             if presence_penalty is None
             else presence_penalty
         ),
-        "max_tokens": descriptor.max_tokens,
+        "max_tokens": descriptor.max_tokens if max_tokens is None else max_tokens,
     }
 
 

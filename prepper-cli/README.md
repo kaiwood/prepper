@@ -33,10 +33,20 @@ pip install pytest
 From the monorepo root, create root `.env` (or export env vars):
 
 ```bash
-OPENROUTER_API_KEY=your_key_here
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_MODEL=openai/gpt-5.4
+LLM_API_KEY=your_key_here
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=openai/gpt-5.4
 PREPPER_DEFAULT_SYSTEM_PROMPT=coding_focus
+```
+
+The older `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `OPENROUTER_MODEL` names are still supported as fallbacks.
+
+For a local llama.cpp server, set:
+
+```env
+LLM_API_KEY=local-dummy
+LLM_BASE_URL=http://127.0.0.1:8080/v1
+LLM_MODEL=ministral
 ```
 
 ## CLI Usage
@@ -170,7 +180,7 @@ temperature: 0.3
 top_p: 1.0
 frequency_penalty: 0.2
 presence_penalty: 0.0
-max_tokens: 5000
+max_tokens: 1200
 ---
 ```
 

@@ -152,6 +152,7 @@ def test_chat_allows_model_setting_overrides(monkeypatch):
             "top_p": 0.6,
             "frequency_penalty": -0.4,
             "presence_penalty": 0.8,
+            "max_tokens": 900,
         },
     )
 
@@ -160,7 +161,7 @@ def test_chat_allows_model_setting_overrides(monkeypatch):
     assert captured["top_p"] == 0.6
     assert captured["frequency_penalty"] == -0.4
     assert captured["presence_penalty"] == 0.8
-    assert captured["max_tokens"] == 500
+    assert captured["max_tokens"] == 900
 
 
 def test_chat_rejects_invalid_selected_system_prompt(monkeypatch):
@@ -225,9 +226,9 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
 
     descriptors = [
         _make_descriptor("behavioral_focus", name="Behavioral Interview", temperature=0.5,
-                         top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=5000),
+                         top_p=0.95, frequency_penalty=0.2, presence_penalty=0.1, max_tokens=1200),
         _make_descriptor("coding_focus", name="Coding Interview", temperature=0.3,
-                         top_p=1.0, frequency_penalty=0.2, presence_penalty=0.0, max_tokens=5000,
+                         top_p=1.0, frequency_penalty=0.2, presence_penalty=0.0, max_tokens=1200,
                          difficulty_enabled=True, difficulty_levels=("easy", "medium", "hard"),
                          default_difficulty="medium"),
     ]
@@ -257,7 +258,7 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     assert coding["top_p"] == 1.0
     assert coding["frequency_penalty"] == 0.2
     assert coding["presence_penalty"] == 0.0
-    assert coding["max_tokens"] == 5000
+    assert coding["max_tokens"] == 1200
     assert coding["interview_rating_enabled"] is False
     assert coding["default_question_roundtrips"] == 5
     assert coding["min_question_roundtrips"] == 1
