@@ -4,7 +4,7 @@ Prepper helps you practice interviews with an AI interviewer.
 
 - `backend/`: Flask API that proxies requests to OpenRouter
 - `frontend/`: Next.js web app
-- `prepper-cli/`: reusable Python package + CLI for local interview practice and benchmarking
+- `app/`: reusable Python package + CLI for local interview practice and benchmarking
 
 ## Fresh Clone Setup
 
@@ -43,7 +43,7 @@ Run all tests from the project root with either command:
 ./prepper.sh --test --color
 ```
 
-This executes backend, prepper-cli, local tooling, and frontend tests in order. It stops on the first failure.
+This executes backend, CLI, local tooling, and frontend tests in order. It stops on the first failure.
 
 Run one suite at a time with:
 
@@ -61,7 +61,7 @@ You can still run the underlying commands manually when debugging a suite:
 ```bash
 cd frontend && npm run test:unit
 (cd backend && .venv/bin/python -m pytest tests -q)
-(cd prepper-cli && .venv/bin/python -m pytest tests -q)
+(cd app && .venv/bin/python -m pytest tests -q)
 backend/.venv/bin/python -m pytest tools
 ```
 
@@ -71,7 +71,7 @@ backend/.venv/bin/python -m pytest tools
 prepper/
 |- backend/
 |- frontend/
-|- prepper-cli/
+|- app/
 `- tools/
 ```
 
@@ -156,7 +156,7 @@ Default log level is `INFO`.
 
 ## Prompt Front Matter (Auto-Applied)
 
-Each prompt file in `prepper-cli/src/prepper_cli/prompts/` supports YAML front matter settings:
+Each prompt file in `app/src/prepper_cli/prompts/` supports YAML front matter settings:
 
 ```yaml
 ---
@@ -180,7 +180,7 @@ The bundled interview prompts currently default `max_tokens` to `1200`; lower th
 
 ```bash
 cp .env.example .env # If not already done
-cd prepper-cli
+cd app
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
@@ -194,7 +194,7 @@ Interactive mode is the default when you run the installed `prepper-cli` command
 prepper-cli
 ```
 
-From the project root, you can run the same CLI without activating `prepper-cli/.venv` manually:
+From the project root, you can run the same CLI without activating `app/.venv` manually:
 
 ```bash
 ./prepper.sh --interactive

@@ -5,7 +5,7 @@
 ## What It Includes
 
 ```text
-prepper-cli/
+app/
 |- src/prepper_cli/main.py           # CLI entry point
 |- src/prepper_cli/chat.py           # get_chat_reply()
 |- src/prepper_cli/conversation.py   # in-memory conversation history
@@ -18,7 +18,7 @@ prepper-cli/
 ## Setup
 
 ```bash
-cd prepper-cli
+cd app
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
@@ -51,7 +51,7 @@ LLM_MODEL=ministral
 
 ## CLI Usage
 
-From the monorepo root, you can run the same CLI via `./prepper.sh --interactive` without manually activating `prepper-cli/.venv`.
+From the monorepo root, you can run the same CLI via `./prepper.sh --interactive` without manually activating `app/.venv`.
 
 ### Interactive Mode (Default)
 

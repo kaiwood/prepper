@@ -187,20 +187,20 @@ def test_resolve_backend_python_falls_back_to_current_interpreter(monkeypatch, t
     assert local_cli.resolve_backend_python() == sys.executable
 
 
-def test_run_cli_mode_requires_prepper_cli_venv(monkeypatch, tmp_path):
+def test_run_cli_mode_requires_cli_venv(monkeypatch, tmp_path):
     messages = []
 
     monkeypatch.setattr(local_cli, "CLI_VENV_PYTHON", tmp_path / "python")
     monkeypatch.setattr(local_cli, "log", messages.append)
 
     assert local_cli.run_cli_mode(("--help",)) == 1
-    assert "prepper-cli virtualenv is missing" in messages[0]
+    assert "CLI virtualenv is missing" in messages[0]
     assert "Run ./prepper.sh --setup" in messages[1]
 
 
 def test_run_cli_mode_forwards_args_with_wrapper_prog(monkeypatch, tmp_path):
     calls = []
-    cli_dir = tmp_path / "prepper-cli"
+    cli_dir = tmp_path / "app"
     cli_dir.mkdir()
     python_path = tmp_path / "python"
     python_path.write_text("#!/bin/sh\n", encoding="utf-8")
@@ -225,7 +225,7 @@ def test_run_cli_mode_forwards_args_with_wrapper_prog(monkeypatch, tmp_path):
 
 
 def test_bootstrap_validates_layout(monkeypatch, tmp_path):
-    monkeypatch.setattr(bootstrap, "PREPPER_CLI_DIR", tmp_path / "prepper-cli")
+    monkeypatch.setattr(bootstrap, "PREPPER_CLI_DIR", tmp_path / "app")
     monkeypatch.setattr(bootstrap, "BACKEND_DIR", tmp_path / "backend")
     monkeypatch.setattr(bootstrap, "FRONTEND_DIR", tmp_path / "frontend")
 
@@ -254,7 +254,7 @@ def test_bootstrap_creates_missing_env_files_from_examples(monkeypatch, tmp_path
 
 
 def test_bootstrap_builds_expected_install_commands(tmp_path):
-    cli_python = tmp_path / "prepper-cli" / ".venv" / "bin" / "python"
+    cli_python = tmp_path / "app" / ".venv" / "bin" / "python"
     backend_python = tmp_path / "backend" / ".venv" / "bin" / "python"
 
     commands = bootstrap.setup_commands(cli_python, backend_python)
@@ -458,4 +458,4 @@ def test_validate_layout_exits_when_required_dirs_missing(monkeypatch, tmp_path)
         local_cli.validate_layout()
 
     assert exc.value.code == 1
-    assert "backend/, frontend/, and prepper-cli/" in messages[0]
+    assert "app/, backend/, and frontend/" in messages[0]

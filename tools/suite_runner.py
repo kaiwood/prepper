@@ -8,7 +8,7 @@ from typing import Callable, Dict, List, Optional
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_DIR = PROJECT_ROOT / "backend"
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
-CLI_DIR = PROJECT_ROOT / "prepper-cli"
+CLI_DIR = PROJECT_ROOT / "app"
 
 LogFn = Callable[[str], None]
 

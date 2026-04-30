@@ -1,6 +1,6 @@
 # Setup After Fresh Clone
 
-Use separate virtual environments in `prepper-cli/` and `backend/`. Do not create a root-level `.venv`.
+Use separate virtual environments in `app/` and `backend/`. Do not create a root-level `.venv`.
 
 ## Prerequisites
 
@@ -12,12 +12,12 @@ Use separate virtual environments in `prepper-cli/` and `backend/`. Do not creat
 From the project root:
 
 ```bash
-# 0) root env file (shared by prepper-cli and backend)
+# 0) root env file (shared by CLI and backend)
 cp .env.example .env           # if .env does not exist
 # set LLM_API_KEY or OPENROUTER_API_KEY in .env
 
-# 1) prepper-cli venv + editable install
-cd prepper-cli
+# 1) CLI venv + editable install
+cd app
 python3 -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
@@ -41,7 +41,7 @@ npm install
 cd ..
 ```
 
-`--editable` (same as `-e`) links `prepper-cli` to local source so edits are picked up without reinstalling.
+`--editable` (same as `-e`) links the CLI package to local source so edits are picked up without reinstalling.
 
 ## Environment Files and API Key
 
@@ -77,8 +77,8 @@ Run from project root:
 
 This script automates all steps above:
 
-- Creates/uses `prepper-cli/.venv` and `backend/.venv`
-- Installs `prepper-cli` with `pip install --editable .`
+- Creates/uses `app/.venv` and `backend/.venv`
+- Installs the CLI package with `pip install --editable .`
 - Installs backend dependencies
 - Runs `npm install` in `frontend/`
 - Copies `frontend/.env.local.example` to `frontend/.env.local` when missing (and writes a safe default URL if the example file is unavailable)
@@ -90,4 +90,4 @@ After setup, you can run the Prepper CLI directly from project root:
 ./prepper.sh --interactive --help
 ```
 
-The root control script forwards interactive CLI flags to `prepper-cli` and uses `prepper-cli/.venv` automatically.
+The root control script forwards interactive CLI flags to `prepper-cli` and uses `app/.venv` automatically.

@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - Python < 3.14 fallback
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_DIR = PROJECT_ROOT / "backend"
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
-CLI_DIR = PROJECT_ROOT / "prepper-cli"
+CLI_DIR = PROJECT_ROOT / "app"
 CLI_VENV_PYTHON = CLI_DIR / ".venv" / "bin" / "python"
 
 if __package__ in (None, ""):
@@ -172,7 +172,7 @@ def _option_line(flags: str, description: str, theme) -> str:
 def validate_layout() -> None:
     if not BACKEND_DIR.is_dir() or not FRONTEND_DIR.is_dir() or not CLI_DIR.is_dir():
         log(
-            "Error: tools/local_cli.py must be run from the prepper project root (with backend/, frontend/, and prepper-cli/)."
+            "Error: tools/local_cli.py must be run from the prepper project root (with app/, backend/, and frontend/)."
         )
         sys.exit(1)
 
@@ -223,10 +223,10 @@ def print_usage(force_color: bool = False) -> None:
     log("")
     log(_heading("Tests:", theme))
     log(_option_line("--test, -t", "Run all test suites.", theme))
-    log(_option_line("--test --all", "Run backend, prepper-cli, tooling, and frontend tests.", theme))
+    log(_option_line("--test --all", "Run backend, CLI, tooling, and frontend tests.", theme))
     log(_option_line("--test --backend", "Run backend tests only.", theme))
     log(_option_line("--test --frontend", "Run frontend tests only.", theme))
-    log(_option_line("--test --cli", "Run prepper-cli tests only.", theme))
+    log(_option_line("--test --cli", "Run CLI tests only.", theme))
     log(_option_line("--test --tools", "Run local tooling tests only.", theme))
     log(_option_line("--color", "With --test, force colored runner and child output.", theme))
     log("")
@@ -346,7 +346,7 @@ def parse_mode(argv: List[str]) -> str:
 
 def run_cli_mode(cli_args: Tuple[str, ...]) -> int:
     if not CLI_VENV_PYTHON.exists() or not os.access(CLI_VENV_PYTHON, os.X_OK):
-        log("Error: prepper-cli virtualenv is missing at prepper-cli/.venv.")
+        log("Error: CLI virtualenv is missing at app/.venv.")
         log("Run ./prepper.sh --setup and try again.")
         return 1
 

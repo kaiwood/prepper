@@ -13,9 +13,9 @@ Prepper is interview-prep tooling only.
 
 ```text
 prepper/
+|- app/          # Python package consumed by CLI + backend
 |- backend/      # Flask API
 |- frontend/     # Next.js app (App Router, TypeScript, Tailwind)
-|- prepper-cli/  # Python package consumed by CLI + backend
 `- tools/        # Local development helper scripts
 ```
 
@@ -29,14 +29,14 @@ Services run independently (no Docker/orchestration in repo defaults).
 
 ## Environment and Dependency Rules
 
-### Python (backend and prepper-cli)
+### Python (backend and CLI)
 
 - Always run Python commands from the service directory.
   - Good: `cd backend && .venv/bin/python -m pytest tests -q`
-  - Good: `cd prepper-cli && .venv/bin/python -m pytest tests -q`
+  - Good: `cd app && .venv/bin/python -m pytest tests -q`
 - Do not create a root-level virtualenv.
-- Backend and prepper-cli use separate `.venv` environments.
-- Install `prepper-cli` as editable where needed (`pip install -e ../prepper-cli`).
+- Backend and CLI use separate `.venv` environments.
+- Install `prepper-cli` as editable where needed (`pip install -e ../app`).
 
 ### Node (frontend)
 
@@ -47,7 +47,7 @@ Services run independently (no Docker/orchestration in repo defaults).
 
 - Backend: root `.env` (`OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`)
 - Frontend: `frontend/.env.local` (`NEXT_PUBLIC_API_URL`)
-- prepper-cli: root `.env` (`OPENROUTER_API_KEY`, optional model/base URL overrides)
+- CLI: root `.env` (`OPENROUTER_API_KEY`, optional model/base URL overrides)
 - Never commit real env files; keep and update example templates.
 
 ## Current Runtime Behavior (Source of Truth)
@@ -83,16 +83,16 @@ When instructions conflict with implementation, follow current code behavior and
   - start interview sessions via `/api/chat/start` when needed
   - continue turns via `/api/chat` with `interview_id` and `conversation_history`
 
-## prepper-cli Conventions
+## CLI Conventions
 
-- Public package surface should be exported from `prepper-cli/src/prepper_cli/__init__.py`.
-- System prompt files live in `prepper-cli/src/prepper_cli/prompts/` and use front matter metadata.
+- Public package surface should be exported from `app/src/prepper_cli/__init__.py`.
+- System prompt files live in `app/src/prepper_cli/prompts/` and use front matter metadata.
 - CLI supports interactive interview flow and benchmark mode; preserve flag behavior in `main.py`.
 - Keep config and OpenRouter client creation centralized (`config.py`, `client.py`).
 
 ## Prompt Refinement Rules
 
-- Start from the existing prompt files and shared prompt builders in `prepper-cli`.
+- Start from the existing prompt files and shared prompt builders in the CLI package.
 - Keep prompt changes minimal, readable, and aligned with live interview behavior.
 - Do not create parallel prompt implementations in backend or frontend code.
 - Preserve the metadata contract and the rule that active interviews must not include goodbye or closing language before the configured question limit.
@@ -105,7 +105,7 @@ Run only what is relevant to your change.
 
 - Backend tests: `cd backend && .venv/bin/python -m pytest tests -q`
 - Frontend tests: `cd frontend && npm run test:unit`
-- prepper-cli tests: `cd prepper-cli && .venv/bin/python -m pytest tests -q`
+- CLI tests: `cd app && .venv/bin/python -m pytest tests -q`
 - Full dev runner (root): `./prepper.sh`
 
 ## Change Discipline
