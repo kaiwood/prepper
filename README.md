@@ -228,6 +228,7 @@ Color + language:
 
 ```bash
 prepper-cli --color --language de --system-prompt behavioral_focus
+prepper-cli --color --language fr --system-prompt behavioral_focus
 ```
 
 ### Benchmark Mode (Important)
@@ -271,10 +272,11 @@ prepper-cli --benchmark-json --system-prompt behavioral_focus
 
 The JSON result includes the runtime model, benchmark scoring model, and resolved runtime model settings.
 
-German benchmark run:
+German and French benchmark run:
 
 ```bash
 prepper-cli --benchmark --system-prompt behavioral_focus --language de --question-limit 2
+prepper-cli --benchmark --system-prompt behavioral_focus --language fr --question-limit 2
 ```
 
 Notes:

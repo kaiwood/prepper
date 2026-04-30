@@ -14,6 +14,7 @@ _PROMPT_INJECTION_GUARDRAIL = (
 _LANGUAGE_NAMES = {
     "en": "English",
     "de": "German",
+    "fr": "French",
 }
 
 

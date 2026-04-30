@@ -38,7 +38,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--language",
-        choices=["en", "de"],
+        choices=["en", "de", "fr"],
         help="Response language code",
     )
     parser.add_argument(

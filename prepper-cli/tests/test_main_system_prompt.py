@@ -824,7 +824,7 @@ def test_benchmark_mode_passes_model_setting_overrides(monkeypatch):
 def test_help_makes_candidate_flags_benchmark_only_clear():
     help_text = main._build_parser().format_help()
 
-    assert "--language {en,de}" in help_text
+    assert "--language {en,de,fr}" in help_text
     assert "--temperature TEMPERATURE" in help_text
     assert "--top-p TOP_P" in help_text
     assert "--frequency-penalty FREQUENCY_PENALTY" in help_text
@@ -854,7 +854,7 @@ def test_help_lists_benchmark_options_in_expected_order():
     help_text = main._build_parser().format_help()
 
     difficulty_index = help_text.index("--difficulty {easy,medium,hard}")
-    language_index = help_text.index("--language {en,de}")
+    language_index = help_text.index("--language {en,de,fr}")
     pass_threshold_index = help_text.index("--pass-threshold PASS_THRESHOLD")
     question_limit_index = help_text.index("--question-limit QUESTION_LIMIT")
     temperature_index = help_text.index("--temperature TEMPERATURE")

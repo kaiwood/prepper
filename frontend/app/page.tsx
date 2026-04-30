@@ -122,7 +122,9 @@ function readStoredLanguage(): LanguageCode {
   }
 
   const storedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  return storedLanguage === "en" || storedLanguage === "de"
+  return storedLanguage === "en"
+    || storedLanguage === "de"
+    || storedLanguage === "fr"
     ? storedLanguage
     : DEFAULT_LANGUAGE;
 }

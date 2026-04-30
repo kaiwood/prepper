@@ -1,4 +1,4 @@
-export type LanguageCode = "en" | "de";
+export type LanguageCode = "en" | "de" | "fr";
 
 export const LANGUAGE_STORAGE_KEY = "prepper-language";
 
@@ -8,6 +8,7 @@ export const LANGUAGE_DISPLAY: Record<
 > = {
   en: { flag: "🇬🇧", label: "English" },
   de: { flag: "🇩🇪", label: "Deutsch" },
+  fr: { flag: "🇫🇷", label: "Francais" },
 };
 
 type TranslationStrings = {
@@ -153,5 +154,54 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
       "Interview ist abgeschlossen. Setze das Gespraech zurueck, um neu zu starten.",
     injectionWarning:
       "Diese Nachricht enthaelt Muster, die oft bei Prompt-Injection-Versuchen genutzt werden. Sie wird trotzdem gesendet, aber bewerte die Antwort mit Vorsicht.",
+  },
+  fr: {
+    appTitle: "Prepper",
+    appSubtitle: "Preparation aux entretiens techniques, avec IA.",
+    promptLabel: "Type d'entretien",
+    promptLoading: "Chargement des prompts...",
+    promptUnavailable: "Liste des prompts indisponible",
+    promptLockedHint: "Reinitialisez la conversation pour choisir un autre entretien.",
+    settingsLabel: "Parametres",
+    advancedSettingsLabel: "Parametres avances",
+    advancedSettingsHint:
+      "Ces controles remplacent les parametres par defaut du prompt selectionne pour cette session.",
+    temperatureLabel: "Temperature",
+    topPLabel: "Top P",
+    frequencyPenaltyLabel: "Penalite de frequence",
+    presencePenaltyLabel: "Penalite de presence",
+    conversationEmpty:
+      "Choisissez un type d'entretien, puis demarrez pour recevoir la premiere question.",
+    thinking: "Analyse...",
+    inputPlaceholderStarted: "Repondez a l'intervieweur...",
+    inputPlaceholderNotStarted:
+      "Choisissez un entretien et demarrez pour activer le champ de reponse...",
+    startInterview: "Demarrer l'entretien",
+    starting: "Demarrage...",
+    resetConversation: "Reinitialiser la conversation",
+    send: "Envoyer",
+    errorLoadPrompts: "Impossible de charger les prompts systeme.",
+    errorFallback: "Une erreur s'est produite.",
+    errorBackendUnavailable: "Impossible de contacter le backend.",
+    questionLimitLabel: "Limite de questions evaluees",
+    questionLimitHint:
+      "Seules les nouvelles questions de l'entretien sont comptees. Les clarifications ne le sont pas.",
+    difficultyLabel: "Niveau d'entretien",
+    difficultyHint:
+      "Junior = champ plus simple et plus d'indices. Principal = ambiguite plus forte et evaluation plus rigoureuse.",
+    difficultyJunior: "Junior",
+    difficultySenior: "Senior",
+    difficultyPrincipal: "Principal",
+    interviewComplete: "Entretien termine",
+    scoreLabel: "Score global",
+    passLabel: "Reussi",
+    failLabel: "Echoue",
+    strengthsLabel: "Points forts",
+    improvementsLabel: "Ameliorations",
+    rubricLabel: "Notes par criteres",
+    interviewLockedPlaceholder:
+      "Entretien termine. Reinitialisez la conversation pour demarrer un nouveau.",
+    injectionWarning:
+      "Ce message contient des motifs utilises souvent pour des tentatives d'injection. Il sera envoye, mais analysez la reponse avec prudence.",
   },
 };
