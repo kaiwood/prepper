@@ -762,7 +762,7 @@ def score_interview(
         top_p=1.0,
         frequency_penalty=0.0,
         presence_penalty=0.0,
-        max_tokens=300,
+        max_tokens=1200,
         model=model,
     )
     return parse_scoring_payload(score_raw, descriptor, pass_threshold)
@@ -783,7 +783,7 @@ def score_interview_with_diagnostics(
         top_p=1.0,
         frequency_penalty=0.0,
         presence_penalty=0.0,
-        max_tokens=300,
+        max_tokens=1200,
         model=model,
         include_diagnostics=True,
     )
