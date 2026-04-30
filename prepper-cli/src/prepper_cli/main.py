@@ -23,13 +23,27 @@ def _build_parser() -> argparse.ArgumentParser:
         prog=os.environ.get("PREPPER_CLI_PROG"),
     )
     parser.add_argument(
+        "--interview-style",
+        dest="system_prompt",
+        metavar="INTERVIEW_STYLE",
+        help="Interview style to use",
+    )
+    parser.add_argument(
         "--system-prompt",
-        help="System prompt name from the prompts folder",
+        dest="system_prompt",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--list-interview-styles",
+        dest="list_system_prompts",
+        action="store_true",
+        help="List available interview styles and exit",
     )
     parser.add_argument(
         "--list-system-prompts",
+        dest="list_system_prompts",
         action="store_true",
-        help="List available system prompts and exit",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--difficulty",
@@ -90,6 +104,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Model name to use for final benchmark scoring",
     )
     parser.add_argument(
+        "-b",
         "--benchmark",
         action="store_true",
         help="Run benchmark mode with simulated candidate responses and transcript output",
@@ -129,13 +144,13 @@ def _validate_benchmark_candidate_flags(
 def _resolve_system_prompt_name(selected_name: str | None) -> str:
     available = list_system_prompt_names()
     if not available:
-        raise ValueError("No system prompts found in prompts folder")
+        raise ValueError("No interview styles found in prompts folder")
 
     prompt_name = (selected_name or get_default_system_prompt_name()).strip()
     if prompt_name not in available:
         available_text = ", ".join(available)
         raise ValueError(
-            f"System prompt '{prompt_name}' not found. Available: {available_text}"
+            f"Interview style '{prompt_name}' not found. Available: {available_text}"
         )
     return prompt_name
 
@@ -145,7 +160,7 @@ def _choose_interactive_system_prompt(default_name: str) -> str | None:
     ids = [d.id for d in descriptors]
     default_choice = default_name if default_name in ids else (ids[0] if ids else None)
 
-    print("Select system prompt for this session:")
+    print("Select interview style for this session:")
     print("0) none")
     for index, descriptor in enumerate(descriptors, start=1):
         marker = " (default)" if descriptor.id == default_choice else ""
@@ -251,9 +266,9 @@ def _run_interactive(
 
     descriptor = load_prompt_descriptor(system_prompt) if system_prompt else None
     if descriptor:
-        print(f"Using system prompt: {descriptor.name}")
+        print(f"Using interview style: {descriptor.name}")
     else:
-        print("Using system prompt: none")
+        print("Using interview style: none")
 
     conversation = Conversation()
     question_count = 0

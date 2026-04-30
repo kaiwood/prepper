@@ -72,7 +72,7 @@ LLM_MODEL=ministral
 Run from project root:
 
 ```bash
-./setup.sh
+./prepper.sh --setup
 ```
 
 This script automates all steps above:
@@ -87,7 +87,7 @@ This script automates all steps above:
 After setup, you can run the Prepper CLI directly from project root:
 
 ```bash
-./cli.sh --help
+./prepper.sh --interactive --help
 ```
 
-The wrapper forwards all flags to `prepper-cli` and uses `prepper-cli/.venv` automatically.
+The root control script forwards interactive CLI flags to `prepper-cli` and uses `prepper-cli/.venv` automatically.
