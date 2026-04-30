@@ -6,7 +6,7 @@ from typing import Callable, List, Sequence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PREPPER_CLI_DIR = PROJECT_ROOT / "prepper-cli"
+PREPPER_CLI_DIR = PROJECT_ROOT / "app"
 BACKEND_DIR = PROJECT_ROOT / "backend"
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
@@ -107,7 +107,7 @@ def run_setup(log: LogFn, run_command: RunCommandFn = default_run_command) -> in
 
     ensure_env_files(log)
 
-    log("==> Setting up prepper-cli")
+    log("==> Setting up CLI")
     create_venv_if_missing(PREPPER_CLI_DIR, log, run_command)
 
     log("==> Setting up backend")
