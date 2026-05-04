@@ -108,6 +108,12 @@ def build_categories() -> tuple[CategorySpec, ...]:
                     "toggle",
                     "Force colored runner and child-process output.",
                 ),
+                OptionSpec(
+                    "presentation",
+                    "Presentation mode",
+                    "toggle",
+                    "Show frontend presentation helpers for drafting candidate answers.",
+                ),
             ),
         ),
         CategorySpec(
@@ -200,6 +206,8 @@ def build_argv(category_key: str, state: dict[str, str | bool]) -> tuple[str, ..
             argv.append("--all")
         if state.get("color"):
             argv.append("--color")
+        if state.get("presentation"):
+            argv.append("--presentation")
         return tuple(argv)
 
     if category_key == "test":

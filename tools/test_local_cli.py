@@ -224,8 +224,8 @@ def test_main_exits_when_browser_is_cancelled(monkeypatch):
 def test_option_browser_builds_dev_command():
     assert option_browser.build_argv(
         "dev",
-        {"target": "frontend", "color": True},
-    ) == ("--dev", "--frontend", "--color")
+        {"target": "frontend", "color": True, "presentation": True},
+    ) == ("--dev", "--frontend", "--color", "--presentation")
 
 
 def test_option_browser_builds_test_command():
