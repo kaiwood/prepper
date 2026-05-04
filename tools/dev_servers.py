@@ -49,12 +49,16 @@ def start_processes(
     backend_python: str,
     enable_color: bool = False,
     target: str = "all",
+    presentation_mode: bool = False,
 ) -> Dict[str, subprocess.Popen]:
     processes: Dict[str, subprocess.Popen] = {}
 
     backend_env = color_env(os.environ.copy(), enable_color)
     backend_env["PYTHONUNBUFFERED"] = "1"
     frontend_env = color_env(os.environ.copy(), enable_color)
+    if presentation_mode:
+        backend_env["PREPPER_PRESENTATION_MODE"] = "1"
+        frontend_env["NEXT_PUBLIC_PREPPER_PRESENTATION_MODE"] = "1"
 
     if target in {"all", "backend"}:
         processes["backend"] = subprocess.Popen(
@@ -118,6 +122,7 @@ def run_dev_servers(
     log: LogFn,
     enable_color: bool = False,
     target: str = "all",
+    presentation_mode: bool = False,
 ) -> int:
     if target not in {"all", "backend", "frontend"}:
         raise ValueError(f"Unsupported dev target: {target}")
@@ -126,6 +131,7 @@ def run_dev_servers(
         backend_python,
         enable_color=enable_color,
         target=target,
+        presentation_mode=presentation_mode,
     )
 
     stream_threads: List[threading.Thread] = []

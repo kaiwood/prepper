@@ -15,6 +15,10 @@ export function resolveApiBaseUrl(rawValue) {
   return rawValue.replace(/\/$/, "");
 }
 
+export function resolvePresentationMode(rawValue) {
+  return rawValue === "1";
+}
+
 export function buildApiUrl(apiBaseUrl, path) {
   return `${apiBaseUrl}${path}`;
 }
@@ -128,6 +132,38 @@ export function buildStartPayload({
     typeof questionRoundtripLimit === "number"
   ) {
     payload.max_question_roundtrips = questionRoundtripLimit;
+  }
+
+  if (selectedPromptMetadata) {
+    payload.temperature = advancedSettings.temperature;
+    payload.top_p = advancedSettings.top_p;
+    payload.frequency_penalty = advancedSettings.frequency_penalty;
+    payload.presence_penalty = advancedSettings.presence_penalty;
+  }
+
+  return payload;
+}
+
+export function buildCandidateAnswerPayload({
+  currentQuestion,
+  selectedPrompt,
+  language,
+  difficultyEnabled,
+  selectedDifficulty,
+  selectedPromptMetadata,
+  advancedSettings,
+}) {
+  const payload = {
+    current_question: currentQuestion,
+    language,
+  };
+
+  if (selectedPrompt) {
+    payload.system_prompt_name = selectedPrompt;
+  }
+
+  if (difficultyEnabled) {
+    payload.difficulty = selectedDifficulty;
   }
 
   if (selectedPromptMetadata) {

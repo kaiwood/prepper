@@ -5,12 +5,14 @@ import {
   ADVANCED_SETTING_CONFIG,
   buildAdvancedSettings,
   buildApiUrl,
+  buildCandidateAnswerPayload,
   buildChatPayload,
   buildStartPayload,
   clampAdvancedSetting,
   formatAdvancedSettingValue,
   resolveApiBaseUrl,
   resolveDifficultySelection,
+  resolvePresentationMode,
   resolveQuestionRoundtripLimit,
 } from "./appLogic.mjs";
 
@@ -36,6 +38,12 @@ test("resolves API base URL from missing and explicit values", () => {
     buildApiUrl("http://localhost:5000", "/api/prompts"),
     "http://localhost:5000/api/prompts",
   );
+});
+
+test("resolves presentation mode from dev runner env value", () => {
+  assert.equal(resolvePresentationMode("1"), true);
+  assert.equal(resolvePresentationMode("true"), false);
+  assert.equal(resolvePresentationMode(undefined), false);
 });
 
 test("builds advanced settings from prompt metadata and clamps inputs", () => {
@@ -152,6 +160,35 @@ test("builds start payload with prompt, difficulty, and model settings", () => {
       temperature: 0.4,
       top_p: 0.95,
       frequency_penalty: 0.2,
+      presence_penalty: 0.1,
+    },
+  );
+});
+
+test("builds candidate answer payload from current interviewer question", () => {
+  assert.deepEqual(
+    buildCandidateAnswerPayload({
+      currentQuestion: "Tell me about a production incident.",
+      selectedPrompt: "behavioral_focus",
+      language: "fr",
+      difficultyEnabled: true,
+      selectedDifficulty: "medium",
+      selectedPromptMetadata: promptMetadata,
+      advancedSettings: {
+        temperature: 0.5,
+        top_p: 0.8,
+        frequency_penalty: 0,
+        presence_penalty: 0.1,
+      },
+    }),
+    {
+      current_question: "Tell me about a production incident.",
+      language: "fr",
+      system_prompt_name: "behavioral_focus",
+      difficulty: "medium",
+      temperature: 0.5,
+      top_p: 0.8,
+      frequency_penalty: 0,
       presence_penalty: 0.1,
     },
   );

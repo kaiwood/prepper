@@ -17,12 +17,14 @@ import {
   ADVANCED_SETTING_CONFIG,
   buildAdvancedSettings,
   buildApiUrl,
+  buildCandidateAnswerPayload,
   buildChatPayload,
   buildStartPayload,
   clampAdvancedSetting,
   formatAdvancedSettingValue,
   resolveApiBaseUrl,
   resolveDifficultySelection,
+  resolvePresentationMode,
   resolveQuestionRoundtripLimit,
 } from "../lib/appLogic.mjs";
 
@@ -94,6 +96,11 @@ type ChatResponse = {
   final_result?: InterviewRating;
 };
 
+type CandidateAnswerResponse = {
+  answer?: string;
+  error?: string;
+};
+
 type AdvancedSettings = {
   temperature: number;
   top_p: number;
@@ -113,6 +120,9 @@ type AdvancedSettingConfig = {
 const DEFAULT_LANGUAGE: LanguageCode = "en";
 const LANGUAGE_CHANGE_EVENT = "prepper-language-change";
 const API_BASE_URL = resolveApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+const PRESENTATION_MODE_ENABLED = resolvePresentationMode(
+  process.env.NEXT_PUBLIC_PREPPER_PRESENTATION_MODE,
+);
 const TYPED_ADVANCED_SETTING_CONFIG =
   ADVANCED_SETTING_CONFIG as AdvancedSettingConfig[];
 
@@ -149,6 +159,7 @@ export default function Home() {
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [candidateAnswerLoading, setCandidateAnswerLoading] = useState(false);
   const [availablePrompts, setAvailablePrompts] = useState<PromptMetadata[]>(
     [],
   );
@@ -190,6 +201,10 @@ export default function Home() {
   const resultPassed = finalResult?.passed ?? false;
   const ui = TRANSLATIONS[language];
   const showInjectionWarning = hasSuspiciousPromptInjectionPattern(message);
+  const latestInterviewerQuestion = [...conversation]
+    .reverse()
+    .find((item) => item.role === "assistant")
+    ?.content.trim();
   const difficultyLabelByValue: Record<DifficultyValue, string> = {
     easy: ui.difficultyJunior,
     medium: ui.difficultySenior,
@@ -456,6 +471,56 @@ export default function Home() {
       setError(ui.errorBackendUnavailable);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGenerateCandidateAnswer() {
+    if (
+      !PRESENTATION_MODE_ENABLED ||
+      !hasStarted ||
+      loading ||
+      candidateAnswerLoading ||
+      interviewCompleted ||
+      !latestInterviewerQuestion
+    ) {
+      return;
+    }
+
+    setCandidateAnswerLoading(true);
+    setError(null);
+
+    try {
+      const payload = buildCandidateAnswerPayload({
+        currentQuestion: latestInterviewerQuestion,
+        selectedPrompt,
+        language,
+        difficultyEnabled,
+        selectedDifficulty,
+        selectedPromptMetadata,
+        advancedSettings,
+      });
+
+      const res = await fetch(
+        buildApiUrl(API_BASE_URL, "/api/presentation/candidate-answer"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      const data: CandidateAnswerResponse = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? ui.errorFallback);
+        return;
+      }
+
+      setMessage(data.answer ?? "");
+    } catch {
+      setError(ui.errorBackendUnavailable);
+    } finally {
+      setCandidateAnswerLoading(false);
     }
   }
 
@@ -758,10 +823,14 @@ export default function Home() {
           );
         }}
         loading={loading}
+        candidateAnswerLoading={candidateAnswerLoading}
         canClear={conversation.length > 0}
         canStart={Boolean(selectedPrompt) && availablePrompts.length > 0}
         hasStarted={hasStarted}
         disableMessaging={interviewCompleted}
+        presentationModeEnabled={PRESENTATION_MODE_ENABLED}
+        canGenerateCandidateAnswer={Boolean(latestInterviewerQuestion)}
+        onGenerateCandidateAnswer={handleGenerateCandidateAnswer}
         error={error}
         placeholderStarted={
           interviewCompleted
@@ -772,6 +841,8 @@ export default function Home() {
         startInterviewText={ui.startInterview}
         startingText={ui.starting}
         resetConversationText={ui.resetConversation}
+        generateCandidateAnswerText={ui.generateCandidateAnswer}
+        generatingCandidateAnswerText={ui.generatingCandidateAnswer}
         sendText={ui.send}
         thinkingText={ui.thinking}
         injectionWarningText={showInjectionWarning ? ui.injectionWarning : null}

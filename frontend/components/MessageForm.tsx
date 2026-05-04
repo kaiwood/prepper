@@ -8,17 +8,23 @@ type MessageFormProps = {
   onSubmit: React.FormEventHandler<HTMLFormElement>;
   onStart: () => void;
   onClear: () => void;
+  onGenerateCandidateAnswer?: () => void;
   loading: boolean;
+  candidateAnswerLoading?: boolean;
   canClear: boolean;
   canStart: boolean;
+  canGenerateCandidateAnswer?: boolean;
   hasStarted: boolean;
   disableMessaging?: boolean;
+  presentationModeEnabled?: boolean;
   error: string | null;
   placeholderStarted: string;
   placeholderNotStarted: string;
   startInterviewText: string;
   startingText: string;
   resetConversationText: string;
+  generateCandidateAnswerText?: string;
+  generatingCandidateAnswerText?: string;
   sendText: string;
   thinkingText: string;
   injectionWarningText?: string | null;
@@ -30,17 +36,23 @@ export default function MessageForm({
   onSubmit,
   onStart,
   onClear,
+  onGenerateCandidateAnswer,
   loading,
+  candidateAnswerLoading = false,
   canClear,
   canStart,
+  canGenerateCandidateAnswer = false,
   hasStarted,
   disableMessaging = false,
+  presentationModeEnabled = false,
   error,
   placeholderStarted,
   placeholderNotStarted,
   startInterviewText,
   startingText,
   resetConversationText,
+  generateCandidateAnswerText = "Draft",
+  generatingCandidateAnswerText = "Drafting...",
   sendText,
   thinkingText,
   injectionWarningText = null,
@@ -120,15 +132,36 @@ export default function MessageForm({
           </button>
         </div>
 
-        <button
-          type="submit"
-          disabled={
-            !hasStarted || loading || disableMessaging || !message.trim()
-          }
-          className="bg-blue-600 text-white rounded-lg py-2 px-4 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {loading && hasStarted ? thinkingText : sendText}
-        </button>
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {presentationModeEnabled && (
+            <button
+              type="button"
+              onClick={onGenerateCandidateAnswer}
+              disabled={
+                !hasStarted ||
+                loading ||
+                candidateAnswerLoading ||
+                disableMessaging ||
+                !canGenerateCandidateAnswer
+              }
+              className="border border-blue-200 text-blue-700 rounded-lg py-2 px-3 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {candidateAnswerLoading
+                ? generatingCandidateAnswerText
+                : generateCandidateAnswerText}
+            </button>
+          )}
+
+          <button
+            type="submit"
+            disabled={
+              !hasStarted || loading || disableMessaging || !message.trim()
+            }
+            className="bg-blue-600 text-white rounded-lg py-2 px-4 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading && hasStarted ? thinkingText : sendText}
+          </button>
+        </div>
       </div>
 
       {error && <p className="text-red-600 max-w-lg">{error}</p>}

@@ -1,3 +1,4 @@
+import os
 import uuid
 from typing import Any
 
@@ -29,6 +30,27 @@ chat_bp = Blueprint("chat", __name__)
 
 _FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
 _INTERVIEW_SESSIONS: dict[str, dict[str, Any]] = {}
+
+
+def _presentation_mode_enabled() -> bool:
+    return os.environ.get("PREPPER_PRESENTATION_MODE") == "1"
+
+
+def _build_candidate_answer_system_prompt(descriptor, difficulty: str | None) -> str:
+    difficulty_line = (
+        f"Interview difficulty: {difficulty}."
+        if difficulty
+        else "Interview difficulty: unspecified."
+    )
+    return (
+        "You are the candidate in a software interview simulation.\n"
+        f"Interview style: {descriptor.name}.\n"
+        f"{difficulty_line}\n"
+        "Draft a concise, credible answer to the interviewer's current question.\n"
+        "Answer in first person as the candidate.\n"
+        "Do not mention that you are an AI, a helper, or drafting text.\n"
+        "Return only the candidate answer, ready to place in the chat input."
+    )
 
 
 def _build_forced_closing_reply(
@@ -104,6 +126,88 @@ def chat_options():
 )
 def chat_start_options():
     return "", 204
+
+
+@chat_bp.route("/api/presentation/candidate-answer", methods=["OPTIONS"])
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def presentation_candidate_answer_options():
+    return "", 204
+
+
+@chat_bp.post("/api/presentation/candidate-answer")
+@limiter.limit("10 per minute")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def presentation_candidate_answer():
+    if not _presentation_mode_enabled():
+        return jsonify({"error": "presentation mode is not enabled"}), 404
+
+    data = request.get_json(silent=True) or {}
+    raw_current_question = data.get("current_question", "")
+    system_prompt_name = data.get("system_prompt_name")
+    language = data.get("language")
+    difficulty = data.get("difficulty")
+
+    if not isinstance(raw_current_question, str):
+        return jsonify({"error": "current_question must be a string"}), 400
+    current_question = raw_current_question.strip()
+
+    if not current_question:
+        return jsonify({"error": "current_question is required"}), 400
+
+    if system_prompt_name is not None and not isinstance(system_prompt_name, str):
+        return jsonify({"error": "system_prompt_name must be a string"}), 400
+
+    if language is not None and not isinstance(language, str):
+        return jsonify({"error": "language must be a string"}), 400
+
+    if difficulty is not None and not isinstance(difficulty, str):
+        return jsonify({"error": "difficulty must be a string"}), 400
+
+    try:
+        descriptor = resolve_prompt_descriptor(system_prompt_name)
+    except ValueError as exc:
+        if system_prompt_name is not None:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": f"LLM request failed: {exc}"}), 502
+
+    try:
+        resolved_difficulty = resolve_difficulty(difficulty, descriptor)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    try:
+        model_settings = resolve_model_settings(data, descriptor)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    try:
+        answer = get_chat_reply(
+            current_question,
+            conversation=None,
+            system_prompt=_build_candidate_answer_system_prompt(
+                descriptor,
+                resolved_difficulty,
+            ),
+            language=language,
+            temperature=model_settings["temperature"],
+            top_p=model_settings["top_p"],
+            frequency_penalty=model_settings["frequency_penalty"],
+            presence_penalty=model_settings["presence_penalty"],
+            max_tokens=min(model_settings["max_tokens"], 350),
+            treat_input_as_untrusted=True,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"LLM request failed: {exc}"}), 502
+
+    return jsonify({"answer": answer})
 
 
 @chat_bp.post("/api/chat")

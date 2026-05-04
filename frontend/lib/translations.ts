@@ -32,6 +32,8 @@ type TranslationStrings = {
   startInterview: string;
   starting: string;
   resetConversation: string;
+  generateCandidateAnswer: string;
+  generatingCandidateAnswer: string;
   send: string;
   errorLoadPrompts: string;
   errorFallback: string;
@@ -79,6 +81,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     startInterview: "Start interview",
     starting: "Starting...",
     resetConversation: "Reset conversation",
+    generateCandidateAnswer: "Draft",
+    generatingCandidateAnswer: "Drafting...",
     send: "Send",
     errorLoadPrompts: "Could not load system prompts.",
     errorFallback: "Something went wrong.",
@@ -130,6 +134,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     startInterview: "Interview starten",
     starting: "Startet...",
     resetConversation: "Gespraech zuruecksetzen",
+    generateCandidateAnswer: "Entwurf",
+    generatingCandidateAnswer: "Entwirft...",
     send: "Senden",
     errorLoadPrompts: "System-Prompts konnten nicht geladen werden.",
     errorFallback: "Etwas ist schiefgelaufen.",
@@ -179,6 +185,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     startInterview: "Demarrer l'entretien",
     starting: "Demarrage...",
     resetConversation: "Reinitialiser la conversation",
+    generateCandidateAnswer: "Brouillon",
+    generatingCandidateAnswer: "Redaction...",
     send: "Envoyer",
     errorLoadPrompts: "Impossible de charger les prompts systeme.",
     errorFallback: "Une erreur s'est produite.",

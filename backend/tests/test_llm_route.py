@@ -62,6 +62,86 @@ def test_chat_uses_default_system_prompt(monkeypatch):
     assert captured["treat_input_as_untrusted"] is True
 
 
+def test_presentation_candidate_answer_requires_presentation_mode():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/presentation/candidate-answer",
+        json={"current_question": "Tell me about yourself."},
+    )
+
+    assert response.status_code == 404
+    assert response.get_json() == {"error": "presentation mode is not enabled"}
+
+
+def test_presentation_candidate_answer_generates_candidate_draft(monkeypatch):
+    monkeypatch.setenv("PREPPER_PRESENTATION_MODE", "1")
+    app = create_app()
+    client = app.test_client()
+
+    descriptor = _make_descriptor(
+        "coding_focus",
+        name="Coding Interview",
+        difficulty_enabled=True,
+        default_difficulty="medium",
+    )
+    monkeypatch.setattr(
+        "app.routes.chat.resolve_prompt_descriptor",
+        lambda selected_name=None: descriptor,
+    )
+
+    captured = {}
+
+    def fake_get_chat_reply(
+        message,
+        conversation=None,
+        system_prompt=None,
+        language=None,
+        temperature=None,
+        top_p=None,
+        frequency_penalty=None,
+        presence_penalty=None,
+        max_tokens=None,
+        **kwargs,
+    ):
+        captured["message"] = message
+        captured["conversation"] = conversation
+        captured["system_prompt"] = system_prompt
+        captured["language"] = language
+        captured["temperature"] = temperature
+        captured["max_tokens"] = max_tokens
+        captured["treat_input_as_untrusted"] = kwargs.get(
+            "treat_input_as_untrusted")
+        return "I would start by clarifying the impact."
+
+    monkeypatch.setattr("app.routes.chat.get_chat_reply", fake_get_chat_reply)
+
+    response = client.post(
+        "/api/presentation/candidate-answer",
+        json={
+            "current_question": "How would you debug a slow API?",
+            "system_prompt_name": "coding_focus",
+            "language": "en",
+            "difficulty": "hard",
+            "temperature": 0.3,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "answer": "I would start by clarifying the impact."
+    }
+    assert captured["message"] == "How would you debug a slow API?"
+    assert captured["conversation"] is None
+    assert "candidate" in captured["system_prompt"].lower()
+    assert "Coding Interview" in captured["system_prompt"]
+    assert captured["language"] == "en"
+    assert captured["temperature"] == 0.3
+    assert captured["max_tokens"] == 350
+    assert captured["treat_input_as_untrusted"] is True
+
+
 def test_chat_accepts_selected_system_prompt(monkeypatch):
     app = create_app()
     client = app.test_client()

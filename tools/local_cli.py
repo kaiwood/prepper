@@ -33,6 +33,7 @@ PRINT_LOCK = threading.Lock()
 class RunnerArgs:
     mode: str
     dev_target: str = "all"
+    dev_presentation: bool = False
     test_suite: Optional[str] = None
     enable_color: bool = False
     cli_args: Tuple[str, ...] = ()
@@ -236,6 +237,7 @@ def print_usage(force_color: bool = False) -> None:
     log(_option_line("--dev --all", "Run backend and frontend development servers.", theme))
     log(_option_line("--dev --backend", "Run backend development server only.", theme))
     log(_option_line("--dev --frontend", "Run frontend development server only.", theme))
+    log(_option_line("--dev --presentation", "Run development servers with frontend presentation helpers enabled.", theme))
     log(_option_line("--color", "With --dev, force colored runner and child output.", theme))
     log("")
     log(_heading("Tests:", theme))
@@ -321,19 +323,38 @@ def parse_args(argv: List[str]) -> RunnerArgs:
         return RunnerArgs(mode="help", enable_color=enable_color)
 
     if argv[0] in ("--dev", "-d"):
-        if len(argv) == 1:
-            return RunnerArgs(mode="dev", enable_color=enable_color)
-        if len(argv) == 2 and argv[1] in DEV_SELECTORS:
+        dev_args = argv[1:]
+        dev_presentation = "--presentation" in dev_args
+        if dev_args.count("--presentation") > 1:
+            print_usage()
+            raise ValueError("--presentation can only be used once.")
+        dev_selectors = [arg for arg in dev_args if arg in DEV_SELECTORS]
+        unknown_dev_args = [
+            arg for arg in dev_args if arg not in DEV_SELECTORS and arg != "--presentation"
+        ]
+
+        if unknown_dev_args:
+            print_usage()
+            if "--benchmark" in unknown_dev_args or "-b" in unknown_dev_args:
+                raise ValueError("benchmark cannot be combined with dev mode; use ./prepper.sh --benchmark ...")
+            raise ValueError(f"{argv[0]} accepts at most one dev target selector, --presentation, and --color.")
+        if len(dev_selectors) > 1:
+            print_usage()
+            raise ValueError(f"{argv[0]} accepts at most one dev target selector, --presentation, and --color.")
+
+        if not dev_args or dev_presentation and not dev_selectors:
             return RunnerArgs(
                 mode="dev",
-                dev_target=DEV_SELECTORS[argv[1]],
                 enable_color=enable_color,
+                dev_presentation=dev_presentation,
             )
-        if len(argv) != 1:
-            print_usage()
-            if "--benchmark" in argv[1:] or "-b" in argv[1:]:
-                raise ValueError("benchmark cannot be combined with dev mode; use ./prepper.sh --benchmark ...")
-            raise ValueError(f"{argv[0]} accepts at most one dev target selector and --color.")
+        if len(dev_selectors) == 1:
+            return RunnerArgs(
+                mode="dev",
+                dev_target=DEV_SELECTORS[dev_selectors[0]],
+                enable_color=enable_color,
+                dev_presentation=dev_presentation,
+            )
 
     if argv[0] == "--setup":
         if len(argv) != 1:
@@ -447,6 +468,7 @@ def main() -> int:
         log=log,
         target=args.dev_target,
         enable_color=args.enable_color,
+        presentation_mode=args.dev_presentation,
     )
 
 

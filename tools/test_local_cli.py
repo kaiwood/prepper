@@ -25,6 +25,11 @@ def test_parse_mode_defaults_to_option_browser():
         (["--dev", "--all"], local_cli.RunnerArgs(mode="dev", dev_target="all")),
         (["--dev", "--backend"], local_cli.RunnerArgs(mode="dev", dev_target="backend")),
         (["--dev", "--frontend"], local_cli.RunnerArgs(mode="dev", dev_target="frontend")),
+        (["--dev", "--presentation"], local_cli.RunnerArgs(mode="dev", dev_presentation=True)),
+        (
+            ["--dev", "--frontend", "--presentation"],
+            local_cli.RunnerArgs(mode="dev", dev_target="frontend", dev_presentation=True),
+        ),
         (["--setup"], local_cli.RunnerArgs(mode="setup")),
         (["--test"], local_cli.RunnerArgs(mode="test", test_suite="all")),
         (["-t"], local_cli.RunnerArgs(mode="test", test_suite="all")),
@@ -116,6 +121,7 @@ def test_parse_args_accepts_known_flags(argv, expected):
     ("argv", "match"),
     [
         (["--dev", "--frontend", "--backend"], "accepts at most one dev target selector"),
+        (["--dev", "--presentation", "--presentation"], "--presentation can only be used once"),
         (["-d", "--benchmark"], "benchmark cannot be combined with dev mode"),
         (["--test", "--backend", "--frontend"], "Expected at most one test suite selector"),
         (["--test", "--benchmark"], "benchmark cannot be combined with test mode"),
@@ -561,6 +567,22 @@ def test_start_processes_can_enable_color(monkeypatch):
     assert "NO_COLOR" not in calls[0][1]["env"]
     assert calls[1][1]["env"]["FORCE_COLOR"] == "1"
     assert "NO_COLOR" not in calls[1][1]["env"]
+
+
+def test_start_processes_can_enable_presentation_mode(monkeypatch):
+    calls = []
+
+    def fake_popen(*args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(pid=100 + len(calls), stdout=None)
+
+    monkeypatch.setattr(dev_servers.subprocess, "Popen", fake_popen)
+
+    processes = dev_servers.start_processes("python", presentation_mode=True)
+
+    assert list(processes.keys()) == ["backend", "frontend"]
+    assert calls[0][1]["env"]["PREPPER_PRESENTATION_MODE"] == "1"
+    assert calls[1][1]["env"]["NEXT_PUBLIC_PREPPER_PRESENTATION_MODE"] == "1"
 
 
 def test_start_processes_can_select_one_dev_target(monkeypatch):
