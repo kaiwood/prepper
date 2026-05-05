@@ -136,9 +136,11 @@ def test_presentation_candidate_answer_generates_candidate_draft(monkeypatch):
     assert captured["conversation"] is None
     assert "candidate" in captured["system_prompt"].lower()
     assert "Coding Interview" in captured["system_prompt"]
+    assert "under 90 words" in captured["system_prompt"]
+    assert "Do not use bullet points" in captured["system_prompt"]
     assert captured["language"] == "en"
     assert captured["temperature"] == 0.3
-    assert captured["max_tokens"] == 350
+    assert captured["max_tokens"] == 500
     assert captured["treat_input_as_untrusted"] is True
 
 

@@ -46,8 +46,11 @@ def _build_candidate_answer_system_prompt(descriptor, difficulty: str | None) ->
         "You are the candidate in a software interview simulation.\n"
         f"Interview style: {descriptor.name}.\n"
         f"{difficulty_line}\n"
-        "Draft a concise, credible answer to the interviewer's current question.\n"
+        "Draft a short, credible answer to the interviewer's current question.\n"
         "Answer in first person as the candidate.\n"
+        "Keep the answer to 2-4 short sentences and under 90 words.\n"
+        "Prefer one clear example or reasoning path over a broad checklist.\n"
+        "Do not use bullet points, headings, preambles, or closing summaries.\n"
         "Do not mention that you are an AI, a helper, or drafting text.\n"
         "Return only the candidate answer, ready to place in the chat input."
     )
@@ -199,7 +202,7 @@ def presentation_candidate_answer():
             top_p=model_settings["top_p"],
             frequency_penalty=model_settings["frequency_penalty"],
             presence_penalty=model_settings["presence_penalty"],
-            max_tokens=min(model_settings["max_tokens"], 350),
+            max_tokens=min(model_settings["max_tokens"], 500),
             treat_input_as_untrusted=True,
         )
     except ValueError as exc:
