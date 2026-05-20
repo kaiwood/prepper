@@ -16,6 +16,7 @@ from .hr_fixtures import (
     parse_transcript_markdown,
     validate_hr_fixture,
 )
+from .hr_prompt_preview import render_hr_prompt_preview
 from .interview import (
     build_difficulty_instruction,
     build_forced_closing_instruction,
@@ -61,6 +62,7 @@ __all__ = [
     "parse_transcript_file",
     "parse_transcript_markdown",
     "validate_hr_fixture",
+    "render_hr_prompt_preview",
     "build_active_interview_system_prompt",
     "build_difficulty_instruction",
     "build_forced_closing_instruction",

@@ -70,6 +70,8 @@ def _interview_stage_family(descriptor: PromptDescriptor) -> str:
         return "behavioral"
     if "coding" in prompt_identity or "technical" in prompt_identity:
         return "coding"
+    if "hr_candidate_fit" in prompt_identity or "candidate fit" in prompt_identity:
+        return "hr_candidate_fit"
     return "general"
 
 
@@ -86,7 +88,22 @@ def build_active_stage_instruction(
     family = _interview_stage_family(descriptor)
     next_question_number = min(question_count + 1, question_limit)
 
-    if family == "behavioral":
+    if family == "hr_candidate_fit":
+        stage_focus = _select_stage_focus(
+            (
+                "test role motivation and company interest with one specific role or company signal",
+                "probe a role-relevant work example with concrete ownership and evidence",
+                "check stakeholder communication, data judgment, or privacy awareness for HR contexts",
+                "connect the candidate's strengths to company needs, customer outcomes, or responsible data use",
+                "ask for reflection on fit, gaps, or what they would need to succeed in this role",
+            ),
+            question_count,
+        )
+        weak_answer_guidance = (
+            "If the latest answer is generic, ask for one specific company fact, role success signal, "
+            "stakeholder situation, privacy consideration, metric, or owned decision instead of accepting broad enthusiasm. "
+        )
+    elif family == "behavioral":
         stage_focus = _select_stage_focus(
             (
                 "establish the STAR situation, task, and intended outcome",

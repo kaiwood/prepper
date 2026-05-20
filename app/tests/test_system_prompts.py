@@ -16,6 +16,7 @@ def test_list_system_prompts_contains_bundled_prompts():
 
     assert "behavioral_focus" in names
     assert "coding_focus" in names
+    assert "hr_candidate_fit" in names
 
 
 def test_load_system_prompt_reads_prompt_content():
@@ -126,6 +127,25 @@ def test_load_prompt_descriptor_behavioral_focus():
     assert descriptor.pass_threshold == pytest.approx(7.0)
 
 
+def test_load_prompt_descriptor_hr_candidate_fit():
+    descriptor = load_prompt_descriptor("hr_candidate_fit")
+
+    assert descriptor.id == "hr_candidate_fit"
+    assert descriptor.name == "HR Candidate Fit Interview"
+    assert descriptor.temperature == pytest.approx(0.4)
+    assert descriptor.max_tokens == 1200
+    assert descriptor.interview_rating_enabled is True
+    assert descriptor.pass_threshold == pytest.approx(7.0)
+    assert descriptor.rubric_criteria == (
+        "Role fit",
+        "Evidence quality",
+        "Communication",
+        "Company interest",
+    )
+    assert "untrusted" in descriptor.content.lower()
+    assert "company interest" in descriptor.content.lower()
+
+
 def test_load_prompt_descriptor_rejects_unknown():
     with pytest.raises(ValueError, match="Unknown system prompt"):
         load_prompt_descriptor("does_not_exist")
@@ -153,6 +173,7 @@ def test_list_prompt_descriptors_returns_all_bundled():
     ids = [d.id for d in descriptors]
     assert "coding_focus" in ids
     assert "behavioral_focus" in ids
+    assert "hr_candidate_fit" in ids
     for d in descriptors:
         assert isinstance(d, PromptDescriptor)
         assert d.name  # non-empty

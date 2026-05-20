@@ -409,6 +409,34 @@ def test_build_active_interview_system_prompt_includes_behavioral_stage_guidance
     assert "Before replying in active interview mode, silently check" in prompt
 
 
+def test_build_active_interview_system_prompt_includes_hr_stage_guidance():
+    descriptor = _descriptor(
+        id="hr_candidate_fit",
+        name="HR Candidate Fit Interview",
+        content="Base HR interviewer prompt.",
+        rubric_criteria=(
+            "Role fit",
+            "Evidence quality",
+            "Communication",
+            "Company interest",
+        ),
+    )
+
+    prompt = build_active_interview_system_prompt(
+        descriptor=descriptor,
+        difficulty=None,
+        question_count=1,
+        question_limit=5,
+    )
+
+    assert "Base HR interviewer prompt." in prompt
+    assert "The next scored question is 2/5." in prompt
+    assert "Stage focus: probe a role-relevant work example" in prompt
+    assert "specific company fact" in prompt
+    assert "privacy consideration" in prompt
+    assert "Ask exactly one candidate-facing question." in prompt
+
+
 def test_build_forced_closing_system_prompt_includes_closing_override():
     descriptor = _descriptor(content="Base interviewer prompt.")
 

@@ -352,6 +352,31 @@ def test_prompts_returns_prompt_objects_with_metadata(monkeypatch):
     assert coding["default_difficulty"] == "medium"
 
 
+def test_prompts_includes_bundled_hr_candidate_fit_prompt(monkeypatch):
+    app = create_app()
+    client = app.test_client()
+    monkeypatch.setattr(
+        "app.routes.prompts.get_default_system_prompt_name",
+        lambda: "coding_focus",
+    )
+
+    response = client.get("/api/prompts")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    hr_prompt = next(
+        prompt for prompt in data["prompts"] if prompt["id"] == "hr_candidate_fit"
+    )
+    assert hr_prompt["name"] == "HR Candidate Fit Interview"
+    assert hr_prompt["interview_rating_enabled"] is True
+    assert hr_prompt["rubric_criteria"] == [
+        "Role fit",
+        "Evidence quality",
+        "Communication",
+        "Company interest",
+    ]
+
+
 def test_health_returns_ok():
     app = create_app()
     client = app.test_client()

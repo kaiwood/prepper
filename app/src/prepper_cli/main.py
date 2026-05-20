@@ -9,6 +9,7 @@ from .chat import get_chat_reply
 from .cli_output import print_final_result, print_turn
 from .conversation import Conversation
 from .hr_fixtures import list_hr_fixture_ids, validate_hr_fixture
+from .hr_prompt_preview import render_hr_prompt_preview
 from .interview import resolve_pass_threshold, run_interview_turn
 from .system_prompts import (
     get_default_system_prompt_name,
@@ -146,6 +147,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "--fixture",
         required=True,
         help="HR fixture id to validate",
+    )
+
+    prompt_parser = hr_parsers.add_parser(
+        "prompt", help="Preview HR prototype prompts"
+    )
+    prompt_parsers = prompt_parser.add_subparsers(
+        dest="hr_prompt_command", required=True
+    )
+    preview_parser = prompt_parsers.add_parser(
+        "preview", help="Render an HR prompt with fixture context"
+    )
+    preview_parser.add_argument(
+        "--fixture",
+        required=True,
+        help="HR fixture id to render",
+    )
+    preview_parser.add_argument(
+        "--interview-style",
+        required=True,
+        help="Interview style prompt to render",
     )
     return parser
 
@@ -409,6 +430,12 @@ def _run_hr_command(args: argparse.Namespace) -> int:
         if args.hr_command == "fixtures" and args.hr_fixtures_command == "validate":
             fixture = validate_hr_fixture(args.fixture)
             print(f"Fixture '{fixture.id}' is valid.")
+            return 0
+
+        if args.hr_command == "prompt" and args.hr_prompt_command == "preview":
+            fixture = validate_hr_fixture(args.fixture)
+            descriptor = load_prompt_descriptor(args.interview_style)
+            print(render_hr_prompt_preview(fixture, descriptor), end="")
             return 0
 
         raise ValueError("Unsupported HR command")
