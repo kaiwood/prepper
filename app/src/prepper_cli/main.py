@@ -8,6 +8,7 @@ from .benchmark import run_benchmark_interview
 from .chat import get_chat_reply
 from .cli_output import print_final_result, print_turn
 from .conversation import Conversation
+from .hr_fixtures import list_hr_fixture_ids, validate_hr_fixture
 from .interview import resolve_pass_threshold, run_interview_turn
 from .system_prompts import (
     get_default_system_prompt_name,
@@ -126,6 +127,25 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="weak_candidate",
         action="store_true",
         help="Benchmark-only: use a weak candidate simulation",
+    )
+
+    command_parsers = parser.add_subparsers(dest="command")
+    hr_parser = command_parsers.add_parser("hr", help="HR prototype commands")
+    hr_parsers = hr_parser.add_subparsers(dest="hr_command", required=True)
+    fixtures_parser = hr_parsers.add_parser(
+        "fixtures", help="Manage HR prototype fixtures"
+    )
+    fixture_parsers = fixtures_parser.add_subparsers(
+        dest="hr_fixtures_command", required=True
+    )
+    fixture_parsers.add_parser("list", help="List HR fixtures")
+    validate_parser = fixture_parsers.add_parser(
+        "validate", help="Validate an HR fixture"
+    )
+    validate_parser.add_argument(
+        "--fixture",
+        required=True,
+        help="HR fixture id to validate",
     )
     return parser
 
@@ -379,6 +399,24 @@ def _run_interactive(
             return 1
 
 
+def _run_hr_command(args: argparse.Namespace) -> int:
+    try:
+        if args.hr_command == "fixtures" and args.hr_fixtures_command == "list":
+            for fixture_id in list_hr_fixture_ids():
+                print(fixture_id)
+            return 0
+
+        if args.hr_command == "fixtures" and args.hr_fixtures_command == "validate":
+            fixture = validate_hr_fixture(args.fixture)
+            print(f"Fixture '{fixture.id}' is valid.")
+            return 0
+
+        raise ValueError("Unsupported HR command")
+    except Exception as exc:  # pragma: no cover - direct CLI safety net
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+
 def _run_benchmark(args: argparse.Namespace) -> int:
     interviewer_prompt_name = _resolve_system_prompt_name(args.system_prompt)
 
@@ -415,6 +453,9 @@ def _run_benchmark(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
+
+    if args.command == "hr":
+        return _run_hr_command(args)
 
     if args.list_system_prompts:
         for name in list_system_prompt_names():

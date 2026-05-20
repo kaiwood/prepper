@@ -2,6 +2,20 @@
 
 from .chat import get_chat_reply, get_interview_opener
 from .conversation import Conversation
+from .hr_fixtures import (
+    ExpectedFinalResult,
+    FixtureValidationError,
+    HrFixture,
+    Transcript,
+    TranscriptSource,
+    TranscriptToolEvent,
+    TranscriptTurn,
+    list_hr_fixture_ids,
+    load_hr_fixture,
+    parse_transcript_file,
+    parse_transcript_markdown,
+    validate_hr_fixture,
+)
 from .interview import (
     build_difficulty_instruction,
     build_forced_closing_instruction,
@@ -35,6 +49,18 @@ __all__ = [
     "get_chat_reply",
     "get_interview_opener",
     "Conversation",
+    "ExpectedFinalResult",
+    "FixtureValidationError",
+    "HrFixture",
+    "Transcript",
+    "TranscriptSource",
+    "TranscriptToolEvent",
+    "TranscriptTurn",
+    "list_hr_fixture_ids",
+    "load_hr_fixture",
+    "parse_transcript_file",
+    "parse_transcript_markdown",
+    "validate_hr_fixture",
     "build_active_interview_system_prompt",
     "build_difficulty_instruction",
     "build_forced_closing_instruction",
