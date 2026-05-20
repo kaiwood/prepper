@@ -177,6 +177,7 @@ export default function Home() {
   const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>(
     buildAdvancedSettings(),
   );
+  const [selectedArea, setSelectedArea] = useState<"user" | "admin">("user");
 
   const language = useSyncExternalStore(
     subscribeLanguageChange,
@@ -526,31 +527,66 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center p-8 gap-6">
-      <div className="w-full max-w-3xl flex justify-end gap-2">
-        {(Object.keys(LANGUAGE_DISPLAY) as LanguageCode[]).map((code) => {
-          const isActive = code === language;
-          const item = LANGUAGE_DISPLAY[code];
+      <div className="w-full max-w-3xl flex items-center justify-between gap-4">
+        <nav aria-label="Area navigation" className="flex gap-2">
+          {([
+            ["user", "User"],
+            ["admin", "Admin"],
+          ] as const).map(([area, label]) => {
+            const isActive = selectedArea === area;
 
-          return (
-            <button
-              key={code}
-              type="button"
-              onClick={() => updateLanguage(code)}
-              aria-label={item.label}
-              title={item.label}
-              className={`rounded-md border px-2 py-1 text-sm transition-colors ${
-                isActive
-                  ? "border-blue-600 bg-blue-50"
-                  : "border-gray-300 bg-white hover:bg-gray-50"
-              }`}
-            >
-              {item.flag}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={area}
+                type="button"
+                onClick={() => setSelectedArea(area)}
+                className={`rounded-md border px-3 py-1 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="flex gap-2">
+          {(Object.keys(LANGUAGE_DISPLAY) as LanguageCode[]).map((code) => {
+            const isActive = code === language;
+            const item = LANGUAGE_DISPLAY[code];
+
+            return (
+              <button
+                key={code}
+                type="button"
+                onClick={() => updateLanguage(code)}
+                aria-label={item.label}
+                title={item.label}
+                className={`rounded-md border px-2 py-1 text-sm transition-colors ${
+                  isActive
+                    ? "border-blue-600 bg-blue-50"
+                    : "border-gray-300 bg-white hover:bg-gray-50"
+                }`}
+              >
+                {item.flag}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <h1 className="text-3xl font-bold mt-2">{ui.appTitle}</h1>
+      {selectedArea === "admin" ? (
+        <section className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-6">
+          <h1 className="text-3xl font-bold">Admin</h1>
+          <p className="mt-2 text-gray-500">
+            Admin area placeholder. Management tools will appear here.
+          </p>
+        </section>
+      ) : (
+        <>
+          <h1 className="text-3xl font-bold mt-2">{ui.appTitle}</h1>
       <p className="text-gray-500">{ui.appSubtitle}</p>
 
       <PromptSelector
@@ -804,49 +840,53 @@ export default function Home() {
         thinkingText={ui.thinking}
       />
 
-      <MessageForm
-        message={message}
-        onMessageChange={setMessage}
-        onSubmit={handleSubmit}
-        onStart={handleStart}
-        onClear={() => {
-          setConversation([]);
-          setMessage("");
-          setError(null);
-          setInterviewStatus(null);
-          setInterviewId(null);
-          setAdvancedSettings(buildAdvancedSettings(selectedPromptMetadata));
-          setSelectedDifficulty(
-            selectedPromptMetadata?.difficulty_enabled
-              ? (selectedPromptMetadata.default_difficulty ?? "medium")
-              : "medium",
-          );
-        }}
-        loading={loading}
-        candidateAnswerLoading={candidateAnswerLoading}
-        canClear={conversation.length > 0}
-        canStart={Boolean(selectedPrompt) && availablePrompts.length > 0}
-        hasStarted={hasStarted}
-        disableMessaging={interviewCompleted}
-        presentationModeEnabled={PRESENTATION_MODE_ENABLED}
-        canGenerateCandidateAnswer={Boolean(latestInterviewerQuestion)}
-        onGenerateCandidateAnswer={handleGenerateCandidateAnswer}
-        error={error}
-        placeholderStarted={
-          interviewCompleted
-            ? ui.interviewLockedPlaceholder
-            : ui.inputPlaceholderStarted
-        }
-        placeholderNotStarted={ui.inputPlaceholderNotStarted}
-        startInterviewText={ui.startInterview}
-        startingText={ui.starting}
-        resetConversationText={ui.resetConversation}
-        generateCandidateAnswerText={ui.generateCandidateAnswer}
-        generatingCandidateAnswerText={ui.generatingCandidateAnswer}
-        sendText={ui.send}
-        thinkingText={ui.thinking}
-        injectionWarningText={showInjectionWarning ? ui.injectionWarning : null}
-      />
+          <MessageForm
+            message={message}
+            onMessageChange={setMessage}
+            onSubmit={handleSubmit}
+            onStart={handleStart}
+            onClear={() => {
+              setConversation([]);
+              setMessage("");
+              setError(null);
+              setInterviewStatus(null);
+              setInterviewId(null);
+              setAdvancedSettings(buildAdvancedSettings(selectedPromptMetadata));
+              setSelectedDifficulty(
+                selectedPromptMetadata?.difficulty_enabled
+                  ? (selectedPromptMetadata.default_difficulty ?? "medium")
+                  : "medium",
+              );
+            }}
+            loading={loading}
+            candidateAnswerLoading={candidateAnswerLoading}
+            canClear={conversation.length > 0}
+            canStart={Boolean(selectedPrompt) && availablePrompts.length > 0}
+            hasStarted={hasStarted}
+            disableMessaging={interviewCompleted}
+            presentationModeEnabled={PRESENTATION_MODE_ENABLED}
+            canGenerateCandidateAnswer={Boolean(latestInterviewerQuestion)}
+            onGenerateCandidateAnswer={handleGenerateCandidateAnswer}
+            error={error}
+            placeholderStarted={
+              interviewCompleted
+                ? ui.interviewLockedPlaceholder
+                : ui.inputPlaceholderStarted
+            }
+            placeholderNotStarted={ui.inputPlaceholderNotStarted}
+            startInterviewText={ui.startInterview}
+            startingText={ui.starting}
+            resetConversationText={ui.resetConversation}
+            generateCandidateAnswerText={ui.generateCandidateAnswer}
+            generatingCandidateAnswerText={ui.generatingCandidateAnswer}
+            sendText={ui.send}
+            thinkingText={ui.thinking}
+            injectionWarningText={
+              showInjectionWarning ? ui.injectionWarning : null
+            }
+          />
+        </>
+      )}
     </main>
   );
 }
