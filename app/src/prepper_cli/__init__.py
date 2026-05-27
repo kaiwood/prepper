@@ -37,6 +37,15 @@ from .hr_fixtures import (
     validate_hr_fixture,
 )
 from .hr_prompt_preview import render_hr_prompt_preview
+from .hr_retrieval import (
+    DEFAULT_MOCK_RETRIEVAL_LIMIT,
+    HrRetrievalResult,
+    OpenRouterEmbeddingConfig,
+    build_retrieval_chunks,
+    load_openrouter_embedding_config,
+    retrieval_result_to_dict,
+    retrieve_hr_context,
+)
 from .interview import (
     build_difficulty_instruction,
     build_forced_closing_instruction,
@@ -101,6 +110,13 @@ __all__ = [
     "parse_transcript_markdown",
     "validate_hr_fixture",
     "render_hr_prompt_preview",
+    "DEFAULT_MOCK_RETRIEVAL_LIMIT",
+    "HrRetrievalResult",
+    "OpenRouterEmbeddingConfig",
+    "build_retrieval_chunks",
+    "load_openrouter_embedding_config",
+    "retrieval_result_to_dict",
+    "retrieve_hr_context",
     "build_active_interview_system_prompt",
     "build_difficulty_instruction",
     "build_forced_closing_instruction",

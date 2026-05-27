@@ -17,6 +17,7 @@ from .hr_context import (
 )
 from .hr_fixtures import list_hr_fixture_ids, validate_hr_fixture
 from .hr_prompt_preview import render_hr_prompt_preview
+from .hr_retrieval import retrieval_result_to_dict, retrieve_hr_context
 from .interview import resolve_pass_threshold, run_interview_turn
 from .system_prompts import (
     get_default_system_prompt_name,
@@ -213,6 +214,30 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Print the full validated context JSON",
+    )
+    context_retrieve_parser = context_parsers.add_parser(
+        "retrieve", help="Retrieve relevant HR context chunks"
+    )
+    context_retrieve_parser.add_argument(
+        "--context",
+        required=True,
+        help="Path to HR context JSON",
+    )
+    context_retrieve_parser.add_argument(
+        "--query",
+        required=True,
+        help="Retrieval query",
+    )
+    context_retrieve_parser.add_argument(
+        "--mode",
+        choices=["mock", "llm"],
+        default="mock",
+        help="Retrieval mode",
+    )
+    context_retrieve_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print retrieval result JSON",
     )
     return parser
 
@@ -483,6 +508,19 @@ def _format_hr_context_summary(context: HrContext) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_hr_retrieval_summary(payload: dict) -> str:
+    lines = [
+        f"Query: {payload['query']}",
+        f"Mode: {payload['mode']}",
+        f"Results: {len(payload['results'])}",
+    ]
+    for index, result in enumerate(payload["results"], start=1):
+        metadata = result["metadata"]
+        source_title = metadata.get("source_title", result["source_id"])
+        lines.append(f"{index}. {result['id']} ({source_title})")
+    return "\n".join(lines) + "\n"
+
+
 def _run_hr_command(args: argparse.Namespace) -> int:
     try:
         if args.hr_command == "fixtures" and args.hr_fixtures_command == "list":
@@ -514,6 +552,16 @@ def _run_hr_command(args: argparse.Namespace) -> int:
                 print(hr_context_to_json(context), end="")
             else:
                 print(_format_hr_context_summary(context), end="")
+            return 0
+
+        if args.hr_command == "context" and args.hr_context_command == "retrieve":
+            context = load_hr_context(args.context)
+            result = retrieve_hr_context(context, query=args.query, mode=args.mode)
+            payload = retrieval_result_to_dict(result)
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print(_format_hr_retrieval_summary(payload), end="")
             return 0
 
         raise ValueError("Unsupported HR command")

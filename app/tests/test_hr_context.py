@@ -39,7 +39,13 @@ def test_build_mock_hr_context_from_demo_fixture():
     assert "Northstar Analytics" in context.summaries.company
     assert "Customer Success Data Analyst" in context.summaries.role
     assert "Jordan Lee" in context.summaries.candidate
-    assert context.chunks == ()
+    assert len(context.chunks) == 8
+    assert context.chunks[0].id == "company_chunk_001"
+    assert context.chunks[0].source_id == "company"
+    assert context.chunks[0].metadata["source_uri"] == "fixture://company.md"
+    assert context.chunks[0].metadata["source_kind"] == "company"
+    assert context.chunks[4].id == "role_chunk_001"
+    assert context.chunks[4].metadata["source_uri"] == "fixture://role.md"
     assert context.tool_results == ()
 
     assert {source.uri for source in context.sources} == {

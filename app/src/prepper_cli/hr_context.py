@@ -172,6 +172,16 @@ def build_mock_hr_context(fixture: HrFixture) -> HrContext:
         )
     )
 
+    sources = input_sources + transcript_sources
+
+    from .hr_retrieval import build_retrieval_chunks
+
+    chunks = build_retrieval_chunks(
+        company_inputs=(company_document,),
+        role_description=role_document,
+        sources=sources,
+    )
+
     return HrContext(
         schema_version=HR_CONTEXT_SCHEMA_VERSION,
         context_id=context_id,
@@ -188,8 +198,8 @@ def build_mock_hr_context(fixture: HrFixture) -> HrContext:
                 max_chars=420,
             ),
         ),
-        sources=input_sources + transcript_sources,
-        chunks=(),
+        sources=sources,
+        chunks=chunks,
         tool_results=(),
         replay_metadata=replay_metadata,
     )

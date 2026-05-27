@@ -14,6 +14,13 @@ class OpenRouterConfig:
     default_system_prompt: str
 
 
+@dataclass(frozen=True)
+class OpenRouterEmbeddingConfig:
+    api_key: str
+    base_url: str
+    embedding_model: str
+
+
 def load_default_system_prompt_name() -> str:
     load_dotenv()
 
@@ -60,4 +67,32 @@ def load_config() -> OpenRouterConfig:
         base_url=base_url,
         model=model,
         default_system_prompt=default_system_prompt,
+    )
+
+
+def load_openrouter_embedding_config() -> OpenRouterEmbeddingConfig:
+    load_dotenv()
+
+    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("OPENROUTER_API_KEY is required for HR retrieval in llm mode")
+
+    embedding_model = os.environ.get("OPENROUTER_EMBEDDING_MODEL", "").strip()
+    if not embedding_model:
+        raise ValueError(
+            "OPENROUTER_EMBEDDING_MODEL is required for HR retrieval in llm mode"
+        )
+
+    base_url = os.environ.get(
+        "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
+    ).strip()
+    if not base_url:
+        raise ValueError(
+            "OPENROUTER_BASE_URL cannot be empty for HR retrieval in llm mode"
+        )
+
+    return OpenRouterEmbeddingConfig(
+        api_key=api_key,
+        base_url=base_url,
+        embedding_model=embedding_model,
     )
