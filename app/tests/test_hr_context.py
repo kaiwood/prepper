@@ -38,7 +38,10 @@ def test_build_mock_hr_context_from_demo_fixture():
     ]
     assert "Northstar Analytics" in context.summaries.company
     assert "Customer Success Data Analyst" in context.summaries.role
-    assert "Jordan Lee" in context.summaries.candidate
+    assert "SQL" in context.summaries.candidate
+    assert "SQL" in context.candidate_profile.skills
+    assert "Customer Insights Analyst, BrightPath HR Software" in context.candidate_profile.experience
+    assert context.candidate_profile.interview_focus_areas
     assert len(context.chunks) == 8
     assert context.chunks[0].id == "company_chunk_001"
     assert context.chunks[0].source_id == "company"
@@ -46,7 +49,9 @@ def test_build_mock_hr_context_from_demo_fixture():
     assert context.chunks[0].metadata["source_kind"] == "company"
     assert context.chunks[4].id == "role_chunk_001"
     assert context.chunks[4].metadata["source_uri"] == "fixture://role.md"
-    assert context.tool_results == ()
+    assert [result.tool_name for result in context.tool_results] == [
+        "extract_candidate_profile"
+    ]
 
     assert {source.uri for source in context.sources} == {
         "fixture://company.md",
@@ -115,6 +120,8 @@ def test_write_and_load_hr_context(tmp_path: Path):
         (lambda payload: payload.update({"company_inputs": []}), "company_inputs"),
         (lambda payload: payload.update({"candidate_inputs": []}), "candidate_inputs"),
         (lambda payload: payload["role_description"].pop("markdown"), "role_description.markdown"),
+        (lambda payload: payload.pop("candidate_profile"), "candidate_profile"),
+        (lambda payload: payload["candidate_profile"].update({"skills": [""]}), "candidate_profile.skills"),
         (lambda payload: payload["sources"][0].update({"uri": ""}), r"sources\[0\].uri"),
         (
             lambda payload: payload["replay_metadata"]["transcripts"][0].update(
@@ -131,6 +138,17 @@ def test_hr_context_from_dict_reports_invalid_payloads(mutate, match):
 
     with pytest.raises(HrContextValidationError, match=match):
         hr_context_from_dict(broken_payload)
+
+
+def test_hr_context_from_dict_accepts_legacy_v1_without_candidate_profile():
+    payload = hr_context_to_dict(build_mock_hr_context(validate_hr_fixture("demo_hr")))
+    payload["schema_version"] = "hr-context.v1"
+    payload.pop("candidate_profile")
+
+    context = hr_context_from_dict(payload)
+
+    assert context.schema_version == "hr-context.v1"
+    assert context.candidate_profile.experience == (payload["summaries"]["candidate"],)
 
 
 def test_hr_context_from_json_reports_invalid_json():

@@ -36,7 +36,10 @@ def test_hr_context_build_command_writes_context(monkeypatch, tmp_path: Path, ca
     assert payload["mode"] == "mock"
     assert len(payload["chunks"]) == 8
     assert payload["chunks"][0]["id"] == "company_chunk_001"
-    assert payload["tool_results"] == []
+    assert payload["candidate_profile"]["skills"]
+    assert [result["tool_name"] for result in payload["tool_results"]] == [
+        "extract_candidate_profile"
+    ]
 
 
 def test_hr_context_inspect_command_prints_safe_summary(monkeypatch, tmp_path: Path, capsys):

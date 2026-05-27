@@ -18,7 +18,13 @@ from .hr_context import (
 from .hr_fixtures import list_hr_fixture_ids, validate_hr_fixture
 from .hr_prompt_preview import render_hr_prompt_preview
 from .hr_retrieval import retrieval_result_to_dict, retrieve_hr_context
-from .hr_tools import hr_tool_result_to_dict, run_fetch_company_website_tool
+from .hr_tools import (
+    EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
+    FETCH_COMPANY_WEBSITE_TOOL_NAME,
+    hr_tool_result_to_dict,
+    run_extract_candidate_profile_tool,
+    run_fetch_company_website_tool,
+)
 from .interview import resolve_pass_threshold, run_interview_turn
 from .system_prompts import (
     get_default_system_prompt_name,
@@ -246,7 +252,7 @@ def _build_parser() -> argparse.ArgumentParser:
     tool_run_parser = tool_parsers.add_parser("run", help="Run one HR domain tool")
     tool_run_parser.add_argument(
         "tool_name",
-        choices=["fetch_company_website"],
+        choices=[FETCH_COMPANY_WEBSITE_TOOL_NAME, EXTRACT_CANDIDATE_PROFILE_TOOL_NAME],
         help="HR domain tool to run",
     )
     tool_run_parser.add_argument(
@@ -552,16 +558,32 @@ def _format_hr_retrieval_summary(payload: dict) -> str:
 
 def _format_hr_tool_summary(payload: dict) -> str:
     output = payload["output"]
-    source = output["source"]
-    fetch_metadata = output["fetch_metadata"]
     lines = [
         f"Tool: {payload['tool_name']}",
         f"Status: {payload['status']}",
         f"Mode: {output['mode']}",
-        f"Source: {source['title']} ({source['uri']})",
-        f"Bytes: {fetch_metadata['byte_count']}",
-        f"Chunks: {len(output['chunks'])}",
     ]
+    if payload["tool_name"] == FETCH_COMPANY_WEBSITE_TOOL_NAME:
+        source = output["source"]
+        fetch_metadata = output["fetch_metadata"]
+        lines.extend(
+            [
+                f"Source: {source['title']} ({source['uri']})",
+                f"Bytes: {fetch_metadata['byte_count']}",
+                f"Chunks: {len(output['chunks'])}",
+            ]
+        )
+    elif payload["tool_name"] == EXTRACT_CANDIDATE_PROFILE_TOOL_NAME:
+        profile = output["profile"]
+        metadata = output["input_metadata"]
+        lines.extend(
+            [
+                f"Skills: {len(profile['skills'])}",
+                f"Experience: {len(profile['experience'])}",
+                f"Risks: {len(profile['risks'])}",
+                f"Input chars: {metadata['combined_char_count']}",
+            ]
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -610,11 +632,20 @@ def _run_hr_command(args: argparse.Namespace) -> int:
 
         if args.hr_command == "tool" and args.hr_tool_command == "run":
             fixture = validate_hr_fixture(args.fixture) if args.fixture else None
-            result = run_fetch_company_website_tool(
-                mode=args.mode,
-                fixture=fixture,
-                url=args.url,
-            )
+            if args.tool_name == FETCH_COMPANY_WEBSITE_TOOL_NAME:
+                result = run_fetch_company_website_tool(
+                    mode=args.mode,
+                    fixture=fixture,
+                    url=args.url,
+                )
+            elif args.tool_name == EXTRACT_CANDIDATE_PROFILE_TOOL_NAME:
+                result = run_extract_candidate_profile_tool(
+                    mode=args.mode,
+                    fixture=fixture,
+                    model=args.model,
+                )
+            else:
+                raise ValueError(f"Unsupported HR tool '{args.tool_name}'")
             payload = hr_tool_result_to_dict(result)
             if args.json:
                 print(json.dumps(payload, indent=2, sort_keys=True))

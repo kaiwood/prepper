@@ -11,7 +11,8 @@ from typing import Any
 from .hr_fixtures import HrFixture, Transcript
 
 
-HR_CONTEXT_SCHEMA_VERSION = "hr-context.v1"
+HR_CONTEXT_SCHEMA_VERSION = "hr-context.v2"
+SUPPORTED_HR_CONTEXT_SCHEMA_VERSIONS = {"hr-context.v1", HR_CONTEXT_SCHEMA_VERSION}
 SUPPORTED_HR_CONTEXT_MODES = {"mock", "llm"}
 
 
@@ -37,6 +38,15 @@ class HrContextSummaries:
     company: str
     role: str
     candidate: str
+
+
+@dataclass(frozen=True)
+class HrCandidateProfile:
+    skills: tuple[str, ...]
+    experience: tuple[str, ...]
+    seniority_signals: tuple[str, ...]
+    risks: tuple[str, ...]
+    interview_focus_areas: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -80,6 +90,7 @@ class HrContext:
     role_description: HrContextInputDocument
     candidate_inputs: tuple[HrContextInputDocument, ...]
     summaries: HrContextSummaries
+    candidate_profile: HrCandidateProfile
     sources: tuple[HrContextSource, ...]
     chunks: tuple[HrContextChunk, ...]
     tool_results: tuple[HrToolResult, ...]
@@ -172,6 +183,16 @@ def build_mock_hr_context(fixture: HrFixture) -> HrContext:
         )
     )
 
+    from .hr_tools import (
+        candidate_profile_tool_result_to_profile,
+        run_extract_candidate_profile_tool,
+    )
+
+    candidate_profile_result = run_extract_candidate_profile_tool(
+        mode="mock", fixture=fixture
+    )
+    candidate_profile = candidate_profile_tool_result_to_profile(candidate_profile_result)
+
     sources = input_sources + transcript_sources
 
     from .hr_retrieval import build_retrieval_chunks
@@ -193,14 +214,12 @@ def build_mock_hr_context(fixture: HrFixture) -> HrContext:
         summaries=HrContextSummaries(
             company=company_document.summary,
             role=role_document.summary,
-            candidate=_truncate_text(
-                f"{resume_document.summary} {profile_document.summary}",
-                max_chars=420,
-            ),
+            candidate=_summarize_candidate_profile(candidate_profile),
         ),
+        candidate_profile=candidate_profile,
         sources=sources,
         chunks=chunks,
-        tool_results=(),
+        tool_results=(candidate_profile_result,),
         replay_metadata=replay_metadata,
     )
 
@@ -219,6 +238,7 @@ def hr_context_to_dict(context: HrContext) -> dict[str, Any]:
             _input_document_to_dict(document) for document in context.candidate_inputs
         ],
         "summaries": _summaries_to_dict(context.summaries),
+        "candidate_profile": _candidate_profile_to_dict(context.candidate_profile),
         "sources": [_source_to_dict(source) for source in context.sources],
         "chunks": [_chunk_to_dict(chunk) for chunk in context.chunks],
         "tool_results": [
@@ -233,7 +253,7 @@ def hr_context_from_dict(payload: Mapping[str, Any]) -> HrContext:
         raise HrContextValidationError("HR context payload must be an object")
 
     schema_version = _require_str(payload, "schema_version", "HR context")
-    if schema_version != HR_CONTEXT_SCHEMA_VERSION:
+    if schema_version not in SUPPORTED_HR_CONTEXT_SCHEMA_VERSIONS:
         raise HrContextValidationError(
             f"Unsupported HR context schema_version '{schema_version}'"
         )
@@ -276,6 +296,18 @@ def hr_context_from_dict(payload: Mapping[str, Any]) -> HrContext:
             "HR context field 'sources' must include at least one source"
         )
 
+    summaries = _dict_to_summaries(
+        _require_mapping(payload, "summaries", "HR context")
+    )
+    if "candidate_profile" in payload:
+        candidate_profile = _dict_to_candidate_profile(
+            _require_mapping(payload, "candidate_profile", "HR context")
+        )
+    elif schema_version == "hr-context.v1":
+        candidate_profile = _legacy_candidate_profile(summaries)
+    else:
+        _require_mapping(payload, "candidate_profile", "HR context")
+
     return HrContext(
         schema_version=schema_version,
         context_id=_require_str(payload, "context_id", "HR context"),
@@ -287,9 +319,8 @@ def hr_context_from_dict(payload: Mapping[str, Any]) -> HrContext:
             "role_description",
         ),
         candidate_inputs=candidate_inputs,
-        summaries=_dict_to_summaries(
-            _require_mapping(payload, "summaries", "HR context")
-        ),
+        summaries=summaries,
+        candidate_profile=candidate_profile,
         sources=sources,
         chunks=tuple(
             _dict_to_chunk(item, f"chunks[{index}]")
@@ -479,6 +510,16 @@ def _summaries_to_dict(summaries: HrContextSummaries) -> dict[str, str]:
     }
 
 
+def _candidate_profile_to_dict(profile: HrCandidateProfile) -> dict[str, list[str]]:
+    return {
+        "skills": list(profile.skills),
+        "experience": list(profile.experience),
+        "seniority_signals": list(profile.seniority_signals),
+        "risks": list(profile.risks),
+        "interview_focus_areas": list(profile.interview_focus_areas),
+    }
+
+
 def _chunk_to_dict(chunk: HrContextChunk) -> dict[str, Any]:
     return {
         "id": chunk.id,
@@ -546,6 +587,37 @@ def _dict_to_summaries(data: Mapping[str, Any]) -> HrContextSummaries:
         role=_require_str(data, "role", "summaries"),
         candidate=_require_str(data, "candidate", "summaries"),
     )
+
+
+def _dict_to_candidate_profile(data: Mapping[str, Any]) -> HrCandidateProfile:
+    return HrCandidateProfile(
+        skills=_require_str_tuple(data, "skills", "candidate_profile"),
+        experience=_require_str_tuple(data, "experience", "candidate_profile"),
+        seniority_signals=_require_str_tuple(
+            data, "seniority_signals", "candidate_profile"
+        ),
+        risks=_require_str_tuple(data, "risks", "candidate_profile"),
+        interview_focus_areas=_require_str_tuple(
+            data, "interview_focus_areas", "candidate_profile"
+        ),
+    )
+
+
+def _legacy_candidate_profile(summaries: HrContextSummaries) -> HrCandidateProfile:
+    return HrCandidateProfile(
+        skills=(),
+        experience=(summaries.candidate,),
+        seniority_signals=(),
+        risks=(),
+        interview_focus_areas=(),
+    )
+
+
+def _summarize_candidate_profile(profile: HrCandidateProfile) -> str:
+    parts = [*profile.experience[:2], *profile.skills[:6], *profile.seniority_signals[:2]]
+    if not parts:
+        parts = ["Candidate profile extracted from resume and profile inputs"]
+    return _truncate_text("; ".join(parts), max_chars=420)
 
 
 def _dict_to_chunk(value: Any, field_path: str) -> HrContextChunk:
@@ -633,6 +705,21 @@ def _require_list(data: Mapping[str, Any], key: str, parent_path: str) -> list[A
             f"HR context field '{_join_field(parent_path, key)}' must be a list"
         )
     return value
+
+
+def _require_str_tuple(
+    data: Mapping[str, Any], key: str, parent_path: str
+) -> tuple[str, ...]:
+    field_path = _join_field(parent_path, key)
+    values = _require_list(data, key, parent_path)
+    result = []
+    for index, value in enumerate(values):
+        if not isinstance(value, str) or not value.strip():
+            raise HrContextValidationError(
+                f"HR context field '{field_path}[{index}]' must be a non-empty string"
+            )
+        result.append(value.strip())
+    return tuple(result)
 
 
 def _require_str(data: Mapping[str, Any], key: str, parent_path: str) -> str:

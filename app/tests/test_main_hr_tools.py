@@ -60,6 +60,83 @@ def test_hr_tool_run_fetch_company_website_mock_prints_summary(monkeypatch, caps
     assert "workforce-planning software" not in captured.out
 
 
+def test_hr_tool_run_extract_candidate_profile_mock_prints_json(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "hr",
+            "tool",
+            "run",
+            "extract_candidate_profile",
+            "--fixture",
+            "demo_hr",
+            "--mode",
+            "mock",
+            "--json",
+        ],
+    )
+
+    assert main.main() == 0
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    payload = json.loads(captured.out)
+    assert payload["tool_name"] == "extract_candidate_profile"
+    assert payload["status"] == "success"
+    assert payload["output"]["mode"] == "mock"
+    assert "SQL" in payload["output"]["profile"]["skills"]
+
+
+def test_hr_tool_run_extract_candidate_profile_mock_prints_summary(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "hr",
+            "tool",
+            "run",
+            "extract_candidate_profile",
+            "--fixture",
+            "demo_hr",
+            "--mode",
+            "mock",
+        ],
+    )
+
+    assert main.main() == 0
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert "Tool: extract_candidate_profile" in captured.out
+    assert "Status: success" in captured.out
+    assert "Skills:" in captured.out
+    assert "Experience:" in captured.out
+    assert "SQL" not in captured.out
+
+
+def test_hr_tool_run_extract_candidate_profile_reports_missing_fixture(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "hr",
+            "tool",
+            "run",
+            "extract_candidate_profile",
+            "--mode",
+            "mock",
+            "--json",
+        ],
+    )
+
+    assert main.main() == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "requires --fixture" in captured.err or "candidate text" in captured.err
+
+
 def test_hr_tool_run_fetch_company_website_live_prints_json(monkeypatch, capsys):
     monkeypatch.setattr(
         "prepper_cli.main.run_fetch_company_website_tool",

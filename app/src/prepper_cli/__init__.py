@@ -4,6 +4,7 @@ from .chat import get_chat_reply, get_interview_opener
 from .conversation import Conversation
 from .hr_context import (
     HR_CONTEXT_SCHEMA_VERSION,
+    HrCandidateProfile,
     HrContext,
     HrContextChunk,
     HrContextInputDocument,
@@ -48,10 +49,13 @@ from .hr_retrieval import (
     retrieve_hr_context,
 )
 from .hr_tools import (
+    EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
     HrToolError,
+    candidate_profile_tool_result_to_profile,
     company_website_tool_result_to_context_entries,
     hr_tool_result_to_dict,
+    run_extract_candidate_profile_tool,
     run_fetch_company_website_tool,
 )
 from .interview import (
@@ -88,6 +92,7 @@ __all__ = [
     "get_interview_opener",
     "Conversation",
     "HR_CONTEXT_SCHEMA_VERSION",
+    "HrCandidateProfile",
     "HrContext",
     "HrContextChunk",
     "HrContextInputDocument",
@@ -126,10 +131,13 @@ __all__ = [
     "load_openrouter_embedding_config",
     "retrieval_result_to_dict",
     "retrieve_hr_context",
+    "EXTRACT_CANDIDATE_PROFILE_TOOL_NAME",
     "FETCH_COMPANY_WEBSITE_TOOL_NAME",
     "HrToolError",
+    "candidate_profile_tool_result_to_profile",
     "company_website_tool_result_to_context_entries",
     "hr_tool_result_to_dict",
+    "run_extract_candidate_profile_tool",
     "run_fetch_company_website_tool",
     "build_active_interview_system_prompt",
     "build_difficulty_instruction",

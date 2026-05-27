@@ -8,12 +8,30 @@ import pytest
 
 from prepper_cli.hr_fixtures import validate_hr_fixture
 from prepper_cli.hr_tools import (
+    EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
     HrToolError,
+    candidate_profile_tool_result_to_profile,
     company_website_tool_result_to_context_entries,
     hr_tool_result_to_dict,
+    run_extract_candidate_profile_tool,
     run_fetch_company_website_tool,
 )
+
+
+class FakeLlmResponse:
+    def __init__(self, content: str):
+        self.content = content
+
+
+class FakeCandidateProfileLlm:
+    def __init__(self, content: str):
+        self.content = content
+        self.messages = None
+
+    def invoke(self, messages):
+        self.messages = messages
+        return FakeLlmResponse(self.content)
 
 
 class FakeResponse:
@@ -62,6 +80,91 @@ def test_fetch_company_website_mock_returns_fixture_content():
         "company_website_chunk_003",
         "company_website_chunk_004",
     ]
+
+
+def test_extract_candidate_profile_mock_returns_structured_profile():
+    fixture = validate_hr_fixture("demo_hr")
+
+    result = run_extract_candidate_profile_tool(mode="mock", fixture=fixture)
+    payload = hr_tool_result_to_dict(result)
+
+    assert payload["tool_name"] == EXTRACT_CANDIDATE_PROFILE_TOOL_NAME
+    assert payload["status"] == "success"
+    assert payload["output"]["mode"] == "mock"
+    assert "SQL" in payload["output"]["profile"]["skills"]
+    assert "Customer Insights Analyst, BrightPath HR Software" in payload["output"]["profile"]["experience"]
+    assert payload["output"]["profile"]["seniority_signals"]
+    assert payload["output"]["profile"]["risks"]
+    assert payload["output"]["profile"]["interview_focus_areas"]
+    assert payload["output"]["input_metadata"]["combined_char_count"] > 0
+
+
+def test_extract_candidate_profile_converts_to_context_profile():
+    result = run_extract_candidate_profile_tool(
+        mode="mock", fixture=validate_hr_fixture("demo_hr")
+    )
+
+    profile = candidate_profile_tool_result_to_profile(result)
+
+    assert "SQL" in profile.skills
+    assert profile.interview_focus_areas
+
+
+def test_extract_candidate_profile_rejects_empty_inputs():
+    with pytest.raises(HrToolError, match="must not be empty"):
+        run_extract_candidate_profile_tool(
+            mode="mock",
+            resume_text="  ",
+            profile_text="\n",
+        )
+
+
+def test_extract_candidate_profile_rejects_oversized_inputs():
+    with pytest.raises(HrToolError, match="size limit"):
+        run_extract_candidate_profile_tool(
+            mode="mock",
+            resume_text="x" * 11,
+            profile_text="",
+            max_chars=10,
+        )
+
+
+def test_extract_candidate_profile_llm_parses_langchain_json(monkeypatch):
+    fake_llm = FakeCandidateProfileLlm(
+        '{"skills":["SQL"],"experience":["Analyst"],'
+        '"seniority_signals":["Four years experience"],'
+        '"risks":["Verify depth"],'
+        '"interview_focus_areas":["Probe HR analytics"]}'
+    )
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._build_candidate_profile_llm",
+        lambda model: fake_llm,
+    )
+
+    result = run_extract_candidate_profile_tool(
+        mode="llm",
+        resume_text="# Resume\nSQL analyst",
+        profile_text="# Profile\nFour years experience",
+    )
+    payload = hr_tool_result_to_dict(result)
+
+    assert payload["output"]["mode"] == "llm"
+    assert payload["output"]["profile"]["skills"] == ["SQL"]
+    assert fake_llm.messages[0][0] == "system"
+
+
+def test_extract_candidate_profile_llm_reports_invalid_json(monkeypatch):
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._build_candidate_profile_llm",
+        lambda model: FakeCandidateProfileLlm("not json"),
+    )
+
+    with pytest.raises(HrToolError, match="invalid JSON"):
+        run_extract_candidate_profile_tool(
+            mode="llm",
+            resume_text="# Resume\nSQL analyst",
+            profile_text="# Profile\nFour years experience",
+        )
 
 
 def test_fetch_company_website_live_extracts_readable_html(monkeypatch):
