@@ -1,0 +1,153 @@
+from email.message import Message
+
+from app import create_app
+from app.routes.hr import get_stored_hr_context
+
+
+class FakeResponse:
+    def __init__(self, body: bytes):
+        self._body = body
+        self.headers = Message()
+        self.headers["Content-Type"] = "text/html; charset=utf-8"
+
+    def read(self, _size: int) -> bytes:
+        return self._body
+
+    def geturl(self) -> str:
+        return "https://example.com/about"
+
+    def close(self) -> None:
+        pass
+
+
+def _payload(**overrides):
+    payload = {
+        "mode": "mock",
+        "company_text": "# Example Co\n\n## Values\nPrivacy-first HR analytics.",
+        "role_description": "# Analyst\n\n## Responsibilities\nAnalyze customer success data.",
+        "resume_text": "# Resume\n\n## Skills\nSQL, Python\n\n## Experience\n### Analyst, HR SaaS",
+        "profile_text": "# Profile\nCustomer-facing analytics experience.",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_hr_context_endpoint_builds_and_stores_context_from_text():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post("/api/hr/context", json=_payload())
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["schema_version"] == "hr-context-response.v1"
+    assert data["status"] == "success"
+    assert data["context_id"].startswith("hrctx_input_")
+    assert data["context"]["context_id"] == data["context_id"]
+    assert data["context"]["fixture_id"] is None
+    assert data["summaries"]["company"].startswith("Example Co")
+    assert data["tool_results"][0]["tool_name"] == "extract_candidate_profile"
+    assert data["errors"] == []
+    assert get_stored_hr_context(data["context_id"]).context_id == data["context_id"]
+
+
+def test_hr_context_endpoint_fetches_company_url(monkeypatch):
+    def fake_urlopen(request, timeout):
+        assert request.full_url == "https://example.com/about"
+        return FakeResponse(
+            b"<html><head><title>Example</title></head><body><p>HR analytics platform.</p></body></html>"
+        )
+
+    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fake_urlopen)
+    app = create_app()
+    client = app.test_client()
+
+    payload = _payload(company_text=None, company_url="https://example.com/about")
+    response = client.post("/api/hr/context", json=payload)
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["sources"][0]["uri"] == "https://example.com/about"
+    assert [tool["tool_name"] for tool in data["tool_results"]] == [
+        "fetch_company_website",
+        "extract_candidate_profile",
+    ]
+
+
+def test_hr_context_endpoint_rejects_validation_errors():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/hr/context",
+        json=_payload(company_url="https://example.com"),
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "Exactly one of company_text or company_url is required"
+    }
+
+
+def test_hr_context_endpoint_returns_partial_when_candidate_tool_fails(monkeypatch):
+    def fail_candidate_profile(**kwargs):
+        raise RuntimeError("profile model unavailable")
+
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools.run_extract_candidate_profile_tool",
+        fail_candidate_profile,
+    )
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post("/api/hr/context", json=_payload())
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "partial"
+    assert data["context_id"].startswith("hrctx_input_")
+    assert data["tool_results"][0]["status"] == "error"
+    assert data["errors"] == [
+        {
+            "tool_name": "extract_candidate_profile",
+            "message": "profile model unavailable",
+        }
+    ]
+
+
+def test_hr_context_endpoint_returns_partial_without_context_when_url_fetch_fails(monkeypatch):
+    def fail_urlopen(request, timeout):
+        raise TimeoutError("slow")
+
+    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fail_urlopen)
+    app = create_app()
+    client = app.test_client()
+
+    payload = _payload(company_text=None, company_url="https://example.com/about")
+    response = client.post("/api/hr/context", json=payload)
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "partial"
+    assert data["context_id"] is None
+    assert data["context"] is None
+    assert data["errors"][0]["tool_name"] == "fetch_company_website"
+
+
+def test_hr_context_options_preflight_returns_cors_headers():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.options(
+        "/api/hr/context",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["Access-Control-Allow-Origin"] == "http://localhost:3000"
+    assert "Content-Type" in response.headers["Access-Control-Allow-Headers"]

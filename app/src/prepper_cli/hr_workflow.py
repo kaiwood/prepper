@@ -36,13 +36,17 @@ def run_hr_workflow(
     scoring_model: str | None = None,
     question_limit_override: int | None = None,
     pass_threshold_override: float | None = None,
+    context: HrContext | None = None,
+    transport: str = "local",
 ) -> HrWorkflowRun:
     """Run the full fixture-backed HR prototype workflow."""
     if mode not in {"mock", "llm"}:
         raise HrWorkflowError("HR workflow mode must be one of: llm, mock")
+    if transport not in {"local", "api"}:
+        raise HrWorkflowError("HR workflow transport must be one of: api, local")
 
     fixture = validate_hr_fixture(fixture_id)
-    context = build_mock_hr_context(fixture)
+    context = context or build_mock_hr_context(fixture)
 
     if mode == "mock":
         resolved_candidate = _resolve_mock_candidate(fixture, candidate)
@@ -78,6 +82,7 @@ def run_hr_workflow(
             mode=mode,
             candidate=resolved_candidate,
             interview_summary=interview_summary,
+            transport=transport,
         )
     )
 
@@ -112,6 +117,7 @@ def _build_workflow_summary(
     mode: str,
     candidate: str,
     interview_summary: dict[str, Any],
+    transport: str,
 ) -> dict[str, Any]:
     tool_calls = interview_summary.get("tool_calls", [])
     sources = interview_summary.get("sources", [])
@@ -122,6 +128,7 @@ def _build_workflow_summary(
         "workflow": "hr_workflow",
         "mode": mode,
         "execution": "run",
+        "transport": transport,
         "fixture_id": fixture.id,
         "candidate": candidate,
         "context": _context_summary(context),

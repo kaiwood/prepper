@@ -153,3 +153,17 @@ def test_run_hr_workflow_llm_accepts_out_path(monkeypatch, tmp_path):
 def test_run_hr_workflow_llm_requires_candidate():
     with pytest.raises(HrWorkflowError, match="requires --candidate"):
         run_hr_workflow(fixture_id="demo_hr", mode="llm")
+
+
+def test_run_hr_workflow_accepts_api_transport_context():
+    context = hr_workflow.build_mock_hr_context(hr_workflow.validate_hr_fixture("demo_hr"))
+
+    result = run_hr_workflow(
+        fixture_id="demo_hr",
+        mode="mock",
+        context=context,
+        transport="api",
+    )
+
+    assert result.summary["transport"] == "api"
+    assert result.summary["context"]["context_id"] == context.context_id

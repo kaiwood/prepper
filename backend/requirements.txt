@@ -1,6 +1,8 @@
+beautifulsoup4
 flask
 flask-cors
 flask-limiter
+langchain-openai
 openai
 python-dotenv
 -e ../app

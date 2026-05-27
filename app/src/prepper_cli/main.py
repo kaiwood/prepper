@@ -3,6 +3,8 @@ import io
 import json
 import os
 import sys
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from .benchmark import run_benchmark_interview
 from .chat import get_chat_reply
@@ -11,6 +13,7 @@ from .conversation import Conversation
 from .hr_context import (
     HrContext,
     build_hr_context_from_fixture,
+    hr_context_from_dict,
     hr_context_to_json,
     load_hr_context,
     write_hr_context,
@@ -381,6 +384,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print workflow summary JSON",
     )
+    workflow_run_parser.add_argument(
+        "--transport",
+        choices=["local", "api"],
+        default="local",
+        help="Context build transport for workflow setup",
+    )
+    workflow_run_parser.add_argument(
+        "--api-url",
+        help="Backend base URL for --transport api",
+    )
     return parser
 
 
@@ -738,6 +751,70 @@ def _format_hr_tool_summary(payload: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _build_hr_context_via_api(
+    *,
+    fixture_id: str,
+    mode: str,
+    api_url: str | None,
+) -> HrContext:
+    if not api_url or not api_url.strip():
+        raise ValueError("--api-url is required when --transport api is used")
+
+    fixture = validate_hr_fixture(fixture_id)
+    payload = {
+        "mode": mode,
+        "fixture_id": fixture.id,
+        "company_text": fixture.company_markdown,
+        "role_description": fixture.role_markdown,
+        "resume_text": fixture.resume_markdown,
+        "profile_text": fixture.profile_markdown,
+        "source_uris": {
+            "company": "fixture://company.md",
+            "role": "fixture://role.md",
+            "resume": "fixture://resume.md",
+            "profile": "fixture://profile.md",
+        },
+    }
+    response_payload = _post_json(
+        f"{api_url.rstrip('/')}/api/hr/context",
+        payload,
+    )
+    context_payload = response_payload.get("context")
+    if not isinstance(context_payload, dict):
+        errors = response_payload.get("errors")
+        raise ValueError(f"HR context API did not return a usable context: {errors}")
+    return hr_context_from_dict(context_payload)
+
+
+def _post_json(url: str, payload: dict) -> dict:
+    body = json.dumps(payload).encode("utf-8")
+    request = Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        response = urlopen(request, timeout=30)
+        raw = response.read().decode("utf-8")
+    except HTTPError as exc:
+        raw_error = exc.read().decode("utf-8", errors="replace")
+        raise ValueError(
+            f"HR context API request failed: {raw_error or exc.reason}"
+        ) from exc
+    except URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        raise ValueError(f"HR context API request failed: {reason}") from exc
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("HR context API returned invalid JSON") from exc
+    if not isinstance(data, dict):
+        raise ValueError("HR context API returned a non-object response")
+    return data
+
+
 def _run_hr_command(args: argparse.Namespace) -> int:
     try:
         if args.hr_command == "fixtures" and args.hr_fixtures_command == "list":
@@ -810,16 +887,27 @@ def _run_hr_command(args: argparse.Namespace) -> int:
             return 0
 
         if args.hr_command == "workflow" and args.hr_workflow_command == "run":
-            workflow = run_hr_workflow(
-                fixture_id=args.fixture,
-                mode=args.mode,
-                candidate=args.candidate,
-                out_path=args.out,
-                model=args.model,
-                scoring_model=args.benchmark_model,
-                question_limit_override=args.question_limit,
-                pass_threshold_override=args.pass_threshold,
-            )
+            workflow_kwargs = {
+                "fixture_id": args.fixture,
+                "mode": args.mode,
+                "candidate": args.candidate,
+                "out_path": args.out,
+                "model": args.model,
+                "scoring_model": args.benchmark_model,
+                "question_limit_override": args.question_limit,
+                "pass_threshold_override": args.pass_threshold,
+            }
+            if args.transport == "api":
+                workflow_kwargs["context"] = _build_hr_context_via_api(
+                    fixture_id=args.fixture,
+                    mode=args.mode,
+                    api_url=args.api_url,
+                )
+                workflow_kwargs["transport"] = "api"
+            elif args.api_url:
+                raise ValueError("--api-url requires --transport api")
+
+            workflow = run_hr_workflow(**workflow_kwargs)
             if args.json:
                 print(json.dumps(workflow.summary, indent=2, sort_keys=True))
             else:

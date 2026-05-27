@@ -97,6 +97,23 @@ class HrContext:
     replay_metadata: HrReplayMetadata
 
 
+@dataclass(frozen=True)
+class HrContextBuildIssue:
+    tool_name: str
+    message: str
+
+
+@dataclass(frozen=True)
+class HrContextBuildResult:
+    context: HrContext | None
+    tool_results: tuple[HrToolResult, ...]
+    errors: tuple[HrContextBuildIssue, ...]
+
+    @property
+    def status(self) -> str:
+        return "partial" if self.errors else "success"
+
+
 class HrContextValidationError(ValueError):
     """Raised when an HR context payload is malformed."""
 
@@ -107,6 +124,216 @@ def build_hr_context_from_fixture(fixture: HrFixture, *, mode: str = "mock") -> 
             f"HR context fixture builds currently support only mock mode, got '{mode}'"
         )
     return build_mock_hr_context(fixture)
+
+
+def build_hr_context_from_inputs(
+    *,
+    mode: str,
+    role_description: str,
+    resume_text: str,
+    company_text: str | None = None,
+    company_url: str | None = None,
+    profile_text: str | None = None,
+    model: str | None = None,
+    fixture_id: str | None = None,
+    source_uris: Mapping[str, str] | None = None,
+) -> HrContextBuildResult:
+    """Build an HR context from untrusted API/UI input text."""
+    if mode not in SUPPORTED_HR_CONTEXT_MODES:
+        modes = ", ".join(sorted(SUPPORTED_HR_CONTEXT_MODES))
+        raise HrContextValidationError(f"HR context mode must be one of: {modes}")
+
+    normalized_company_text = _optional_non_empty_text(company_text)
+    normalized_company_url = _optional_non_empty_text(company_url)
+    if bool(normalized_company_text) == bool(normalized_company_url):
+        raise HrContextValidationError(
+            "Exactly one of company_text or company_url is required"
+        )
+
+    normalized_role = _required_input_text(role_description, "role_description")
+    normalized_resume = _required_input_text(resume_text, "resume_text")
+    normalized_profile = (profile_text or "").strip()
+
+    tool_results: list[HrToolResult] = []
+    errors: list[HrContextBuildIssue] = []
+
+    if normalized_company_text is not None:
+        company_document = _build_input_document(
+            source_id="company",
+            title_fallback="Company input",
+            markdown=normalized_company_text,
+        )
+        company_source = _build_source(
+            id="company",
+            kind="company",
+            title=company_document.title,
+            uri=_source_uri(source_uris, "company", "input://company_text"),
+            content=normalized_company_text,
+        )
+    else:
+        from .hr_tools import (
+            FETCH_COMPANY_WEBSITE_TOOL_NAME,
+            company_website_tool_result_to_context_entries,
+            run_fetch_company_website_tool,
+        )
+
+        try:
+            company_tool_result = run_fetch_company_website_tool(
+                mode="llm",
+                url=normalized_company_url,
+            )
+            tool_results.append(company_tool_result)
+            company_source, company_document, _company_chunks = (
+                company_website_tool_result_to_context_entries(company_tool_result)
+            )
+        except Exception as exc:
+            message = str(exc)
+            errors.append(
+                HrContextBuildIssue(
+                    tool_name=FETCH_COMPANY_WEBSITE_TOOL_NAME,
+                    message=message,
+                )
+            )
+            tool_results.append(
+                _build_failed_tool_result(
+                    tool_name=FETCH_COMPANY_WEBSITE_TOOL_NAME,
+                    mode="llm",
+                    message=message,
+                    extra={"url": normalized_company_url},
+                )
+            )
+            return HrContextBuildResult(
+                context=None,
+                tool_results=tuple(tool_results),
+                errors=tuple(errors),
+            )
+
+    role_document = _build_input_document(
+        source_id="role",
+        title_fallback="Role description",
+        markdown=normalized_role,
+    )
+    resume_document = _build_input_document(
+        source_id="resume",
+        title_fallback="Candidate resume",
+        markdown=normalized_resume,
+    )
+    candidate_inputs = [resume_document]
+    profile_source: HrContextSource | None = None
+    if normalized_profile:
+        profile_document = _build_input_document(
+            source_id="profile",
+            title_fallback="Candidate profile",
+            markdown=normalized_profile,
+        )
+        candidate_inputs.append(profile_document)
+        profile_source = _build_source(
+            id="profile",
+            kind="profile",
+            title=profile_document.title,
+            uri=_source_uri(source_uris, "profile", "input://profile_text"),
+            content=normalized_profile,
+        )
+
+    role_source = _build_source(
+        id="role",
+        kind="role",
+        title=role_document.title,
+        uri=_source_uri(source_uris, "role", "input://role_description"),
+        content=normalized_role,
+    )
+    resume_source = _build_source(
+        id="resume",
+        kind="resume",
+        title=resume_document.title,
+        uri=_source_uri(source_uris, "resume", "input://resume_text"),
+        content=normalized_resume,
+    )
+
+    from .hr_tools import (
+        EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
+        candidate_profile_tool_result_to_profile,
+        run_extract_candidate_profile_tool,
+    )
+
+    try:
+        candidate_profile_result = run_extract_candidate_profile_tool(
+            mode=mode,
+            resume_text=normalized_resume,
+            profile_text=normalized_profile,
+            model=model,
+        )
+        tool_results.append(candidate_profile_result)
+        candidate_profile = candidate_profile_tool_result_to_profile(
+            candidate_profile_result
+        )
+    except Exception as exc:
+        message = str(exc)
+        errors.append(
+            HrContextBuildIssue(
+                tool_name=EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
+                message=message,
+            )
+        )
+        tool_results.append(
+            _build_failed_tool_result(
+                tool_name=EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
+                mode=mode,
+                message=message,
+            )
+        )
+        candidate_profile = HrCandidateProfile(
+            skills=(),
+            experience=(),
+            seniority_signals=(),
+            risks=("Candidate profile extraction failed; review candidate input manually",),
+            interview_focus_areas=("Review the resume manually before interviewing",),
+        )
+
+    sources = [company_source, role_source, resume_source]
+    if profile_source is not None:
+        sources.append(profile_source)
+
+    from .hr_retrieval import build_retrieval_chunks
+
+    chunks = build_retrieval_chunks(
+        company_inputs=(company_document,),
+        role_description=role_document,
+        sources=tuple(sources),
+    )
+
+    context = HrContext(
+        schema_version=HR_CONTEXT_SCHEMA_VERSION,
+        context_id=_build_input_context_id(
+            mode=mode,
+            company_text=company_document.markdown,
+            company_uri=company_source.uri,
+            role_description=normalized_role,
+            resume_text=normalized_resume,
+            profile_text=normalized_profile,
+        ),
+        fixture_id=_optional_non_empty_text(fixture_id),
+        mode=mode,
+        company_inputs=(company_document,),
+        role_description=role_document,
+        candidate_inputs=tuple(candidate_inputs),
+        summaries=HrContextSummaries(
+            company=company_document.summary,
+            role=role_document.summary,
+            candidate=_summarize_candidate_profile(candidate_profile),
+        ),
+        candidate_profile=candidate_profile,
+        sources=tuple(sources),
+        chunks=chunks,
+        tool_results=tuple(tool_results),
+        replay_metadata=HrReplayMetadata(transcripts=()),
+    )
+
+    return HrContextBuildResult(
+        context=context,
+        tool_results=tuple(tool_results),
+        errors=tuple(errors),
+    )
 
 
 def build_mock_hr_context(fixture: HrFixture) -> HrContext:
@@ -418,6 +645,71 @@ def _build_context_id(fixture: HrFixture, *, mode: str) -> str:
         fingerprint_payload, sort_keys=True, separators=(",", ":")
     )
     return f"hrctx_{fixture.id}_{_sha256_text(fingerprint)[:12]}"
+
+
+def _build_input_context_id(
+    *,
+    mode: str,
+    company_text: str,
+    company_uri: str,
+    role_description: str,
+    resume_text: str,
+    profile_text: str,
+) -> str:
+    fingerprint_payload = {
+        "schema_version": HR_CONTEXT_SCHEMA_VERSION,
+        "mode": mode,
+        "company_sha256": _sha256_text(company_text),
+        "company_uri": company_uri,
+        "role_sha256": _sha256_text(role_description),
+        "resume_sha256": _sha256_text(resume_text),
+        "profile_sha256": _sha256_text(profile_text),
+    }
+    fingerprint = json.dumps(
+        fingerprint_payload, sort_keys=True, separators=(",", ":")
+    )
+    return f"hrctx_input_{_sha256_text(fingerprint)[:12]}"
+
+
+def _build_failed_tool_result(
+    *,
+    tool_name: str,
+    mode: str,
+    message: str,
+    extra: Mapping[str, Any] | None = None,
+) -> HrToolResult:
+    output = {"mode": mode, "error": message}
+    if extra:
+        output.update(extra)
+    return HrToolResult(tool_name=tool_name, status="error", output=output)
+
+
+def _optional_non_empty_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise HrContextValidationError("company_text and company_url must be strings")
+    normalized = value.strip()
+    return normalized or None
+
+
+def _required_input_text(value: str, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise HrContextValidationError(f"{field_name} is required")
+    return value.strip()
+
+
+def _source_uri(
+    source_uris: Mapping[str, str] | None,
+    key: str,
+    default: str,
+) -> str:
+    if not source_uris or key not in source_uris:
+        return default
+    value = source_uris[key]
+    if not isinstance(value, str) or not value.strip():
+        raise HrContextValidationError(f"source_uris.{key} must be a non-empty string")
+    return value.strip()
 
 
 def _transcript_uri(candidate: str) -> str:

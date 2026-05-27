@@ -2,6 +2,8 @@ import json
 from types import SimpleNamespace
 
 from prepper_cli import main
+from prepper_cli.hr_context import build_mock_hr_context, hr_context_to_dict
+from prepper_cli.hr_fixtures import validate_hr_fixture
 
 
 def _summary(path="tmp/hr-workflow-demo_hr-strong.md"):
@@ -155,3 +157,98 @@ def test_hr_workflow_run_command_reports_error(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "llm workflow requires --candidate" in captured.err
+
+
+def test_build_hr_context_via_api_sends_fixture_source_metadata(monkeypatch):
+    calls = []
+    fixture = validate_hr_fixture("demo_hr")
+    context_payload = hr_context_to_dict(build_mock_hr_context(fixture))
+
+    def fake_post_json(url, payload):
+        calls.append((url, payload))
+        return {"context": context_payload, "errors": []}
+
+    monkeypatch.setattr(main, "_post_json", fake_post_json)
+
+    context = main._build_hr_context_via_api(
+        fixture_id="demo_hr",
+        mode="mock",
+        api_url="http://127.0.0.1:5000/",
+    )
+
+    assert context.context_id == context_payload["context_id"]
+    assert calls[0][0] == "http://127.0.0.1:5000/api/hr/context"
+    assert calls[0][1]["fixture_id"] == "demo_hr"
+    assert calls[0][1]["source_uris"] == {
+        "company": "fixture://company.md",
+        "role": "fixture://role.md",
+        "resume": "fixture://resume.md",
+        "profile": "fixture://profile.md",
+    }
+
+
+def test_hr_workflow_run_command_supports_api_transport(monkeypatch, capsys):
+    calls = []
+    fake_context = object()
+
+    def fake_build_context(**kwargs):
+        calls.append(("api", kwargs))
+        return fake_context
+
+    def fake_run_hr_workflow(**kwargs):
+        calls.append(("workflow", kwargs))
+        summary = _summary()
+        summary["transport"] = "api"
+        return SimpleNamespace(summary=summary)
+
+    monkeypatch.setattr(main, "_build_hr_context_via_api", fake_build_context)
+    monkeypatch.setattr(main, "run_hr_workflow", fake_run_hr_workflow)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "hr",
+            "workflow",
+            "run",
+            "--fixture",
+            "demo_hr",
+            "--mode",
+            "mock",
+            "--transport",
+            "api",
+            "--api-url",
+            "http://127.0.0.1:5000",
+            "--json",
+        ],
+    )
+
+    assert main.main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["transport"] == "api"
+    assert calls == [
+        (
+            "api",
+            {
+                "fixture_id": "demo_hr",
+                "mode": "mock",
+                "api_url": "http://127.0.0.1:5000",
+            },
+        ),
+        (
+            "workflow",
+            {
+                "fixture_id": "demo_hr",
+                "mode": "mock",
+                "candidate": None,
+                "out_path": None,
+                "model": None,
+                "scoring_model": None,
+                "question_limit_override": None,
+                "pass_threshold_override": None,
+                "context": fake_context,
+                "transport": "api",
+            },
+        ),
+    ]

@@ -88,10 +88,12 @@ def create_app():
 
     from .routes.health import health_bp
     from .routes.chat import chat_bp
+    from .routes.hr import hr_bp
     from .routes.prompts import prompts_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(hr_bp)
     app.register_blueprint(prompts_bp)
 
     @app.errorhandler(429)
