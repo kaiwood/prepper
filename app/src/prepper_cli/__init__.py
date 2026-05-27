@@ -73,6 +73,13 @@ from .hr_tools import (
     run_fetch_company_website_tool,
     run_retrieve_company_context_tool,
 )
+from .hr_workflow import (
+    DEFAULT_HR_WORKFLOW_MOCK_CANDIDATE,
+    HR_WORKFLOW_SUMMARY_SCHEMA_VERSION,
+    HrWorkflowError,
+    HrWorkflowRun,
+    run_hr_workflow,
+)
 from .interview import (
     build_difficulty_instruction,
     build_forced_closing_instruction,
@@ -165,6 +172,11 @@ __all__ = [
     "run_extract_candidate_profile_tool",
     "run_fetch_company_website_tool",
     "run_retrieve_company_context_tool",
+    "DEFAULT_HR_WORKFLOW_MOCK_CANDIDATE",
+    "HR_WORKFLOW_SUMMARY_SCHEMA_VERSION",
+    "HrWorkflowError",
+    "HrWorkflowRun",
+    "run_hr_workflow",
     "build_active_interview_system_prompt",
     "build_difficulty_instruction",
     "build_forced_closing_instruction",

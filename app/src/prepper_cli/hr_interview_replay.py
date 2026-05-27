@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .hr_context import build_mock_hr_context
+from .hr_context import HrContext, build_mock_hr_context
 from .hr_fixtures import (
     ExpectedFinalResult,
     HrFixture,
@@ -36,13 +36,16 @@ def replay_hr_interview_transcript(
     *,
     fixture_id: str,
     transcript_path: str | Path,
+    fixture: HrFixture | None = None,
+    context: HrContext | None = None,
 ) -> HrInterviewReplay:
     """Replay a stored HR interview transcript through deterministic mock tooling."""
-    fixture = validate_hr_fixture(fixture_id)
+    fixture = fixture or validate_hr_fixture(fixture_id)
+    _validate_fixture_id(fixture, fixture_id)
     transcript = parse_transcript_file(transcript_path)
     _validate_transcript_metadata(fixture, transcript, transcript_path)
 
-    context = build_mock_hr_context(fixture)
+    context = context or build_mock_hr_context(fixture)
     tool_results = []
     retrieved_source_urls: set[str] = set()
 
@@ -101,6 +104,13 @@ def replay_hr_interview_transcript(
             },
         }
     )
+
+
+def _validate_fixture_id(fixture: HrFixture, fixture_id: str) -> None:
+    if fixture.id != fixture_id:
+        raise HrInterviewReplayError(
+            f"Fixture '{fixture.id}' does not match requested fixture '{fixture_id}'"
+        )
 
 
 def _validate_transcript_metadata(

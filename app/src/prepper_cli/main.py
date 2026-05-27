@@ -20,6 +20,7 @@ from .hr_interview_replay import replay_hr_interview_transcript
 from .hr_interview_simulation import simulate_hr_interview
 from .hr_prompt_preview import render_hr_prompt_preview
 from .hr_retrieval import retrieval_result_to_dict, retrieve_hr_context
+from .hr_workflow import run_hr_workflow
 from .hr_tools import (
     EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
@@ -345,6 +346,41 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print tool result JSON",
     )
+
+    workflow_parser = hr_parsers.add_parser(
+        "workflow", help="Run full HR prototype workflows"
+    )
+    workflow_parsers = workflow_parser.add_subparsers(
+        dest="hr_workflow_command", required=True
+    )
+    workflow_run_parser = workflow_parsers.add_parser(
+        "run", help="Run the full HR prototype workflow"
+    )
+    workflow_run_parser.add_argument(
+        "--fixture",
+        required=True,
+        help="HR fixture id for the workflow",
+    )
+    workflow_run_parser.add_argument(
+        "--mode",
+        choices=["mock", "llm"],
+        default="mock",
+        help="Workflow execution mode",
+    )
+    workflow_run_parser.add_argument(
+        "--candidate",
+        choices=["strong", "weak"],
+        help="Candidate profile/transcript to use",
+    )
+    workflow_run_parser.add_argument(
+        "--out",
+        help="Path to write generated transcript Markdown in llm mode",
+    )
+    workflow_run_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print workflow summary JSON",
+    )
     return parser
 
 
@@ -644,6 +680,23 @@ def _format_hr_interview_replay_summary(payload: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_hr_workflow_summary(payload: dict) -> str:
+    final_result = payload["final_result"]
+    context = payload["context"]
+    transcript = payload.get("transcript") or {}
+    lines = [
+        f"HR workflow run: {payload['fixture_id']} / {payload['candidate']} ({payload['mode']})",
+        f"Context: {context['context_id']}",
+        f"Transcript: {transcript.get('path', 'none')}",
+        f"Chunks: {context['chunk_count']}",
+        f"Tool calls: {payload['tool_call_count']}",
+        f"Sources: {payload['source_count']}",
+        f"Final score: {final_result['overall_score']:.1f}",
+        f"Passed: {str(final_result['passed']).lower()}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def _format_hr_tool_summary(payload: dict) -> str:
     output = payload["output"]
     lines = [
@@ -754,6 +807,23 @@ def _run_hr_command(args: argparse.Namespace) -> int:
                 print(json.dumps(simulation.summary, indent=2, sort_keys=True))
             else:
                 print(_format_hr_interview_replay_summary(simulation.summary), end="")
+            return 0
+
+        if args.hr_command == "workflow" and args.hr_workflow_command == "run":
+            workflow = run_hr_workflow(
+                fixture_id=args.fixture,
+                mode=args.mode,
+                candidate=args.candidate,
+                out_path=args.out,
+                model=args.model,
+                scoring_model=args.benchmark_model,
+                question_limit_override=args.question_limit,
+                pass_threshold_override=args.pass_threshold,
+            )
+            if args.json:
+                print(json.dumps(workflow.summary, indent=2, sort_keys=True))
+            else:
+                print(_format_hr_workflow_summary(workflow.summary), end="")
             return 0
 
         if args.hr_command == "tool" and args.hr_tool_command == "run":

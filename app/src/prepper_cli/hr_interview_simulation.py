@@ -8,7 +8,7 @@ from typing import Any
 
 from .config import load_config, load_openrouter_embedding_config, resolve_model_name
 from .conversation import Conversation
-from .hr_context import build_mock_hr_context
+from .hr_context import HrContext, build_mock_hr_context
 from .hr_fixtures import HrFixture, validate_hr_fixture
 from .hr_interview_replay import HR_INTERVIEW_SUMMARY_SCHEMA_VERSION
 from .hr_tools import (
@@ -51,6 +51,7 @@ def simulate_hr_interview(
     scoring_model: str | None = None,
     question_limit_override: int | None = None,
     pass_threshold_override: float | None = None,
+    context: HrContext | None = None,
 ) -> HrInterviewSimulation:
     """Run a live LLM HR interview simulation from a fixture and write Markdown output."""
     if mode != DEFAULT_HR_SIMULATION_MODE:
@@ -62,7 +63,7 @@ def simulate_hr_interview(
         raise HrInterviewSimulationError(f"candidate must be one of: {options}")
 
     fixture = validate_hr_fixture(fixture_id)
-    context = build_mock_hr_context(fixture)
+    context = context or build_mock_hr_context(fixture)
     descriptor = load_prompt_descriptor(HR_SIMULATION_INTERVIEW_STYLE)
 
     question_limit = (
