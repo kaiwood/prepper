@@ -1,0 +1,75 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  buildHrContextPayload,
+  hasHrSetupValidationErrors,
+  validateHrSetupForm,
+} from "./hrSetupLogic.mjs";
+
+const validForm = {
+  companyUrl: "https://example.com/about",
+  companyText: "",
+  roleDescription: "# Role\nAnalyze workforce data.",
+  resumeText: "# Resume\nSQL and customer analytics.",
+  profileText: "Responsible AI interests.",
+};
+
+test("validates required HR setup fields", () => {
+  assert.deepEqual(validateHrSetupForm(validForm), {});
+  assert.equal(hasHrSetupValidationErrors({}), false);
+
+  const errors = validateHrSetupForm({
+    companyUrl: "",
+    companyText: "",
+    roleDescription: "",
+    resumeText: "",
+    profileText: "",
+  });
+
+  assert.equal(hasHrSetupValidationErrors(errors), true);
+  assert.equal(errors.company, "Enter a company URL or paste company text.");
+  assert.equal(errors.roleDescription, "Role description is required.");
+  assert.equal(errors.resumeText, "Resume text is required.");
+});
+
+test("rejects company URL and text together", () => {
+  assert.deepEqual(
+    validateHrSetupForm({
+      ...validForm,
+      companyText: "# Company\nPrivacy-first analytics.",
+    }),
+    { company: "Enter either a company URL or company text, not both." },
+  );
+});
+
+test("builds HR context payload from company URL", () => {
+  assert.deepEqual(buildHrContextPayload(validForm), {
+    mode: "mock",
+    company_url: "https://example.com/about",
+    role_description: "# Role\nAnalyze workforce data.",
+    resume_text: "# Resume\nSQL and customer analytics.",
+    profile_text: "Responsible AI interests.",
+  });
+});
+
+test("builds HR context payload from pasted company text", () => {
+  assert.deepEqual(
+    buildHrContextPayload(
+      {
+        companyUrl: " ",
+        companyText: " # Company\nEvidence-led decisions. ",
+        roleDescription: " Role summary ",
+        resumeText: " Resume summary ",
+        profileText: " ",
+      },
+      { mode: "llm" },
+    ),
+    {
+      mode: "llm",
+      company_text: "# Company\nEvidence-led decisions.",
+      role_description: "Role summary",
+      resume_text: "Resume summary",
+    },
+  );
+});
