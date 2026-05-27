@@ -1,4 +1,4 @@
-export const DEFAULT_HR_CONTEXT_MODE = "mock";
+export const DEFAULT_HR_CONTEXT_MODE = "llm";
 
 export function validateHrSetupForm(form) {
   const companyUrl = normalizeText(form?.companyUrl);

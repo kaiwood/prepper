@@ -32,6 +32,11 @@ import {
   hasHrSetupValidationErrors,
   validateHrSetupForm,
 } from "../lib/hrSetupLogic.mjs";
+import {
+  buildHrInterviewStartPayload,
+  buildHrInterviewTurnPayload,
+  summarizeHrToolResult,
+} from "../lib/hrInterviewLogic.mjs";
 
 type DifficultyValue = "easy" | "medium" | "hard";
 
@@ -136,6 +141,13 @@ type HrContextSource = {
 type HrToolResult = {
   tool_name?: string;
   status?: string;
+  output?: {
+    mode?: string;
+    query?: string;
+    result_count?: number;
+    snippets?: unknown[];
+    [key: string]: unknown;
+  };
 };
 
 type HrContextError = {
@@ -152,6 +164,50 @@ type HrContextResponse = {
   tool_results?: HrToolResult[];
   errors?: HrContextError[];
   error?: string;
+};
+
+type HrInterviewSource = {
+  title?: string;
+  url?: string;
+  excerpt?: string;
+};
+
+type HrInterviewRating = {
+  overall_score?: number;
+  pass_threshold?: number;
+  passed?: boolean;
+  criterion_scores?: CriterionScore[];
+  strengths?: string[];
+  improvements?: string[];
+};
+
+type HrInterviewStatus = {
+  interview_complete: boolean;
+  counted_question_roundtrips: number;
+  question_roundtrips_limit: number;
+  pass_threshold: number;
+  current_turn_type: "question" | "other";
+  final_result?: HrInterviewRating;
+  metadata_warning?: boolean;
+  difficulty?: DifficultyValue;
+};
+
+type HrInterviewResponse = {
+  reply?: string;
+  error?: string;
+  interview_id?: string;
+  context_id?: string;
+  interview_enabled?: boolean;
+  interview_complete?: boolean;
+  counted_question_roundtrips?: number;
+  question_roundtrips_limit?: number;
+  pass_threshold?: number;
+  current_turn_type?: "question" | "other";
+  metadata_warning?: boolean;
+  difficulty?: DifficultyValue;
+  final_result?: HrInterviewRating;
+  sources?: HrInterviewSource[];
+  tool_results?: HrToolResult[];
 };
 
 type AdvancedSettings = {
@@ -245,6 +301,21 @@ export default function Home() {
   const [hrContextId, setHrContextId] = useState<string | null>(null);
   const [hrContextLoading, setHrContextLoading] = useState(false);
   const [hrContextError, setHrContextError] = useState<string | null>(null);
+  const [hrMessage, setHrMessage] = useState("");
+  const [hrConversation, setHrConversation] = useState<ConversationMessage[]>(
+    [],
+  );
+  const [hrInterviewId, setHrInterviewId] = useState<string | null>(null);
+  const [hrInterviewStatus, setHrInterviewStatus] =
+    useState<HrInterviewStatus | null>(null);
+  const [hrInterviewLoading, setHrInterviewLoading] = useState(false);
+  const [hrInterviewError, setHrInterviewError] = useState<string | null>(null);
+  const [hrInterviewSources, setHrInterviewSources] = useState<
+    HrInterviewSource[]
+  >([]);
+  const [hrInterviewToolResults, setHrInterviewToolResults] = useState<
+    HrToolResult[]
+  >([]);
 
   const language = useSyncExternalStore(
     subscribeLanguageChange,
@@ -267,6 +338,10 @@ export default function Home() {
   const interviewCompleted = Boolean(interviewStatus?.interview_complete);
   const finalResult = interviewStatus?.final_result;
   const resultPassed = finalResult?.passed ?? false;
+  const hrInterviewCompleted = Boolean(hrInterviewStatus?.interview_complete);
+  const hrFinalResult = hrInterviewStatus?.final_result;
+  const hrResultPassed = hrFinalResult?.passed ?? false;
+  const hrHasStarted = hrConversation.length > 0;
   const ui = TRANSLATIONS[language];
   const showInjectionWarning = hasSuspiciousPromptInjectionPattern(message);
   const latestInterviewerQuestion = [...conversation]
@@ -397,6 +472,36 @@ export default function Home() {
     });
   };
 
+  function resetHrInterview() {
+    setHrMessage("");
+    setHrConversation([]);
+    setHrInterviewId(null);
+    setHrInterviewStatus(null);
+    setHrInterviewError(null);
+    setHrInterviewSources([]);
+    setHrInterviewToolResults([]);
+  }
+
+  function updateHrInterviewMetadata(data: HrInterviewResponse) {
+    if (typeof data.interview_id === "string" && data.interview_id) {
+      setHrInterviewId(data.interview_id);
+    }
+    setHrInterviewStatus({
+      interview_complete: Boolean(data.interview_complete),
+      counted_question_roundtrips: data.counted_question_roundtrips ?? 0,
+      question_roundtrips_limit: data.question_roundtrips_limit ?? 0,
+      pass_threshold: data.pass_threshold ?? 0,
+      current_turn_type: data.current_turn_type ?? "other",
+      final_result: data.final_result,
+      metadata_warning: data.metadata_warning,
+      difficulty: data.difficulty,
+    });
+    setHrInterviewSources(Array.isArray(data.sources) ? data.sources : []);
+    setHrInterviewToolResults(
+      Array.isArray(data.tool_results) ? data.tool_results : [],
+    );
+  }
+
   async function handleBuildHrContext(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (hrContextLoading) {
@@ -416,6 +521,7 @@ export default function Home() {
     setHrContextError(null);
     setHrContextResult(null);
     setHrContextId(null);
+    resetHrInterview();
 
     try {
       const res = await fetch(buildApiUrl(API_BASE_URL, "/api/hr/context"), {
@@ -443,6 +549,101 @@ export default function Home() {
       setHrContextError(ui.errorBackendUnavailable);
     } finally {
       setHrContextLoading(false);
+    }
+  }
+
+  async function handleStartHrInterview() {
+    if (!hrContextId || hrInterviewLoading || hrHasStarted) {
+      return;
+    }
+
+    setHrInterviewLoading(true);
+    setHrInterviewError(null);
+    setHrConversation([]);
+    setHrInterviewStatus(null);
+    setHrInterviewId(null);
+    setHrInterviewSources([]);
+    setHrInterviewToolResults([]);
+
+    try {
+      const res = await fetch(
+        buildApiUrl(API_BASE_URL, "/api/hr/interview/start"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            buildHrInterviewStartPayload({ contextId: hrContextId }),
+          ),
+        },
+      );
+      const data: HrInterviewResponse = await res.json();
+
+      if (!res.ok) {
+        setHrInterviewError(data.error ?? ui.errorFallback);
+        return;
+      }
+
+      if (typeof data.interview_id !== "string" || !data.interview_id) {
+        setHrInterviewError(ui.errorFallback);
+        return;
+      }
+
+      setHrConversation([{ role: "assistant", content: data.reply ?? "" }]);
+      updateHrInterviewMetadata(data);
+    } catch {
+      setHrInterviewError(ui.errorBackendUnavailable);
+    } finally {
+      setHrInterviewLoading(false);
+    }
+  }
+
+  async function handleSubmitHrInterview(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (
+      !hrContextId ||
+      !hrInterviewId ||
+      !hrHasStarted ||
+      !hrMessage.trim() ||
+      hrInterviewLoading ||
+      hrInterviewCompleted
+    ) {
+      return;
+    }
+
+    const prompt = hrMessage.trim();
+    setHrConversation((prev) => [...prev, { role: "user", content: prompt }]);
+    setHrMessage("");
+    setHrInterviewLoading(true);
+    setHrInterviewError(null);
+
+    try {
+      const res = await fetch(buildApiUrl(API_BASE_URL, "/api/hr/interview"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          buildHrInterviewTurnPayload({
+            contextId: hrContextId,
+            interviewId: hrInterviewId,
+            message: prompt,
+          }),
+        ),
+      });
+      const data: HrInterviewResponse = await res.json();
+
+      if (!res.ok) {
+        setHrInterviewError(data.error ?? ui.errorFallback);
+        return;
+      }
+
+      setHrConversation((prev) => [
+        ...prev,
+        { role: "assistant", content: data.reply ?? "" },
+      ]);
+      updateHrInterviewMetadata(data);
+    } catch {
+      setHrInterviewError(ui.errorBackendUnavailable);
+    } finally {
+      setHrInterviewLoading(false);
     }
   }
 
@@ -924,6 +1125,163 @@ export default function Home() {
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+            </section>
+          )}
+
+          {hrContextId && (
+            <section className="mt-6 flex flex-col gap-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  HR candidate-fit interview
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Start a live HR interview using the built company, role, and candidate context.
+                </p>
+                {hrInterviewStatus && (
+                  <p className="text-sm text-gray-600">
+                    Questions: {hrInterviewStatus.counted_question_roundtrips} / {hrInterviewStatus.question_roundtrips_limit}
+                  </p>
+                )}
+              </div>
+
+              {hrInterviewCompleted && hrFinalResult && (
+                <section
+                  className={`rounded-xl p-4 flex flex-col gap-3 border ${
+                    hrResultPassed
+                      ? "border-green-200 bg-green-50 text-green-900"
+                      : "border-red-200 bg-red-50 text-red-900"
+                  }`}
+                >
+                  <h3 className="text-lg font-semibold">Final score</h3>
+                  <p>
+                    Score: {typeof hrFinalResult.overall_score === "number"
+                      ? `${hrFinalResult.overall_score.toFixed(1)} / 10`
+                      : "Not available"}
+                  </p>
+                  {typeof hrFinalResult.passed === "boolean" && (
+                    <p>{hrFinalResult.passed ? "Passed" : "Needs review"}</p>
+                  )}
+
+                  {(hrFinalResult.criterion_scores?.length ?? 0) > 0 && (
+                    <div>
+                      <h4 className="font-medium">Rubric</h4>
+                      <ul className="list-disc list-inside">
+                        {hrFinalResult.criterion_scores?.map((criterion) => (
+                          <li key={criterion.criterion}>
+                            {criterion.criterion}: {criterion.score.toFixed(1)} / 10
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {(hrFinalResult.strengths?.length ?? 0) > 0 && (
+                    <div>
+                      <h4 className="font-medium">Strengths</h4>
+                      <ul className="list-disc list-inside">
+                        {hrFinalResult.strengths?.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {(hrFinalResult.improvements?.length ?? 0) > 0 && (
+                    <div>
+                      <h4 className="font-medium">Improvements</h4>
+                      <ul className="list-disc list-inside">
+                        {hrFinalResult.improvements?.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              <Conversation
+                conversation={hrConversation}
+                loading={hrInterviewLoading}
+                emptyStateText="Start the HR interview to see candidate-fit questions."
+                thinkingText="Preparing HR response..."
+              />
+
+              <MessageForm
+                message={hrMessage}
+                onMessageChange={setHrMessage}
+                onSubmit={handleSubmitHrInterview}
+                onStart={handleStartHrInterview}
+                onClear={resetHrInterview}
+                loading={hrInterviewLoading}
+                canClear={hrConversation.length > 0}
+                canStart={!hrHasStarted}
+                hasStarted={hrHasStarted}
+                disableMessaging={hrInterviewCompleted}
+                error={hrInterviewError}
+                placeholderStarted={
+                  hrInterviewCompleted
+                    ? "The HR interview is complete."
+                    : "Type the candidate answer..."
+                }
+                placeholderNotStarted="Start the HR interview first."
+                startInterviewText="Start HR interview"
+                startingText="Starting HR interview..."
+                resetConversationText="Reset HR interview"
+                sendText="Send answer"
+                thinkingText="Thinking..."
+              />
+
+              {(hrInterviewSources.length > 0 || hrInterviewToolResults.length > 0) && (
+                <div className="grid gap-4 rounded-xl border border-blue-100 bg-white p-4">
+                  {hrInterviewSources.length > 0 && (
+                    <div>
+                      <h3 className="font-medium text-gray-900">Retrieved sources</h3>
+                      <ul className="mt-2 flex flex-col gap-2 text-sm text-gray-700">
+                        {hrInterviewSources.map((source, index) => (
+                          <li
+                            key={`${source.url ?? source.title ?? "source"}-${index}`}
+                            className="rounded-lg border border-gray-200 p-3"
+                          >
+                            <div className="font-medium text-gray-900">
+                              {source.url?.startsWith("http") ? (
+                                <a
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-700 underline"
+                                >
+                                  {source.title ?? source.url}
+                                </a>
+                              ) : (
+                                source.title ?? source.url ?? "Source"
+                              )}
+                            </div>
+                            {source.url && !source.url.startsWith("http") && (
+                              <div className="text-xs text-gray-500">{source.url}</div>
+                            )}
+                            {source.excerpt && (
+                              <p className="mt-1 text-gray-700">{source.excerpt}</p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {hrInterviewToolResults.length > 0 && (
+                    <div>
+                      <h3 className="font-medium text-gray-900">Active tool results</h3>
+                      <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
+                        {hrInterviewToolResults.map((tool, index) => (
+                          <li key={`${tool.tool_name ?? "tool"}-${index}`}>
+                            {summarizeHrToolResult(tool)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </section>

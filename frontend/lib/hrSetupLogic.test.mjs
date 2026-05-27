@@ -45,7 +45,7 @@ test("rejects company URL and text together", () => {
 
 test("builds HR context payload from company URL", () => {
   assert.deepEqual(buildHrContextPayload(validForm), {
-    mode: "mock",
+    mode: "llm",
     company_url: "https://example.com/about",
     role_description: "# Role\nAnalyze workforce data.",
     resume_text: "# Resume\nSQL and customer analytics.",
