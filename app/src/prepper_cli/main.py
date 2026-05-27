@@ -8,6 +8,13 @@ from .benchmark import run_benchmark_interview
 from .chat import get_chat_reply
 from .cli_output import print_final_result, print_turn
 from .conversation import Conversation
+from .hr_context import (
+    HrContext,
+    build_hr_context_from_fixture,
+    hr_context_to_json,
+    load_hr_context,
+    write_hr_context,
+)
 from .hr_fixtures import list_hr_fixture_ids, validate_hr_fixture
 from .hr_prompt_preview import render_hr_prompt_preview
 from .interview import resolve_pass_threshold, run_interview_turn
@@ -167,6 +174,45 @@ def _build_parser() -> argparse.ArgumentParser:
         "--interview-style",
         required=True,
         help="Interview style prompt to render",
+    )
+
+    context_parser = hr_parsers.add_parser(
+        "context", help="Build and inspect HR context payloads"
+    )
+    context_parsers = context_parser.add_subparsers(
+        dest="hr_context_command", required=True
+    )
+    context_build_parser = context_parsers.add_parser(
+        "build", help="Build an HR context payload from a fixture"
+    )
+    context_build_parser.add_argument(
+        "--fixture",
+        required=True,
+        help="HR fixture id to build from",
+    )
+    context_build_parser.add_argument(
+        "--mode",
+        choices=["mock"],
+        default="mock",
+        help="Context build mode",
+    )
+    context_build_parser.add_argument(
+        "--out",
+        required=True,
+        help="Path to write context JSON",
+    )
+    context_inspect_parser = context_parsers.add_parser(
+        "inspect", help="Inspect an HR context payload"
+    )
+    context_inspect_parser.add_argument(
+        "--context",
+        required=True,
+        help="Path to HR context JSON",
+    )
+    context_inspect_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the full validated context JSON",
     )
     return parser
 
@@ -420,6 +466,23 @@ def _run_interactive(
             return 1
 
 
+def _format_hr_context_summary(context: HrContext) -> str:
+    fixture_id = context.fixture_id or "none"
+    lines = [
+        f"Context: {context.context_id}",
+        f"Schema: {context.schema_version}",
+        f"Fixture: {fixture_id}",
+        f"Mode: {context.mode}",
+        f"Company inputs: {len(context.company_inputs)}",
+        f"Candidate inputs: {len(context.candidate_inputs)}",
+        f"Sources: {len(context.sources)}",
+        f"Chunks: {len(context.chunks)}",
+        f"Tool results: {len(context.tool_results)}",
+        f"Replay transcripts: {len(context.replay_metadata.transcripts)}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def _run_hr_command(args: argparse.Namespace) -> int:
     try:
         if args.hr_command == "fixtures" and args.hr_fixtures_command == "list":
@@ -436,6 +499,21 @@ def _run_hr_command(args: argparse.Namespace) -> int:
             fixture = validate_hr_fixture(args.fixture)
             descriptor = load_prompt_descriptor(args.interview_style)
             print(render_hr_prompt_preview(fixture, descriptor), end="")
+            return 0
+
+        if args.hr_command == "context" and args.hr_context_command == "build":
+            fixture = validate_hr_fixture(args.fixture)
+            context = build_hr_context_from_fixture(fixture, mode=args.mode)
+            output_path = write_hr_context(context, args.out)
+            print(f"Wrote HR context '{context.context_id}' to {output_path}.")
+            return 0
+
+        if args.hr_command == "context" and args.hr_context_command == "inspect":
+            context = load_hr_context(args.context)
+            if args.json:
+                print(hr_context_to_json(context), end="")
+            else:
+                print(_format_hr_context_summary(context), end="")
             return 0
 
         raise ValueError("Unsupported HR command")
