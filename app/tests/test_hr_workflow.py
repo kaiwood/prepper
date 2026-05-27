@@ -23,7 +23,7 @@ def test_run_hr_workflow_mock_defaults_to_strong_replay():
     assert summary["candidate"] == "strong"
     assert summary["context"]["context_id"].startswith("hrctx_demo_hr_")
     assert summary["context"]["source_count"] == 6
-    assert summary["context"]["chunk_count"] == 8
+    assert summary["context"]["chunk_count"] == 2
     assert summary["context"]["tool_result_count"] == 1
     assert summary["tools"] == {
         "context": [{"tool_name": "extract_candidate_profile", "status": "success"}],

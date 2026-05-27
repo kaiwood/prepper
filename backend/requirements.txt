@@ -1,8 +1,12 @@
 beautifulsoup4
+faiss-cpu
 flask
 flask-cors
 flask-limiter
+langchain-community
 langchain-openai
+langchain-text-splitters
 openai
 python-dotenv
+tiktoken
 -e ../app

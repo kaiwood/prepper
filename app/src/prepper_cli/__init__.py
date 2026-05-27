@@ -62,6 +62,7 @@ from .hr_interview_simulation import (
 from .hr_prompt_preview import render_hr_prompt_preview
 from .hr_retrieval import (
     DEFAULT_MOCK_RETRIEVAL_LIMIT,
+    HrRetrievalMatch,
     HrRetrievalResult,
     OpenRouterEmbeddingConfig,
     build_document_retrieval_chunks,
@@ -171,6 +172,7 @@ __all__ = [
     "simulate_hr_interview",
     "render_hr_prompt_preview",
     "DEFAULT_MOCK_RETRIEVAL_LIMIT",
+    "HrRetrievalMatch",
     "HrRetrievalResult",
     "OpenRouterEmbeddingConfig",
     "build_document_retrieval_chunks",

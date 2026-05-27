@@ -57,7 +57,7 @@ def test_hr_tool_run_fetch_company_website_mock_prints_summary(monkeypatch, caps
     assert "Tool: fetch_company_website" in captured.out
     assert "Status: success" in captured.out
     assert "Source: Northstar Analytics (fixture://company.md)" in captured.out
-    assert "Chunks: 4" in captured.out
+    assert "Chunks: 1" in captured.out
     assert "workforce-planning software" not in captured.out
 
 

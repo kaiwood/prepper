@@ -23,6 +23,11 @@ class FakeEmbeddings:
         ]
 
 
+@pytest.fixture(autouse=True)
+def isolated_vector_store(monkeypatch, tmp_path):
+    monkeypatch.setenv("PREPPER_HR_VECTOR_STORE_DIR", str(tmp_path / "faiss"))
+
+
 def test_mock_chunks_are_deterministic_with_source_metadata():
     context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
     rebuilt = build_mock_hr_context(validate_hr_fixture("demo_hr"))
@@ -30,24 +35,19 @@ def test_mock_chunks_are_deterministic_with_source_metadata():
     assert context.chunks == rebuilt.chunks
     assert [chunk.id for chunk in context.chunks] == [
         "company_chunk_001",
-        "company_chunk_002",
-        "company_chunk_003",
-        "company_chunk_004",
         "role_chunk_001",
-        "role_chunk_002",
-        "role_chunk_003",
-        "role_chunk_004",
     ]
-    assert context.chunks[2].text.startswith("## Values")
-    assert context.chunks[2].metadata == {
+    assert "## Values" in context.chunks[0].text
+    assert context.chunks[0].metadata == {
         "source_id": "company",
         "source_kind": "company",
         "source_title": "Northstar Analytics",
         "source_uri": "fixture://company.md",
         "content_sha256": context.sources[0].content_sha256,
-        "chunk_index": "2",
+        "start_index": "0",
+        "chunk_index": "0",
     }
-    assert context.chunks[-1].text.startswith("## Success Signals")
+    assert "## Success Signals" in context.chunks[-1].text
     assert context.chunks[-1].metadata["source_uri"] == "fixture://role.md"
 
 
@@ -60,9 +60,10 @@ def test_mock_retrieval_returns_expected_chunks_and_metadata():
     assert payload["query"] == "company values"
     assert payload["mode"] == "mock"
     assert [chunk["id"] for chunk in payload["results"]] == [
-        "company_chunk_003",
-        "company_chunk_004",
+        "company_chunk_001",
+        "role_chunk_001",
     ]
+    assert 0 < payload["results"][0]["score"] <= 1
     assert payload["results"][0]["metadata"]["source_title"] == "Northstar Analytics"
     assert payload["results"][0]["metadata"]["source_uri"] == "fixture://company.md"
 
@@ -73,10 +74,25 @@ def test_mock_retrieval_can_rebuild_missing_chunks_for_old_contexts():
 
     result = retrieve_hr_context(old_context, query="company values", mode="mock")
 
-    assert [chunk.id for chunk in result.results] == [
-        "company_chunk_003",
-        "company_chunk_004",
+    assert [match.chunk.id for match in result.results] == [
+        "company_chunk_001",
+        "role_chunk_001",
     ]
+
+
+def test_mock_retrieval_persists_faiss_index(tmp_path, monkeypatch):
+    vector_store_dir = tmp_path / "stored-faiss"
+    monkeypatch.setenv("PREPPER_HR_VECTOR_STORE_DIR", str(vector_store_dir))
+    context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
+
+    first = retrieve_hr_context(context, query="company values", mode="mock")
+    second = retrieve_hr_context(context, query="company values", mode="mock")
+
+    assert [match.chunk.id for match in second.results] == [
+        match.chunk.id for match in first.results
+    ]
+    assert list(vector_store_dir.glob("mock/*/index.faiss"))
+    assert list(vector_store_dir.glob("mock/*/index.pkl"))
 
 
 def test_mock_retrieval_rejects_empty_query():
@@ -113,7 +129,8 @@ def test_llm_retrieval_uses_embeddings_and_source_metadata(monkeypatch):
     payload = retrieval_result_to_dict(result)
 
     assert payload["mode"] == "llm"
-    assert [chunk["id"] for chunk in payload["results"]] == ["company_chunk_003"]
+    assert [chunk["id"] for chunk in payload["results"]] == ["company_chunk_001"]
+    assert 0 < payload["results"][0]["score"] <= 1
     assert payload["results"][0]["metadata"]["source_uri"] == "fixture://company.md"
 
 

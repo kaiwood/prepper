@@ -155,7 +155,7 @@ def run_retrieve_company_context_tool(
             "mode": mode,
             "query": retrieval.query,
             "snippets": [
-                _retrieved_chunk_to_snippet(chunk) for chunk in retrieval.results
+                _retrieved_match_to_snippet(match) for match in retrieval.results
             ],
             "result_count": len(retrieval.results),
         },
@@ -784,7 +784,8 @@ def _chunk_to_dict(chunk: HrContextChunk) -> dict[str, Any]:
     }
 
 
-def _retrieved_chunk_to_snippet(chunk: HrContextChunk) -> dict[str, Any]:
+def _retrieved_match_to_snippet(match) -> dict[str, Any]:
+    chunk = match.chunk
     metadata = dict(chunk.metadata)
     return {
         "chunk_id": chunk.id,
@@ -793,6 +794,7 @@ def _retrieved_chunk_to_snippet(chunk: HrContextChunk) -> dict[str, Any]:
         "source_title": metadata.get("source_title", chunk.source_id),
         "source_uri": metadata.get("source_uri", ""),
         "text": _truncate_snippet(chunk.text),
+        "score": match.score,
         "metadata": metadata,
     }
 

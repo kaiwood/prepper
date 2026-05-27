@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+import os
 import re
-from collections import Counter
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from .config import OpenRouterEmbeddingConfig, load_openrouter_embedding_config
@@ -16,6 +19,10 @@ from .hr_context import (
 )
 
 DEFAULT_MOCK_RETRIEVAL_LIMIT = 3
+DEFAULT_CHUNK_SIZE_TOKENS = 350
+DEFAULT_CHUNK_OVERLAP_TOKENS = 50
+DEFAULT_MOCK_EMBEDDING_DIMENSIONS = 128
+VECTOR_STORE_ENV_VAR = "PREPPER_HR_VECTOR_STORE_DIR"
 
 _STOP_WORDS = {
     "a",
@@ -48,10 +55,16 @@ _STOP_WORDS = {
 
 
 @dataclass(frozen=True)
+class HrRetrievalMatch:
+    chunk: HrContextChunk
+    score: float
+
+
+@dataclass(frozen=True)
 class HrRetrievalResult:
     query: str
     mode: str
-    results: tuple[HrContextChunk, ...]
+    results: tuple[HrRetrievalMatch, ...]
 
 
 def build_retrieval_chunks(
@@ -144,7 +157,10 @@ def retrieval_result_to_dict(result: HrRetrievalResult) -> dict[str, Any]:
     return {
         "query": result.query,
         "mode": result.mode,
-        "results": [_retrieval_chunk_to_dict(chunk) for chunk in result.results],
+        "results": [
+            {**_retrieval_chunk_to_dict(match.chunk), "score": match.score}
+            for match in result.results
+        ],
     }
 
 
@@ -152,58 +168,26 @@ def _chunk_document(
     document: HrContextInputDocument,
     source: HrContextSource,
 ) -> list[HrContextChunk]:
-    sections = _split_markdown_sections(document.markdown)
+    splitter = _build_text_splitter()
+    langchain_documents = _build_langchain_documents((document,), {source.id: source})
+    split_documents = splitter.split_documents(langchain_documents)
+
     chunks: list[HrContextChunk] = []
-    for section in sections:
-        chunk_text = _normalize_chunk_text(section)
+    for split_document in split_documents:
+        chunk_text = _normalize_chunk_text(split_document.page_content)
         if not chunk_text:
             continue
+        metadata = {str(key): str(value) for key, value in split_document.metadata.items()}
+        metadata["chunk_index"] = str(len(chunks))
         chunks.append(
             HrContextChunk(
                 id=f"{document.source_id}_chunk_{len(chunks) + 1:03d}",
                 source_id=document.source_id,
                 text=chunk_text,
-                metadata={
-                    "source_id": source.id,
-                    "source_kind": source.kind,
-                    "source_title": source.title,
-                    "source_uri": source.uri,
-                    "content_sha256": source.content_sha256,
-                    "chunk_index": str(len(chunks)),
-                },
+                metadata=metadata,
             )
         )
     return chunks
-
-
-def _split_markdown_sections(markdown: str) -> list[str]:
-    sections: list[list[str]] = []
-    current: list[str] = []
-
-    for line in markdown.splitlines():
-        if line.startswith("## ") and current and _has_body_content(current):
-            sections.append(current)
-            current = [line]
-        else:
-            current.append(line)
-
-    if current:
-        sections.append(current)
-
-    normalized_sections = []
-    for section in sections:
-        normalized = "\n".join(section).strip()
-        if normalized:
-            normalized_sections.append(normalized)
-    return normalized_sections
-
-
-def _has_body_content(lines: list[str]) -> bool:
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#"):
-            return True
-    return False
 
 
 def _normalize_chunk_text(text: str) -> str:
@@ -215,21 +199,285 @@ def _normalize_chunk_text(text: str) -> str:
     return "\n".join(lines)
 
 
+def _build_text_splitter():
+    try:
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+    except ImportError as exc:  # pragma: no cover - depends on env install
+        raise HrContextValidationError(
+            "langchain-text-splitters is required for HR retrieval chunking"
+        ) from exc
+
+    return RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        encoding_name="cl100k_base",
+        chunk_size=DEFAULT_CHUNK_SIZE_TOKENS,
+        chunk_overlap=DEFAULT_CHUNK_OVERLAP_TOKENS,
+        add_start_index=True,
+    )
+
+
+def _build_langchain_documents(
+    documents: tuple[HrContextInputDocument, ...],
+    source_by_id: dict[str, HrContextSource],
+):
+    try:
+        from langchain_core.documents import Document
+    except ImportError as exc:  # pragma: no cover - depends on env install
+        raise HrContextValidationError(
+            "langchain-core is required for HR retrieval documents"
+        ) from exc
+
+    langchain_documents = []
+    for document in documents:
+        source = source_by_id.get(document.source_id)
+        if source is None:
+            raise HrContextValidationError(
+                f"Cannot chunk document '{document.source_id}' because its source is missing"
+            )
+        langchain_documents.append(
+            Document(
+                page_content=document.markdown,
+                metadata={
+                    "source_id": source.id,
+                    "source_kind": source.kind,
+                    "source_title": source.title,
+                    "source_uri": source.uri,
+                    "content_sha256": source.content_sha256,
+                },
+            )
+        )
+    return langchain_documents
+
+
+def _retrieve_faiss_matches(
+    chunks: tuple[HrContextChunk, ...],
+    query: str,
+    *,
+    embeddings,
+    mode: str,
+    embedding_model: str,
+    limit: int,
+) -> tuple[HrRetrievalMatch, ...]:
+    embeddings = _ensure_langchain_embeddings(embeddings)
+    vector_store = _load_or_build_faiss_store(
+        chunks,
+        embeddings=embeddings,
+        mode=mode,
+        embedding_model=embedding_model,
+    )
+    try:
+        docs_and_scores = vector_store.similarity_search_with_score(query, k=limit)
+    except Exception as exc:  # pragma: no cover - depends on provider/runtime
+        if mode == "llm":
+            raise HrContextValidationError(f"Live HR retrieval failed: {exc}") from exc
+        raise HrContextValidationError(f"HR retrieval failed: {exc}") from exc
+
+    matches: list[HrRetrievalMatch] = []
+    for document, raw_score in docs_and_scores:
+        chunk = _chunk_from_langchain_document(document)
+        score = _distance_to_similarity_score(raw_score)
+        if score > 0:
+            matches.append(HrRetrievalMatch(chunk=chunk, score=score))
+    return tuple(matches)
+
+
+def _load_or_build_faiss_store(
+    chunks: tuple[HrContextChunk, ...],
+    *,
+    embeddings,
+    mode: str,
+    embedding_model: str,
+):
+    try:
+        from langchain_community.vectorstores import FAISS
+    except ImportError as exc:  # pragma: no cover - depends on env install
+        raise HrContextValidationError(
+            "langchain-community and faiss-cpu are required for HR retrieval"
+        ) from exc
+
+    index_dir = _faiss_index_dir(
+        chunks,
+        mode=mode,
+        embedding_model=embedding_model,
+    )
+    if _faiss_index_exists(index_dir):
+        try:
+            return FAISS.load_local(
+                str(index_dir),
+                embeddings,
+                allow_dangerous_deserialization=True,
+            )
+        except Exception:
+            # Stale/corrupt indexes are rebuilt from the current context chunks.
+            pass
+
+    documents = _chunks_to_langchain_documents(chunks)
+    try:
+        vector_store = FAISS.from_documents(
+            documents,
+            embeddings,
+            ids=[chunk.id for chunk in chunks],
+        )
+        index_dir.mkdir(parents=True, exist_ok=True)
+        vector_store.save_local(str(index_dir))
+    except Exception as exc:  # pragma: no cover - depends on provider/runtime
+        if mode == "llm":
+            raise HrContextValidationError(f"Live HR retrieval failed: {exc}") from exc
+        raise HrContextValidationError(f"HR retrieval failed: {exc}") from exc
+    return vector_store
+
+
+def _chunks_to_langchain_documents(chunks: tuple[HrContextChunk, ...]):
+    try:
+        from langchain_core.documents import Document
+    except ImportError as exc:  # pragma: no cover - depends on env install
+        raise HrContextValidationError(
+            "langchain-core is required for HR retrieval documents"
+        ) from exc
+
+    return [
+        Document(
+            page_content=chunk.text,
+            metadata={
+                **dict(chunk.metadata),
+                "chunk_id": chunk.id,
+                "chunk_source_id": chunk.source_id,
+            },
+        )
+        for chunk in chunks
+    ]
+
+
+def _chunk_from_langchain_document(document) -> HrContextChunk:
+    metadata = {str(key): str(value) for key, value in document.metadata.items()}
+    chunk_id = metadata.pop("chunk_id", "")
+    source_id = metadata.pop("chunk_source_id", metadata.get("source_id", ""))
+    return HrContextChunk(
+        id=chunk_id,
+        source_id=source_id,
+        text=document.page_content,
+        metadata=metadata,
+    )
+
+
+def _faiss_index_dir(
+    chunks: tuple[HrContextChunk, ...],
+    *,
+    mode: str,
+    embedding_model: str,
+) -> Path:
+    return _vector_store_root() / _safe_path_part(mode) / _retrieval_index_key(
+        chunks,
+        mode=mode,
+        embedding_model=embedding_model,
+    )
+
+
+def _vector_store_root() -> Path:
+    configured = os.environ.get(VECTOR_STORE_ENV_VAR, "").strip()
+    if configured:
+        return Path(configured)
+    repo_root = Path(__file__).resolve().parents[3]
+    return repo_root / "backend" / "data" / "faiss"
+
+
+def _retrieval_index_key(
+    chunks: tuple[HrContextChunk, ...],
+    *,
+    mode: str,
+    embedding_model: str,
+) -> str:
+    payload = {
+        "mode": mode,
+        "embedding_model": embedding_model,
+        "chunk_size_tokens": DEFAULT_CHUNK_SIZE_TOKENS,
+        "chunk_overlap_tokens": DEFAULT_CHUNK_OVERLAP_TOKENS,
+        "chunks": [
+            {
+                "id": chunk.id,
+                "source_id": chunk.source_id,
+                "text_sha256": hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
+                "metadata": dict(sorted(chunk.metadata.items())),
+            }
+            for chunk in chunks
+        ],
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
+def _safe_path_part(value: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_.-]+", "_", value).strip("._") or "default"
+
+
+def _faiss_index_exists(index_dir: Path) -> bool:
+    return (index_dir / "index.faiss").exists() and (index_dir / "index.pkl").exists()
+
+
+def _distance_to_similarity_score(raw_score: Any) -> float:
+    try:
+        distance = float(raw_score)
+    except (TypeError, ValueError):
+        return 0.0
+    if distance < 0:
+        return 0.0
+    return 1.0 / (1.0 + distance)
+
+
+def _ensure_langchain_embeddings(embeddings):
+    try:
+        from langchain_core.embeddings import Embeddings
+    except ImportError:  # pragma: no cover - langchain-core dependency
+        return embeddings
+
+    if isinstance(embeddings, Embeddings):
+        return embeddings
+
+    class EmbeddingsAdapter(Embeddings):
+        def embed_documents(self, texts: list[str]) -> list[list[float]]:
+            return embeddings.embed_documents(texts)
+
+        def embed_query(self, text: str) -> list[float]:
+            return embeddings.embed_query(text)
+
+    return EmbeddingsAdapter()
+
+
+class MockHrEmbeddings:
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._embed(text) for text in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embed(text)
+
+    def _embed(self, text: str) -> list[float]:
+        vector = [0.0] * DEFAULT_MOCK_EMBEDDING_DIMENSIONS
+        for token in _tokenize(text):
+            if token in _STOP_WORDS:
+                continue
+            digest = hashlib.sha256(token.encode("utf-8")).digest()
+            index = int.from_bytes(digest[:4], "big") % DEFAULT_MOCK_EMBEDDING_DIMENSIONS
+            vector[index] += 1.0
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm == 0:
+            return vector
+        return [value / norm for value in vector]
+
+
 def _retrieve_mock_chunks(
     chunks: tuple[HrContextChunk, ...],
     query: str,
     *,
     limit: int,
-) -> tuple[HrContextChunk, ...]:
-    query_vector = _mock_embedding(query)
-    scored = []
-    for position, chunk in enumerate(chunks):
-        score = _cosine_similarity(query_vector, _mock_embedding(chunk.text))
-        if score > 0:
-            scored.append((score, position, chunk))
-
-    scored.sort(key=lambda item: (-item[0], item[1]))
-    return tuple(chunk for _, _, chunk in scored[:limit])
+) -> tuple[HrRetrievalMatch, ...]:
+    embeddings = MockHrEmbeddings()
+    return _retrieve_faiss_matches(
+        chunks,
+        query,
+        embeddings=embeddings,
+        mode="mock",
+        embedding_model="mock-hashing-v1",
+        limit=limit,
+    )
 
 
 def _retrieve_llm_chunks(
@@ -238,27 +486,16 @@ def _retrieve_llm_chunks(
     *,
     config: OpenRouterEmbeddingConfig,
     limit: int,
-) -> tuple[HrContextChunk, ...]:
+) -> tuple[HrRetrievalMatch, ...]:
     embeddings = _build_openrouter_embeddings(config)
-    try:
-        query_vector = embeddings.embed_query(query)
-        chunk_vectors = embeddings.embed_documents([chunk.text for chunk in chunks])
-    except Exception as exc:  # pragma: no cover - depends on provider/runtime
-        raise HrContextValidationError(f"Live HR retrieval failed: {exc}") from exc
-
-    if len(chunk_vectors) != len(chunks):
-        raise HrContextValidationError(
-            "Live HR retrieval returned an unexpected embedding count"
-        )
-
-    scored = []
-    for position, (chunk, vector) in enumerate(zip(chunks, chunk_vectors, strict=True)):
-        score = _cosine_similarity_values(query_vector, vector)
-        if score > 0:
-            scored.append((score, position, chunk))
-
-    scored.sort(key=lambda item: (-item[0], item[1]))
-    return tuple(chunk for _, _, chunk in scored[:limit])
+    return _retrieve_faiss_matches(
+        chunks,
+        query,
+        embeddings=embeddings,
+        mode="llm",
+        embedding_model=config.embedding_model,
+        limit=limit,
+    )
 
 
 def _build_openrouter_embeddings(config: OpenRouterEmbeddingConfig):
@@ -277,44 +514,8 @@ def _build_openrouter_embeddings(config: OpenRouterEmbeddingConfig):
     )
 
 
-def _mock_embedding(text: str) -> Counter[str]:
-    return Counter(token for token in _tokenize(text) if token not in _STOP_WORDS)
-
-
 def _tokenize(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", text.lower())
-
-
-def _cosine_similarity(left: Counter[str], right: Counter[str]) -> float:
-    if not left or not right:
-        return 0.0
-
-    shared = set(left) & set(right)
-    numerator = sum(left[token] * right[token] for token in shared)
-    if numerator == 0:
-        return 0.0
-
-    left_norm = math.sqrt(sum(value * value for value in left.values()))
-    right_norm = math.sqrt(sum(value * value for value in right.values()))
-    return numerator / (left_norm * right_norm)
-
-
-def _cosine_similarity_values(left: list[float], right: list[float]) -> float:
-    if not left or not right or len(left) != len(right):
-        return 0.0
-
-    numerator = sum(
-        left_value * right_value
-        for left_value, right_value in zip(left, right, strict=True)
-    )
-    if numerator == 0:
-        return 0.0
-
-    left_norm = math.sqrt(sum(value * value for value in left))
-    right_norm = math.sqrt(sum(value * value for value in right))
-    if left_norm == 0 or right_norm == 0:
-        return 0.0
-    return numerator / (left_norm * right_norm)
 
 
 def _retrieval_chunk_to_dict(chunk: HrContextChunk) -> dict[str, Any]:

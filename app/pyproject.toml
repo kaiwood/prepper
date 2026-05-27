@@ -8,7 +8,16 @@ version = "0.1.0"
 description = "CLI and shared OpenRouter client for Prepper"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["beautifulsoup4", "langchain-openai", "openai", "python-dotenv"]
+dependencies = [
+    "beautifulsoup4",
+    "faiss-cpu",
+    "langchain-community",
+    "langchain-openai",
+    "langchain-text-splitters",
+    "openai",
+    "python-dotenv",
+    "tiktoken",
+]
 
 [project.scripts]
 prepper-cli = "prepper_cli.main:main"

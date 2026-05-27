@@ -40,5 +40,6 @@ Thumbs.db
 *.swp
 *.swo
 tmp/
+backend/data/
 TODO.md
 PLAN.md

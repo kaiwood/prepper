@@ -38,6 +38,11 @@ class FakeCandidateProfileLlm:
         return FakeLlmResponse(self.content)
 
 
+@pytest.fixture(autouse=True)
+def isolated_vector_store(monkeypatch, tmp_path):
+    monkeypatch.setenv("PREPPER_HR_VECTOR_STORE_DIR", str(tmp_path / "faiss"))
+
+
 class FakeResponse:
     def __init__(
         self,
@@ -80,9 +85,6 @@ def test_fetch_company_website_mock_returns_fixture_content():
     assert payload["output"]["fetch_metadata"]["content_type"] == "text/markdown; charset=utf-8"
     assert [chunk["id"] for chunk in payload["output"]["chunks"]] == [
         "company_website_chunk_001",
-        "company_website_chunk_002",
-        "company_website_chunk_003",
-        "company_website_chunk_004",
     ]
 
 
@@ -130,9 +132,10 @@ def test_retrieve_company_context_mock_returns_source_snippets():
     assert payload["output"]["query"] == "company values"
     assert payload["output"]["result_count"] == 2
     assert [snippet["chunk_id"] for snippet in payload["output"]["snippets"]] == [
-        "company_chunk_003",
-        "company_chunk_004",
+        "company_chunk_001",
+        "role_chunk_001",
     ]
+    assert 0 < payload["output"]["snippets"][0]["score"] <= 1
     assert payload["output"]["snippets"][0]["source_title"] == "Northstar Analytics"
     assert payload["output"]["snippets"][0]["source_uri"] == "fixture://company.md"
     assert payload["output"]["snippets"][0]["metadata"]["source_kind"] == "company"

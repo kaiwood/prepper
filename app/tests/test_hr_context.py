@@ -42,13 +42,13 @@ def test_build_mock_hr_context_from_demo_fixture():
     assert "SQL" in context.candidate_profile.skills
     assert "Customer Insights Analyst, BrightPath HR Software" in context.candidate_profile.experience
     assert context.candidate_profile.interview_focus_areas
-    assert len(context.chunks) == 8
+    assert len(context.chunks) == 2
     assert context.chunks[0].id == "company_chunk_001"
     assert context.chunks[0].source_id == "company"
     assert context.chunks[0].metadata["source_uri"] == "fixture://company.md"
     assert context.chunks[0].metadata["source_kind"] == "company"
-    assert context.chunks[4].id == "role_chunk_001"
-    assert context.chunks[4].metadata["source_uri"] == "fixture://role.md"
+    assert context.chunks[1].id == "role_chunk_001"
+    assert context.chunks[1].metadata["source_uri"] == "fixture://role.md"
     assert [result.tool_name for result in context.tool_results] == [
         "extract_candidate_profile"
     ]

@@ -40,7 +40,7 @@ def test_replay_hr_interview_transcript_returns_canonical_summary():
         "embeddings": "mock",
     }
     assert summary["tool_calls"][0]["declared"]["tool_name"] == "retrieve_company_context"
-    assert summary["tool_calls"][0]["result"]["output"]["result_count"] == 3
+    assert summary["tool_calls"][0]["result"]["output"]["result_count"] == 2
     assert summary["sources"] == [
         {
             "title": "Northstar Analytics Company Overview",
