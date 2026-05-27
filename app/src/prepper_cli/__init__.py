@@ -37,6 +37,12 @@ from .hr_fixtures import (
     parse_transcript_markdown,
     validate_hr_fixture,
 )
+from .hr_interview_replay import (
+    HR_INTERVIEW_SUMMARY_SCHEMA_VERSION,
+    HrInterviewReplay,
+    HrInterviewReplayError,
+    replay_hr_interview_transcript,
+)
 from .hr_prompt_preview import render_hr_prompt_preview
 from .hr_retrieval import (
     DEFAULT_MOCK_RETRIEVAL_LIMIT,
@@ -124,6 +130,10 @@ __all__ = [
     "parse_transcript_file",
     "parse_transcript_markdown",
     "validate_hr_fixture",
+    "HR_INTERVIEW_SUMMARY_SCHEMA_VERSION",
+    "HrInterviewReplay",
+    "HrInterviewReplayError",
+    "replay_hr_interview_transcript",
     "render_hr_prompt_preview",
     "DEFAULT_MOCK_RETRIEVAL_LIMIT",
     "HrRetrievalResult",

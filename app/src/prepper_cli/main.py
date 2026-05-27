@@ -16,6 +16,7 @@ from .hr_context import (
     write_hr_context,
 )
 from .hr_fixtures import list_hr_fixture_ids, validate_hr_fixture
+from .hr_interview_replay import replay_hr_interview_transcript
 from .hr_prompt_preview import render_hr_prompt_preview
 from .hr_retrieval import retrieval_result_to_dict, retrieve_hr_context
 from .hr_tools import (
@@ -247,6 +248,31 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Print retrieval result JSON",
+    )
+
+    interview_parser = hr_parsers.add_parser(
+        "interview", help="Replay or simulate HR interviews"
+    )
+    interview_parsers = interview_parser.add_subparsers(
+        dest="hr_interview_command", required=True
+    )
+    replay_parser = interview_parsers.add_parser(
+        "replay", help="Replay an HR Markdown interview transcript"
+    )
+    replay_parser.add_argument(
+        "--fixture",
+        required=True,
+        help="HR fixture id for replay context",
+    )
+    replay_parser.add_argument(
+        "--transcript",
+        required=True,
+        help="Path to transcript Markdown to replay",
+    )
+    replay_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print replay summary JSON",
     )
 
     tool_parser = hr_parsers.add_parser("tool", help="Run HR domain tools")
@@ -570,6 +596,22 @@ def _format_hr_retrieval_summary(payload: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_hr_interview_replay_summary(payload: dict) -> str:
+    final_result = payload["final_result"]
+    transcript = payload["transcript"]
+    lines = [
+        f"HR interview replay: {payload['fixture_id']} / {payload['candidate']}",
+        f"Context: {payload['context_id']}",
+        f"Transcript: {transcript['path']}",
+        f"Turns: {payload['turn_counts']['total']}",
+        f"Tool calls: {len(payload['tool_calls'])}",
+        f"Sources: {len(payload['sources'])}",
+        f"Final score: {final_result['overall_score']:.1f}",
+        f"Passed: {str(final_result['passed']).lower()}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def _format_hr_tool_summary(payload: dict) -> str:
     output = payload["output"]
     lines = [
@@ -652,6 +694,17 @@ def _run_hr_command(args: argparse.Namespace) -> int:
                 print(json.dumps(payload, indent=2, sort_keys=True))
             else:
                 print(_format_hr_retrieval_summary(payload), end="")
+            return 0
+
+        if args.hr_command == "interview" and args.hr_interview_command == "replay":
+            replay = replay_hr_interview_transcript(
+                fixture_id=args.fixture,
+                transcript_path=args.transcript,
+            )
+            if args.json:
+                print(json.dumps(replay.summary, indent=2, sort_keys=True))
+            else:
+                print(_format_hr_interview_replay_summary(replay.summary), end="")
             return 0
 
         if args.hr_command == "tool" and args.hr_tool_command == "run":
