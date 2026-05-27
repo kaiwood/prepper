@@ -76,6 +76,42 @@ def test_hr_assistant_rejects_invalid_context_id():
     assert response.get_json() == {"error": "invalid context_id"}
 
 
+def test_hr_assistant_redacts_unexpected_error(monkeypatch):
+    def fail_assistant(**kwargs):
+        raise RuntimeError("candidate private detail")
+
+    monkeypatch.setattr("app.routes.hr.run_hr_assistant", fail_assistant)
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/hr/assistant",
+        json={"message": "Help", "mode": "mock"},
+    )
+
+    assert response.status_code == 502
+    assert response.get_json() == {"error": "HR assistant failed"}
+    assert "candidate private detail" not in response.get_data(as_text=True)
+
+
+def test_hr_assistant_rate_limit_is_enforced():
+    app = create_app()
+    client = app.test_client()
+
+    responses = [
+        client.post(
+            "/api/hr/assistant",
+            json={"message": f"Help {index}", "mode": "mock"},
+            environ_overrides={"REMOTE_ADDR": "192.0.2.44"},
+        )
+        for index in range(11)
+    ]
+
+    assert [response.status_code for response in responses[:10]] == [200] * 10
+    assert responses[10].status_code == 429
+    assert responses[10].get_json() == {"error": "rate limit exceeded"}
+
+
 def test_hr_interview_mock_start_and_turn_include_retrieval():
     app = create_app()
     client = app.test_client()

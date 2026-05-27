@@ -2,6 +2,8 @@
 
 Prepper helps you practice interviews with an AI interviewer.
 
+For the Sprint 2 HR prototype workflow, see [docs/hr-prototype.md](./docs/hr-prototype.md).
+
 - `backend/`: Flask API that proxies requests to OpenRouter
 - `frontend/`: Next.js web app
 - `app/`: reusable Python package + CLI for local interview practice and benchmarking

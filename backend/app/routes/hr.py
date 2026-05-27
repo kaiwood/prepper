@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from copy import deepcopy
 from dataclasses import replace
 from typing import Any
 
@@ -85,8 +86,8 @@ def build_hr_context():
         return jsonify({"error": str(exc)}), 400
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    except Exception as exc:  # pragma: no cover - defensive API safety net
-        return jsonify({"error": f"HR context build failed: {exc}"}), 502
+    except Exception:  # pragma: no cover - defensive API safety net
+        return jsonify(_public_hr_error("HR context build failed")), 502
 
     if result.context is not None:
         _HR_CONTEXTS[result.context.context_id] = result.context
@@ -153,10 +154,10 @@ def start_hr_interview():
             query="opening HR candidate fit interview",
             mode=mode,
         )
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    except Exception as exc:
-        return jsonify({"error": f"HR retrieval failed: {exc}"}), 502
+    except ValueError:
+        return jsonify(_public_hr_error("HR retrieval failed")), 502
+    except Exception:
+        return jsonify(_public_hr_error("HR retrieval failed")), 502
 
     if mode == "mock":
         reply = _mock_hr_interview_opener(context)
@@ -183,10 +184,10 @@ def start_hr_interview():
             )
             parsed = parse_reply_metadata(raw_reply)
             metadata_warning = not parsed["metadata_valid"]
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
-        except Exception as exc:
-            return jsonify({"error": f"LLM request failed: {exc}"}), 502
+        except ValueError:
+            return jsonify(_public_hr_error("LLM request failed")), 502
+        except Exception:
+            return jsonify(_public_hr_error("LLM request failed")), 502
 
     interview_id = uuid.uuid4().hex
     conversation = Conversation()
@@ -260,10 +261,10 @@ def continue_hr_interview():
             query=message,
             mode=session["mode"],
         )
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    except Exception as exc:
-        return jsonify({"error": f"HR retrieval failed: {exc}"}), 502
+    except ValueError:
+        return jsonify(_public_hr_error("HR retrieval failed")), 502
+    except Exception:
+        return jsonify(_public_hr_error("HR retrieval failed")), 502
 
     if session["interview_complete"]:
         return jsonify(
@@ -305,10 +306,10 @@ def continue_hr_interview():
                 treat_candidate_input_as_untrusted=True,
                 prior_question_count=session["question_count"],
             )
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
-        except Exception as exc:
-            return jsonify({"error": f"LLM request failed: {exc}"}), 502
+        except ValueError:
+            return jsonify(_public_hr_error("LLM request failed")), 502
+        except Exception:
+            return jsonify(_public_hr_error("LLM request failed")), 502
 
     session["question_count"] = turn_result["question_count"]
     session["interview_complete"] = bool(turn_result["interview_complete"])
@@ -357,6 +358,7 @@ def hr_assistant():
             "resume_text": _optional_string(data, "resume_text"),
             "profile_text": _optional_string(data, "profile_text"),
         }
+        _validate_hr_mode(mode)
         result = run_hr_assistant(
             message=message,
             mode=mode,
@@ -365,11 +367,13 @@ def hr_assistant():
             model=_optional_string(data, "model"),
         )
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    except Exception as exc:  # pragma: no cover - defensive API safety net
-        return jsonify({"error": f"HR assistant failed: {exc}"}), 502
+        if _is_public_validation_error(str(exc)):
+            return jsonify({"error": str(exc)}), 400
+        return jsonify(_public_hr_error("HR assistant failed")), 502
+    except Exception:  # pragma: no cover - defensive API safety net
+        return jsonify(_public_hr_error("HR assistant failed")), 502
 
-    return jsonify(result.payload)
+    return jsonify(_sanitize_public_hr_payload(result.payload))
 
 
 def get_stored_hr_context(context_id: str) -> HrContext | None:
@@ -550,6 +554,8 @@ def _sources_from_retrieval_payload(retrieval_payload: dict[str, Any]) -> list[d
 
 def _build_response_payload(result: HrContextBuildResult) -> dict[str, Any]:
     context_payload = hr_context_to_dict(result.context) if result.context else None
+    if context_payload is not None:
+        context_payload = _sanitize_public_hr_payload(context_payload)
     return {
         "schema_version": "hr-context-response.v1",
         "status": result.status,
@@ -558,13 +564,65 @@ def _build_response_payload(result: HrContextBuildResult) -> dict[str, Any]:
         "summaries": context_payload["summaries"] if context_payload else None,
         "sources": context_payload["sources"] if context_payload else [],
         "tool_results": [
-            hr_tool_result_to_dict(tool_result) for tool_result in result.tool_results
+            _sanitize_public_tool_result(hr_tool_result_to_dict(tool_result))
+            for tool_result in result.tool_results
         ],
         "errors": [
-            {"tool_name": error.tool_name, "message": error.message}
+            {
+                "tool_name": error.tool_name,
+                "message": _public_tool_error_message(error.tool_name),
+            }
             for error in result.errors
         ],
     }
+
+
+def _public_hr_error(message: str) -> dict[str, str]:
+    return {"error": message}
+
+
+def _is_public_validation_error(message: str) -> bool:
+    return (
+        message in {"invalid context_id", "mode must be one of: llm, mock"}
+        or message.endswith(" is required")
+        or message.endswith(" must be a string")
+        or message.endswith(" must be an object")
+        or " must contain only string keys and values" in message
+    )
+
+
+def _sanitize_public_hr_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    sanitized = deepcopy(payload)
+    tool_results = sanitized.get("tool_results")
+    if isinstance(tool_results, list):
+        sanitized["tool_results"] = [
+            _sanitize_public_tool_result(tool_result)
+            if isinstance(tool_result, dict)
+            else tool_result
+            for tool_result in tool_results
+        ]
+    return sanitized
+
+
+def _sanitize_public_tool_result(tool_result: dict[str, Any]) -> dict[str, Any]:
+    sanitized = deepcopy(tool_result)
+    if sanitized.get("status") != "error":
+        return sanitized
+
+    output = sanitized.get("output")
+    public_output: dict[str, Any] = {
+        "error": _public_tool_error_message(
+            str(sanitized.get("tool_name") or "HR tool")
+        )
+    }
+    if isinstance(output, dict) and "mode" in output:
+        public_output["mode"] = output["mode"]
+    sanitized["output"] = public_output
+    return sanitized
+
+
+def _public_tool_error_message(tool_name: str) -> str:
+    return f"{tool_name} failed; review server logs or rerun the workflow locally."
 
 
 def _optional_string(data: dict[str, Any], field_name: str) -> str | None:

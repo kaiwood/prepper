@@ -92,7 +92,7 @@ def test_hr_context_endpoint_rejects_validation_errors():
 
 def test_hr_context_endpoint_returns_partial_when_candidate_tool_fails(monkeypatch):
     def fail_candidate_profile(**kwargs):
-        raise RuntimeError("profile model unavailable")
+        raise RuntimeError("profile model unavailable: candidate@example.com")
 
     monkeypatch.setattr(
         "prepper_cli.hr_tools.run_extract_candidate_profile_tool",
@@ -108,17 +108,21 @@ def test_hr_context_endpoint_returns_partial_when_candidate_tool_fails(monkeypat
     assert data["status"] == "partial"
     assert data["context_id"].startswith("hrctx_input_")
     assert data["tool_results"][0]["status"] == "error"
+    safe_message = "extract_candidate_profile failed; review server logs or rerun the workflow locally."
+    assert data["tool_results"][0]["output"]["error"] == safe_message
+    assert data["context"]["tool_results"][0]["output"]["error"] == safe_message
     assert data["errors"] == [
         {
             "tool_name": "extract_candidate_profile",
-            "message": "profile model unavailable",
+            "message": safe_message,
         }
     ]
+    assert "candidate@example.com" not in response.get_data(as_text=True)
 
 
 def test_hr_context_endpoint_returns_partial_without_context_when_url_fetch_fails(monkeypatch):
     def fail_urlopen(request, timeout):
-        raise TimeoutError("slow")
+        raise TimeoutError("slow private site details")
 
     monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fail_urlopen)
     app = create_app()
@@ -132,7 +136,26 @@ def test_hr_context_endpoint_returns_partial_without_context_when_url_fetch_fail
     assert data["status"] == "partial"
     assert data["context_id"] is None
     assert data["context"] is None
-    assert data["errors"][0]["tool_name"] == "fetch_company_website"
+    assert data["errors"][0] == {
+        "tool_name": "fetch_company_website",
+        "message": "fetch_company_website failed; review server logs or rerun the workflow locally.",
+    }
+    assert "slow private site details" not in response.get_data(as_text=True)
+
+
+def test_hr_context_endpoint_redacts_unexpected_exception(monkeypatch):
+    def fail_build(**kwargs):
+        raise RuntimeError("resume secret: candidate@example.com")
+
+    monkeypatch.setattr("app.routes.hr.build_hr_context_from_inputs", fail_build)
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post("/api/hr/context", json=_payload())
+
+    assert response.status_code == 502
+    assert response.get_json() == {"error": "HR context build failed"}
+    assert "candidate@example.com" not in response.get_data(as_text=True)
 
 
 def test_hr_context_options_preflight_returns_cors_headers():

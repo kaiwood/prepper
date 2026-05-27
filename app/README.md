@@ -2,6 +2,8 @@
 
 `prepper-cli` is the standalone Python package that powers Prepper's OpenRouter chat and interview flows.
 
+For HR prototype fixture/workflow commands, see [../docs/hr-prototype.md](../docs/hr-prototype.md).
+
 ## What It Includes
 
 ```text
