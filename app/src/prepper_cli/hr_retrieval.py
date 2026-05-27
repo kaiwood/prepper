@@ -70,9 +70,18 @@ def build_retrieval_chunks(
             raise HrContextValidationError(
                 f"Cannot chunk document '{document.source_id}' because its source is missing"
             )
-        chunks.extend(_chunk_document(document, source))
+        chunks.extend(build_document_retrieval_chunks(document=document, source=source))
 
     return tuple(chunks)
+
+
+def build_document_retrieval_chunks(
+    *,
+    document: HrContextInputDocument,
+    source: HrContextSource,
+) -> tuple[HrContextChunk, ...]:
+    """Build deterministic retrieval chunks for one source-backed document."""
+    return tuple(_chunk_document(document, source))
 
 
 def retrieve_hr_context(
