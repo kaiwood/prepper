@@ -14,16 +14,22 @@ from bs4 import BeautifulSoup
 from .config import load_config, resolve_model_name
 from .hr_context import (
     HrCandidateProfile,
+    HrContext,
     HrContextChunk,
     HrContextInputDocument,
     HrContextSource,
     HrToolResult,
 )
 from .hr_fixtures import HrFixture
-from .hr_retrieval import build_document_retrieval_chunks
+from .hr_retrieval import (
+    DEFAULT_MOCK_RETRIEVAL_LIMIT,
+    build_document_retrieval_chunks,
+    retrieve_hr_context,
+)
 
 FETCH_COMPANY_WEBSITE_TOOL_NAME = "fetch_company_website"
 EXTRACT_CANDIDATE_PROFILE_TOOL_NAME = "extract_candidate_profile"
+RETRIEVE_COMPANY_CONTEXT_TOOL_NAME = "retrieve_company_context"
 DEFAULT_COMPANY_WEBSITE_TIMEOUT_SECONDS = 10.0
 DEFAULT_COMPANY_WEBSITE_MAX_BYTES = 1_000_000
 DEFAULT_CANDIDATE_PROFILE_MAX_CHARS = 40_000
@@ -117,6 +123,42 @@ def run_extract_candidate_profile_tool(
         resume_text=resolved_resume,
         profile_text=resolved_profile,
         max_chars=max_chars,
+    )
+
+
+def run_retrieve_company_context_tool(
+    *,
+    context: HrContext,
+    query: str,
+    mode: str,
+    limit: int = DEFAULT_MOCK_RETRIEVAL_LIMIT,
+) -> HrToolResult:
+    """Retrieve role/company context snippets for an HR interview query."""
+    if mode not in {"mock", "llm"}:
+        raise HrToolError("Tool mode must be one of: llm, mock")
+
+    try:
+        retrieval = retrieve_hr_context(
+            context,
+            query=query,
+            mode=mode,
+            limit=limit,
+            rebuild_missing_chunks=False,
+        )
+    except ValueError as exc:
+        raise HrToolError(str(exc)) from exc
+
+    return HrToolResult(
+        tool_name=RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
+        status="success",
+        output={
+            "mode": mode,
+            "query": retrieval.query,
+            "snippets": [
+                _retrieved_chunk_to_snippet(chunk) for chunk in retrieval.results
+            ],
+            "result_count": len(retrieval.results),
+        },
     )
 
 
@@ -740,6 +782,27 @@ def _chunk_to_dict(chunk: HrContextChunk) -> dict[str, Any]:
         "text": chunk.text,
         "metadata": dict(chunk.metadata),
     }
+
+
+def _retrieved_chunk_to_snippet(chunk: HrContextChunk) -> dict[str, Any]:
+    metadata = dict(chunk.metadata)
+    return {
+        "chunk_id": chunk.id,
+        "source_id": chunk.source_id,
+        "source_kind": metadata.get("source_kind", ""),
+        "source_title": metadata.get("source_title", chunk.source_id),
+        "source_uri": metadata.get("source_uri", ""),
+        "text": _truncate_snippet(chunk.text),
+        "metadata": metadata,
+    }
+
+
+def _truncate_snippet(text: str, *, max_chars: int = 700) -> str:
+    normalized = text.strip()
+    if len(normalized) <= max_chars:
+        return normalized
+    truncated = normalized[: max_chars - 3].rsplit(" ", 1)[0].rstrip()
+    return f"{truncated or normalized[: max_chars - 3].rstrip()}..."
 
 
 def _require_mapping(payload: dict[str, Any], key: str) -> dict[str, Any]:

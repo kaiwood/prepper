@@ -11,6 +11,18 @@ from prepper_cli.hr_retrieval import (
 )
 
 
+class FakeEmbeddings:
+    def embed_query(self, query):
+        assert query == "company values"
+        return [1.0, 0.0]
+
+    def embed_documents(self, documents):
+        return [
+            [1.0, 0.0] if "Values" in document else [0.0, 1.0]
+            for document in documents
+        ]
+
+
 def test_mock_chunks_are_deterministic_with_source_metadata():
     context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
     rebuilt = build_mock_hr_context(validate_hr_fixture("demo_hr"))
@@ -81,6 +93,28 @@ def test_llm_retrieval_reports_missing_embedding_config(monkeypatch):
 
     with pytest.raises(HrContextValidationError, match="OPENROUTER_API_KEY"):
         retrieve_hr_context(context, query="company values", mode="llm")
+
+
+def test_llm_retrieval_uses_embeddings_and_source_metadata(monkeypatch):
+    context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_EMBEDDING_MODEL", "openai/text-embedding-3-small")
+    monkeypatch.setattr(
+        "prepper_cli.hr_retrieval._build_openrouter_embeddings",
+        lambda _config: FakeEmbeddings(),
+    )
+
+    result = retrieve_hr_context(
+        context,
+        query="company values",
+        mode="llm",
+        limit=1,
+    )
+    payload = retrieval_result_to_dict(result)
+
+    assert payload["mode"] == "llm"
+    assert [chunk["id"] for chunk in payload["results"]] == ["company_chunk_003"]
+    assert payload["results"][0]["metadata"]["source_uri"] == "fixture://company.md"
 
 
 def test_openrouter_embedding_config_requires_embedding_model(monkeypatch):

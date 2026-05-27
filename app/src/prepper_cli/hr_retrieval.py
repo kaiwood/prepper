@@ -89,34 +89,52 @@ def retrieve_hr_context(
     *,
     query: str,
     mode: str = "mock",
+    limit: int = DEFAULT_MOCK_RETRIEVAL_LIMIT,
+    rebuild_missing_chunks: bool = True,
 ) -> HrRetrievalResult:
     normalized_query = " ".join(query.split())
     if not normalized_query:
         raise HrContextValidationError("Retrieval query must be a non-empty string")
+    if limit <= 0:
+        raise HrContextValidationError("Retrieval limit must be greater than 0")
+    if mode not in {"llm", "mock"}:
+        raise HrContextValidationError("Retrieval mode must be one of: llm, mock")
 
-    if mode == "mock":
-        chunks = context.chunks or build_retrieval_chunks(
+    chunks = context.chunks
+    if not chunks and rebuild_missing_chunks:
+        chunks = build_retrieval_chunks(
             company_inputs=context.company_inputs,
             role_description=context.role_description,
             sources=context.sources,
         )
+    if not chunks:
+        return HrRetrievalResult(query=normalized_query, mode=mode, results=())
+
+    if mode == "mock":
         return HrRetrievalResult(
             query=normalized_query,
             mode=mode,
             results=_retrieve_mock_chunks(
                 chunks,
                 normalized_query,
-                limit=DEFAULT_MOCK_RETRIEVAL_LIMIT,
+                limit=limit,
             ),
         )
 
     if mode == "llm":
         try:
-            load_openrouter_embedding_config()
+            config = load_openrouter_embedding_config()
         except ValueError as exc:
             raise HrContextValidationError(str(exc)) from exc
-        raise HrContextValidationError(
-            "Live HR retrieval is not implemented yet; use --mode mock for deterministic retrieval"
+        return HrRetrievalResult(
+            query=normalized_query,
+            mode=mode,
+            results=_retrieve_llm_chunks(
+                chunks,
+                normalized_query,
+                config=config,
+                limit=limit,
+            ),
         )
 
     raise HrContextValidationError("Retrieval mode must be one of: llm, mock")
@@ -214,6 +232,51 @@ def _retrieve_mock_chunks(
     return tuple(chunk for _, _, chunk in scored[:limit])
 
 
+def _retrieve_llm_chunks(
+    chunks: tuple[HrContextChunk, ...],
+    query: str,
+    *,
+    config: OpenRouterEmbeddingConfig,
+    limit: int,
+) -> tuple[HrContextChunk, ...]:
+    embeddings = _build_openrouter_embeddings(config)
+    try:
+        query_vector = embeddings.embed_query(query)
+        chunk_vectors = embeddings.embed_documents([chunk.text for chunk in chunks])
+    except Exception as exc:  # pragma: no cover - depends on provider/runtime
+        raise HrContextValidationError(f"Live HR retrieval failed: {exc}") from exc
+
+    if len(chunk_vectors) != len(chunks):
+        raise HrContextValidationError(
+            "Live HR retrieval returned an unexpected embedding count"
+        )
+
+    scored = []
+    for position, (chunk, vector) in enumerate(zip(chunks, chunk_vectors, strict=True)):
+        score = _cosine_similarity_values(query_vector, vector)
+        if score > 0:
+            scored.append((score, position, chunk))
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return tuple(chunk for _, _, chunk in scored[:limit])
+
+
+def _build_openrouter_embeddings(config: OpenRouterEmbeddingConfig):
+    try:
+        from langchain_openai import OpenAIEmbeddings
+    except ImportError as exc:  # pragma: no cover - depends on optional env install
+        raise HrContextValidationError(
+            "langchain-openai is required for HR retrieval in llm mode"
+        ) from exc
+
+    return OpenAIEmbeddings(
+        model=config.embedding_model,
+        api_key=config.api_key,
+        base_url=config.base_url,
+        check_embedding_ctx_length=False,
+    )
+
+
 def _mock_embedding(text: str) -> Counter[str]:
     return Counter(token for token in _tokenize(text) if token not in _STOP_WORDS)
 
@@ -233,6 +296,24 @@ def _cosine_similarity(left: Counter[str], right: Counter[str]) -> float:
 
     left_norm = math.sqrt(sum(value * value for value in left.values()))
     right_norm = math.sqrt(sum(value * value for value in right.values()))
+    return numerator / (left_norm * right_norm)
+
+
+def _cosine_similarity_values(left: list[float], right: list[float]) -> float:
+    if not left or not right or len(left) != len(right):
+        return 0.0
+
+    numerator = sum(
+        left_value * right_value
+        for left_value, right_value in zip(left, right, strict=True)
+    )
+    if numerator == 0:
+        return 0.0
+
+    left_norm = math.sqrt(sum(value * value for value in left))
+    right_norm = math.sqrt(sum(value * value for value in right))
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
     return numerator / (left_norm * right_norm)
 
 

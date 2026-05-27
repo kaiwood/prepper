@@ -1,7 +1,8 @@
 import json
 
 from prepper_cli import main
-from prepper_cli.hr_context import HrToolResult
+from prepper_cli.hr_context import HrToolResult, build_mock_hr_context, write_hr_context
+from prepper_cli.hr_fixtures import validate_hr_fixture
 
 
 def test_hr_tool_run_fetch_company_website_mock_prints_json(monkeypatch, capsys):
@@ -113,6 +114,100 @@ def test_hr_tool_run_extract_candidate_profile_mock_prints_summary(monkeypatch, 
     assert "Skills:" in captured.out
     assert "Experience:" in captured.out
     assert "SQL" not in captured.out
+
+
+def test_hr_tool_run_retrieve_company_context_mock_prints_json(
+    monkeypatch, tmp_path, capsys
+):
+    context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
+    context_path = write_hr_context(context, tmp_path / "hr-context.json")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "hr",
+            "tool",
+            "run",
+            "retrieve_company_context",
+            "--context",
+            str(context_path),
+            "--query",
+            "company values",
+            "--mode",
+            "mock",
+            "--json",
+        ],
+    )
+
+    assert main.main() == 0
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    payload = json.loads(captured.out)
+    assert payload["tool_name"] == "retrieve_company_context"
+    assert payload["status"] == "success"
+    assert payload["output"]["mode"] == "mock"
+    assert payload["output"]["query"] == "company values"
+    assert payload["output"]["snippets"][0]["source_uri"] == "fixture://company.md"
+
+
+def test_hr_tool_run_retrieve_company_context_mock_prints_summary(
+    monkeypatch, tmp_path, capsys
+):
+    context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
+    context_path = write_hr_context(context, tmp_path / "hr-context.json")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "hr",
+            "tool",
+            "run",
+            "retrieve_company_context",
+            "--context",
+            str(context_path),
+            "--query",
+            "company values",
+            "--mode",
+            "mock",
+        ],
+    )
+
+    assert main.main() == 0
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert "Tool: retrieve_company_context" in captured.out
+    assert "Status: success" in captured.out
+    assert "Query: company values" in captured.out
+    assert "Snippets: 2" in captured.out
+    assert "workforce-planning software" not in captured.out
+
+
+def test_hr_tool_run_retrieve_company_context_reports_missing_context(
+    monkeypatch, capsys
+):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "prepper-cli",
+            "hr",
+            "tool",
+            "run",
+            "retrieve_company_context",
+            "--query",
+            "company values",
+            "--mode",
+            "mock",
+            "--json",
+        ],
+    )
+
+    assert main.main() == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "requires --context" in captured.err
 
 
 def test_hr_tool_run_extract_candidate_profile_reports_missing_fixture(monkeypatch, capsys):

@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 import socket
+from dataclasses import replace
 from email.message import Message
 from urllib.error import URLError
 
 import pytest
 
+from prepper_cli.hr_context import build_mock_hr_context
 from prepper_cli.hr_fixtures import validate_hr_fixture
 from prepper_cli.hr_tools import (
     EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
+    RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
     HrToolError,
     candidate_profile_tool_result_to_profile,
     company_website_tool_result_to_context_entries,
     hr_tool_result_to_dict,
     run_extract_candidate_profile_tool,
     run_fetch_company_website_tool,
+    run_retrieve_company_context_tool,
 )
 
 
@@ -108,6 +112,70 @@ def test_extract_candidate_profile_converts_to_context_profile():
 
     assert "SQL" in profile.skills
     assert profile.interview_focus_areas
+
+
+def test_retrieve_company_context_mock_returns_source_snippets():
+    context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
+
+    result = run_retrieve_company_context_tool(
+        mode="mock",
+        context=context,
+        query="company values",
+    )
+    payload = hr_tool_result_to_dict(result)
+
+    assert payload["tool_name"] == RETRIEVE_COMPANY_CONTEXT_TOOL_NAME
+    assert payload["status"] == "success"
+    assert payload["output"]["mode"] == "mock"
+    assert payload["output"]["query"] == "company values"
+    assert payload["output"]["result_count"] == 2
+    assert [snippet["chunk_id"] for snippet in payload["output"]["snippets"]] == [
+        "company_chunk_003",
+        "company_chunk_004",
+    ]
+    assert payload["output"]["snippets"][0]["source_title"] == "Northstar Analytics"
+    assert payload["output"]["snippets"][0]["source_uri"] == "fixture://company.md"
+    assert payload["output"]["snippets"][0]["metadata"]["source_kind"] == "company"
+
+
+def test_retrieve_company_context_can_return_role_snippets():
+    context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
+
+    result = run_retrieve_company_context_tool(
+        mode="mock",
+        context=context,
+        query="success signals customer-facing hr analytics",
+    )
+    payload = hr_tool_result_to_dict(result)
+
+    assert any(
+        snippet["source_kind"] == "role" for snippet in payload["output"]["snippets"]
+    )
+
+
+def test_retrieve_company_context_empty_chunks_returns_empty_result():
+    context = replace(build_mock_hr_context(validate_hr_fixture("demo_hr")), chunks=())
+
+    result = run_retrieve_company_context_tool(
+        mode="mock",
+        context=context,
+        query="company values",
+    )
+    payload = hr_tool_result_to_dict(result)
+
+    assert payload["output"]["snippets"] == []
+    assert payload["output"]["result_count"] == 0
+
+
+def test_retrieve_company_context_rejects_empty_query():
+    context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
+
+    with pytest.raises(HrToolError, match="query"):
+        run_retrieve_company_context_tool(
+            mode="mock",
+            context=context,
+            query="   ",
+        )
 
 
 def test_extract_candidate_profile_rejects_empty_inputs():

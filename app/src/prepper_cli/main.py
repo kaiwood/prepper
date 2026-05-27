@@ -21,9 +21,11 @@ from .hr_retrieval import retrieval_result_to_dict, retrieve_hr_context
 from .hr_tools import (
     EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
+    RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
     hr_tool_result_to_dict,
     run_extract_candidate_profile_tool,
     run_fetch_company_website_tool,
+    run_retrieve_company_context_tool,
 )
 from .interview import resolve_pass_threshold, run_interview_turn
 from .system_prompts import (
@@ -252,7 +254,11 @@ def _build_parser() -> argparse.ArgumentParser:
     tool_run_parser = tool_parsers.add_parser("run", help="Run one HR domain tool")
     tool_run_parser.add_argument(
         "tool_name",
-        choices=[FETCH_COMPANY_WEBSITE_TOOL_NAME, EXTRACT_CANDIDATE_PROFILE_TOOL_NAME],
+        choices=[
+            FETCH_COMPANY_WEBSITE_TOOL_NAME,
+            EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
+            RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
+        ],
         help="HR domain tool to run",
     )
     tool_run_parser.add_argument(
@@ -262,6 +268,14 @@ def _build_parser() -> argparse.ArgumentParser:
     tool_run_parser.add_argument(
         "--url",
         help="Company website URL for llm/live tool mode",
+    )
+    tool_run_parser.add_argument(
+        "--context",
+        help="Path to HR context JSON for context retrieval tools",
+    )
+    tool_run_parser.add_argument(
+        "--query",
+        help="Query for context retrieval tools",
     )
     tool_run_parser.add_argument(
         "--mode",
@@ -584,6 +598,16 @@ def _format_hr_tool_summary(payload: dict) -> str:
                 f"Input chars: {metadata['combined_char_count']}",
             ]
         )
+    elif payload["tool_name"] == RETRIEVE_COMPANY_CONTEXT_TOOL_NAME:
+        lines.extend(
+            [
+                f"Query: {output['query']}",
+                f"Snippets: {output['result_count']}",
+            ]
+        )
+        for index, snippet in enumerate(output["snippets"], start=1):
+            source_title = snippet.get("source_title") or snippet["source_id"]
+            lines.append(f"{index}. {snippet['chunk_id']} ({source_title})")
     return "\n".join(lines) + "\n"
 
 
@@ -643,6 +667,16 @@ def _run_hr_command(args: argparse.Namespace) -> int:
                     mode=args.mode,
                     fixture=fixture,
                     model=args.model,
+                )
+            elif args.tool_name == RETRIEVE_COMPANY_CONTEXT_TOOL_NAME:
+                if not args.context:
+                    raise ValueError("retrieve_company_context requires --context")
+                if not args.query:
+                    raise ValueError("retrieve_company_context requires --query")
+                result = run_retrieve_company_context_tool(
+                    mode=args.mode,
+                    context=load_hr_context(args.context),
+                    query=args.query,
                 )
             else:
                 raise ValueError(f"Unsupported HR tool '{args.tool_name}'")
