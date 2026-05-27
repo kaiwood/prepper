@@ -10,6 +10,7 @@ from .benchmark import run_benchmark_interview
 from .chat import get_chat_reply
 from .cli_output import print_final_result, print_turn
 from .conversation import Conversation
+from .hr_assistant import run_hr_assistant
 from .hr_context import (
     HrContext,
     build_hr_context_from_fixture,
@@ -394,6 +395,36 @@ def _build_parser() -> argparse.ArgumentParser:
         "--api-url",
         help="Backend base URL for --transport api",
     )
+
+    assistant_parser = hr_parsers.add_parser(
+        "assistant", help="Ask the HR setup assistant"
+    )
+    assistant_parsers = assistant_parser.add_subparsers(
+        dest="hr_assistant_command", required=True
+    )
+    assistant_ask_parser = assistant_parsers.add_parser(
+        "ask", help="Ask a single HR setup assistant question"
+    )
+    assistant_ask_parser.add_argument(
+        "--fixture",
+        help="HR fixture id to build context from",
+    )
+    assistant_ask_parser.add_argument(
+        "--message",
+        required=True,
+        help="Question to ask the HR setup assistant",
+    )
+    assistant_ask_parser.add_argument(
+        "--mode",
+        choices=["mock", "llm"],
+        default="mock",
+        help="Assistant execution mode",
+    )
+    assistant_ask_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print assistant response JSON",
+    )
     return parser
 
 
@@ -710,6 +741,18 @@ def _format_hr_workflow_summary(payload: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_hr_assistant_summary(payload: dict) -> str:
+    lines = [
+        f"HR assistant: {payload['status']} ({payload['mode']})",
+        f"Context: {payload.get('context_id') or 'none'}",
+        f"Tool results: {len(payload.get('tool_results', []))}",
+        f"Sources: {len(payload.get('sources', []))}",
+        "",
+        payload["reply"],
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def _format_hr_tool_summary(payload: dict) -> str:
     output = payload["output"]
     lines = [
@@ -912,6 +955,23 @@ def _run_hr_command(args: argparse.Namespace) -> int:
                 print(json.dumps(workflow.summary, indent=2, sort_keys=True))
             else:
                 print(_format_hr_workflow_summary(workflow.summary), end="")
+            return 0
+
+        if args.hr_command == "assistant" and args.hr_assistant_command == "ask":
+            context = None
+            if args.fixture:
+                fixture = validate_hr_fixture(args.fixture)
+                context = build_hr_context_from_fixture(fixture, mode="mock")
+            assistant = run_hr_assistant(
+                message=args.message,
+                mode=args.mode,
+                context=context,
+                model=args.model,
+            )
+            if args.json:
+                print(json.dumps(assistant.payload, indent=2, sort_keys=True))
+            else:
+                print(_format_hr_assistant_summary(assistant.payload), end="")
             return 0
 
         if args.hr_command == "tool" and args.hr_tool_command == "run":

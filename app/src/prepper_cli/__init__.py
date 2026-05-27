@@ -26,6 +26,12 @@ from .hr_context import (
     load_hr_context,
     write_hr_context,
 )
+from .hr_assistant import (
+    HR_ASSISTANT_RESPONSE_SCHEMA_VERSION,
+    HrAssistantError,
+    HrAssistantResult,
+    run_hr_assistant,
+)
 from .hr_fixtures import (
     ExpectedFinalResult,
     FixtureValidationError,
@@ -138,6 +144,10 @@ __all__ = [
     "hr_context_to_json",
     "load_hr_context",
     "write_hr_context",
+    "HR_ASSISTANT_RESPONSE_SCHEMA_VERSION",
+    "HrAssistantError",
+    "HrAssistantResult",
+    "run_hr_assistant",
     "ExpectedFinalResult",
     "FixtureValidationError",
     "HrFixture",
