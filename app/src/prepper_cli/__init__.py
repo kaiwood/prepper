@@ -43,6 +43,13 @@ from .hr_interview_replay import (
     HrInterviewReplayError,
     replay_hr_interview_transcript,
 )
+from .hr_interview_simulation import (
+    DEFAULT_HR_SIMULATION_MODE,
+    HR_SIMULATION_INTERVIEW_STYLE,
+    HrInterviewSimulation,
+    HrInterviewSimulationError,
+    simulate_hr_interview,
+)
 from .hr_prompt_preview import render_hr_prompt_preview
 from .hr_retrieval import (
     DEFAULT_MOCK_RETRIEVAL_LIMIT,
@@ -134,6 +141,11 @@ __all__ = [
     "HrInterviewReplay",
     "HrInterviewReplayError",
     "replay_hr_interview_transcript",
+    "DEFAULT_HR_SIMULATION_MODE",
+    "HR_SIMULATION_INTERVIEW_STYLE",
+    "HrInterviewSimulation",
+    "HrInterviewSimulationError",
+    "simulate_hr_interview",
     "render_hr_prompt_preview",
     "DEFAULT_MOCK_RETRIEVAL_LIMIT",
     "HrRetrievalResult",

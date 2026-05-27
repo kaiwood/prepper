@@ -17,6 +17,7 @@ from .hr_context import (
 )
 from .hr_fixtures import list_hr_fixture_ids, validate_hr_fixture
 from .hr_interview_replay import replay_hr_interview_transcript
+from .hr_interview_simulation import simulate_hr_interview
 from .hr_prompt_preview import render_hr_prompt_preview
 from .hr_retrieval import retrieval_result_to_dict, retrieve_hr_context
 from .hr_tools import (
@@ -273,6 +274,36 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Print replay summary JSON",
+    )
+    simulate_parser = interview_parsers.add_parser(
+        "simulate", help="Run a live LLM HR interview simulation"
+    )
+    simulate_parser.add_argument(
+        "--fixture",
+        required=True,
+        help="HR fixture id for simulation context",
+    )
+    simulate_parser.add_argument(
+        "--candidate",
+        choices=["strong", "weak"],
+        required=True,
+        help="Simulated candidate profile",
+    )
+    simulate_parser.add_argument(
+        "--mode",
+        choices=["llm"],
+        default="llm",
+        help="Simulation mode",
+    )
+    simulate_parser.add_argument(
+        "--out",
+        required=True,
+        help="Path to write generated transcript Markdown",
+    )
+    simulate_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print simulation summary JSON",
     )
 
     tool_parser = hr_parsers.add_parser("tool", help="Run HR domain tools")
@@ -599,8 +630,9 @@ def _format_hr_retrieval_summary(payload: dict) -> str:
 def _format_hr_interview_replay_summary(payload: dict) -> str:
     final_result = payload["final_result"]
     transcript = payload["transcript"]
+    execution = payload.get("execution", "replay")
     lines = [
-        f"HR interview replay: {payload['fixture_id']} / {payload['candidate']}",
+        f"HR interview {execution}: {payload['fixture_id']} / {payload['candidate']}",
         f"Context: {payload['context_id']}",
         f"Transcript: {transcript['path']}",
         f"Turns: {payload['turn_counts']['total']}",
@@ -705,6 +737,23 @@ def _run_hr_command(args: argparse.Namespace) -> int:
                 print(json.dumps(replay.summary, indent=2, sort_keys=True))
             else:
                 print(_format_hr_interview_replay_summary(replay.summary), end="")
+            return 0
+
+        if args.hr_command == "interview" and args.hr_interview_command == "simulate":
+            simulation = simulate_hr_interview(
+                fixture_id=args.fixture,
+                candidate=args.candidate,
+                mode=args.mode,
+                out_path=args.out,
+                model=args.model,
+                scoring_model=args.benchmark_model,
+                question_limit_override=args.question_limit,
+                pass_threshold_override=args.pass_threshold,
+            )
+            if args.json:
+                print(json.dumps(simulation.summary, indent=2, sort_keys=True))
+            else:
+                print(_format_hr_interview_replay_summary(simulation.summary), end="")
             return 0
 
         if args.hr_command == "tool" and args.hr_tool_command == "run":
