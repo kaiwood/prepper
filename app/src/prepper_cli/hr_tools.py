@@ -24,6 +24,7 @@ from .hr_fixtures import HrFixture
 from .hr_retrieval import (
     DEFAULT_MOCK_RETRIEVAL_LIMIT,
     build_document_retrieval_chunks,
+    retrieval_score_to_percent,
     retrieve_hr_context,
 )
 
@@ -148,15 +149,15 @@ def run_retrieve_company_context_tool(
     except ValueError as exc:
         raise HrToolError(str(exc)) from exc
 
+    snippets = [_retrieved_match_to_snippet(match) for match in retrieval.results]
     return HrToolResult(
         tool_name=RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
         status="success",
         output={
             "mode": mode,
             "query": retrieval.query,
-            "snippets": [
-                _retrieved_match_to_snippet(match) for match in retrieval.results
-            ],
+            "snippets": snippets,
+            "sources": _retrieved_sources_from_snippets(snippets),
             "result_count": len(retrieval.results),
         },
     )
@@ -769,16 +770,50 @@ def _chunk_to_dict(chunk: HrContextChunk) -> dict[str, Any]:
 def _retrieved_match_to_snippet(match) -> dict[str, Any]:
     chunk = match.chunk
     metadata = dict(chunk.metadata)
+    source = {
+        "id": str(metadata.get("source_id") or chunk.source_id),
+        "kind": str(metadata.get("source_kind") or ""),
+        "title": str(metadata.get("source_title") or chunk.source_id),
+        "uri": str(metadata.get("source_uri") or ""),
+    }
     return {
         "chunk_id": chunk.id,
         "source_id": chunk.source_id,
-        "source_kind": metadata.get("source_kind", ""),
-        "source_title": metadata.get("source_title", chunk.source_id),
-        "source_uri": metadata.get("source_uri", ""),
+        "source_kind": source["kind"],
+        "source_title": source["title"],
+        "source_uri": source["uri"],
+        "source": source,
         "text": _truncate_snippet(chunk.text),
         "score": match.score,
+        "relevance_percent": retrieval_score_to_percent(match.score),
         "metadata": metadata,
     }
+
+
+def _retrieved_sources_from_snippets(snippets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sources: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for snippet in snippets:
+        source = snippet.get("source")
+        if not isinstance(source, dict):
+            continue
+        uri = str(source.get("uri") or "").strip()
+        key = uri or str(source.get("id") or snippet.get("chunk_id") or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        sources.append(
+            {
+                "id": str(source.get("id") or ""),
+                "kind": str(source.get("kind") or ""),
+                "title": str(source.get("title") or "Source"),
+                "uri": uri,
+                "score": snippet.get("score"),
+                "relevance_percent": snippet.get("relevance_percent"),
+                "excerpt": str(snippet.get("text") or ""),
+            }
+        )
+    return sources
 
 
 def _truncate_snippet(text: str, *, max_chars: int = 700) -> str:

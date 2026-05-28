@@ -61,6 +61,9 @@ def test_hr_assistant_answers_with_context_and_exposes_tools():
         "retrieve_company_context",
     ]
     assert data["sources"]
+    assert isinstance(data["sources"][0]["relevance_percent"], int)
+    assert 0 < data["sources"][0]["relevance_percent"] <= 100
+    assert 0 < data["sources"][0]["score"] <= 1
 
 
 def test_hr_assistant_rejects_invalid_context_id():
@@ -132,6 +135,8 @@ def test_hr_interview_mock_start_and_turn_include_retrieval():
     assert start_data["interview_enabled"] is True
     assert start_data["tool_results"][0]["tool_name"] == "retrieve_company_context"
     assert start_data["sources"]
+    assert isinstance(start_data["sources"][0]["relevance_percent"], int)
+    assert 0 < start_data["sources"][0]["score"] <= 1
 
     turn = client.post(
         "/api/hr/interview",

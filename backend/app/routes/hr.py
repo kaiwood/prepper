@@ -618,10 +618,15 @@ def _build_hr_interview_response_payload(
     return payload
 
 
-def _sources_from_retrieval_payload(retrieval_payload: dict[str, Any]) -> list[dict[str, str]]:
+def _sources_from_retrieval_payload(retrieval_payload: dict[str, Any]) -> list[dict[str, Any]]:
     output = retrieval_payload.get("output")
     if not isinstance(output, dict):
         return []
+
+    output_sources = output.get("sources")
+    if isinstance(output_sources, list):
+        return _public_sources_from_tool_sources(output_sources)
+
     snippets = output.get("snippets")
     if not isinstance(snippets, list):
         return []
@@ -641,9 +646,36 @@ def _sources_from_retrieval_payload(retrieval_payload: dict[str, Any]) -> list[d
                 "title": str(snippet.get("source_title") or snippet.get("source_id") or "Source"),
                 "url": uri,
                 "excerpt": str(snippet.get("text") or ""),
+                "score": snippet.get("score"),
+                "relevance_percent": snippet.get("relevance_percent"),
             }
         )
     return sources
+
+
+def _public_sources_from_tool_sources(sources: list[Any]) -> list[dict[str, Any]]:
+    public_sources: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        uri = str(source.get("uri") or source.get("url") or "").strip()
+        key = uri or str(source.get("id") or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        public_sources.append(
+            {
+                "id": str(source.get("id") or ""),
+                "kind": str(source.get("kind") or ""),
+                "title": str(source.get("title") or "Source"),
+                "url": uri,
+                "excerpt": str(source.get("excerpt") or ""),
+                "score": source.get("score"),
+                "relevance_percent": source.get("relevance_percent"),
+            }
+        )
+    return public_sources
 
 
 def _build_response_payload(result: HrContextBuildResult) -> dict[str, Any]:

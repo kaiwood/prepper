@@ -136,9 +136,17 @@ def test_retrieve_company_context_mock_returns_source_snippets():
         "role_chunk_001",
     ]
     assert 0 < payload["output"]["snippets"][0]["score"] <= 1
+    assert 0 < payload["output"]["snippets"][0]["relevance_percent"] <= 100
     assert payload["output"]["snippets"][0]["source_title"] == "Northstar Analytics"
     assert payload["output"]["snippets"][0]["source_uri"] == "fixture://company.md"
+    assert payload["output"]["snippets"][0]["source"] == {
+        "id": "company",
+        "kind": "company",
+        "title": "Northstar Analytics",
+        "uri": "fixture://company.md",
+    }
     assert payload["output"]["snippets"][0]["metadata"]["source_kind"] == "company"
+    assert payload["output"]["sources"][0]["relevance_percent"] == payload["output"]["snippets"][0]["relevance_percent"]
 
 
 def test_retrieve_company_context_can_return_role_snippets():

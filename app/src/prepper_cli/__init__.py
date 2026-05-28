@@ -69,6 +69,7 @@ from .hr_retrieval import (
     build_retrieval_chunks,
     load_openrouter_embedding_config,
     retrieval_result_to_dict,
+    retrieval_score_to_percent,
     retrieve_hr_context,
 )
 from .hr_langchain_tools import (
@@ -185,6 +186,7 @@ __all__ = [
     "build_retrieval_chunks",
     "load_openrouter_embedding_config",
     "retrieval_result_to_dict",
+    "retrieval_score_to_percent",
     "retrieve_hr_context",
     "HrToolCallEvent",
     "HrToolEventRecorder",

@@ -350,10 +350,15 @@ Retrieved snippets:
 """.strip()
 
 
-def _sources_from_retrieval(retrieval_payload: dict[str, Any]) -> list[dict[str, str]]:
+def _sources_from_retrieval(retrieval_payload: dict[str, Any]) -> list[dict[str, Any]]:
     output = retrieval_payload.get("output")
     if not isinstance(output, dict):
         return []
+
+    output_sources = output.get("sources")
+    if isinstance(output_sources, list):
+        return _public_sources_from_tool_sources(output_sources)
+
     snippets = output.get("snippets")
     if not isinstance(snippets, list):
         return []
@@ -375,9 +380,36 @@ def _sources_from_retrieval(retrieval_payload: dict[str, Any]) -> list[dict[str,
                 or "Source",
                 "url": uri,
                 "excerpt": _optional_text(snippet.get("text")) or "",
+                "score": snippet.get("score"),
+                "relevance_percent": snippet.get("relevance_percent"),
             }
         )
     return sources
+
+
+def _public_sources_from_tool_sources(sources: list[Any]) -> list[dict[str, Any]]:
+    public_sources: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        uri = _optional_text(source.get("uri")) or _optional_text(source.get("url")) or ""
+        key = uri or _optional_text(source.get("id")) or ""
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        public_sources.append(
+            {
+                "id": _optional_text(source.get("id")) or "",
+                "kind": _optional_text(source.get("kind")) or "",
+                "title": _optional_text(source.get("title")) or "Source",
+                "url": uri,
+                "excerpt": _optional_text(source.get("excerpt")) or "",
+                "score": source.get("score"),
+                "relevance_percent": source.get("relevance_percent"),
+            }
+        )
+    return public_sources
 
 
 def _source_titles(snippets: Any) -> list[str]:

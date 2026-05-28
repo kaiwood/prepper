@@ -63,8 +63,13 @@ test("summarizes HR tool result details", () => {
     summarizeHrToolResult({
       tool_name: "retrieve_company_context",
       status: "success",
-      output: { mode: "llm", result_count: 2, query: "company values" },
+      output: {
+        mode: "llm",
+        result_count: 2,
+        query: "company values",
+        snippets: [{ relevance_percent: 84 }, { relevance_percent: 41 }],
+      },
     }),
-    "retrieve_company_context: success (mode: llm, results: 2, query: company values)",
+    "retrieve_company_context: success (mode: llm, results: 2, query: company values, relevance: 84%, 41%)",
   );
 });

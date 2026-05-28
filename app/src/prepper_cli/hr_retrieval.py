@@ -153,12 +153,26 @@ def retrieve_hr_context(
     raise HrContextValidationError("Retrieval mode must be one of: llm, mock")
 
 
+def retrieval_score_to_percent(score: float) -> int:
+    """Convert a raw similarity score into a user-facing relevance percentage."""
+    try:
+        normalized = float(score)
+    except (TypeError, ValueError):
+        normalized = 0.0
+    return round(max(0.0, min(1.0, normalized)) * 100)
+
+
 def retrieval_result_to_dict(result: HrRetrievalResult) -> dict[str, Any]:
     return {
         "query": result.query,
         "mode": result.mode,
         "results": [
-            {**_retrieval_chunk_to_dict(match.chunk), "score": match.score}
+            {
+                **_retrieval_chunk_to_dict(match.chunk),
+                "score": match.score,
+                "relevance_percent": retrieval_score_to_percent(match.score),
+                "source": _retrieval_source_to_dict(match.chunk),
+            }
             for match in result.results
         ],
     }
@@ -524,4 +538,14 @@ def _retrieval_chunk_to_dict(chunk: HrContextChunk) -> dict[str, Any]:
         "source_id": chunk.source_id,
         "text": chunk.text,
         "metadata": dict(chunk.metadata),
+    }
+
+
+def _retrieval_source_to_dict(chunk: HrContextChunk) -> dict[str, str]:
+    metadata = dict(chunk.metadata)
+    return {
+        "id": str(metadata.get("source_id") or chunk.source_id),
+        "kind": str(metadata.get("source_kind") or ""),
+        "title": str(metadata.get("source_title") or chunk.source_id),
+        "uri": str(metadata.get("source_uri") or ""),
     }

@@ -138,6 +138,14 @@ type HrContextSource = {
   kind?: string;
 };
 
+type HrRetrievalSnippet = {
+  score?: number;
+  relevance_percent?: number;
+  source_title?: string;
+  source_uri?: string;
+  text?: string;
+};
+
 type HrToolResult = {
   tool_name?: string;
   status?: string;
@@ -145,7 +153,7 @@ type HrToolResult = {
     mode?: string;
     query?: string;
     result_count?: number;
-    snippets?: unknown[];
+    snippets?: HrRetrievalSnippet[];
     [key: string]: unknown;
   };
 };
@@ -178,9 +186,13 @@ type HrContextResponse = {
 };
 
 type HrInterviewSource = {
+  id?: string;
+  kind?: string;
   title?: string;
   url?: string;
   excerpt?: string;
+  score?: number;
+  relevance_percent?: number;
 };
 
 type HrInterviewRating = {

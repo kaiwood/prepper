@@ -64,6 +64,13 @@ def test_mock_retrieval_returns_expected_chunks_and_metadata():
         "role_chunk_001",
     ]
     assert 0 < payload["results"][0]["score"] <= 1
+    assert 0 < payload["results"][0]["relevance_percent"] <= 100
+    assert payload["results"][0]["source"] == {
+        "id": "company",
+        "kind": "company",
+        "title": "Northstar Analytics",
+        "uri": "fixture://company.md",
+    }
     assert payload["results"][0]["metadata"]["source_title"] == "Northstar Analytics"
     assert payload["results"][0]["metadata"]["source_uri"] == "fixture://company.md"
 
@@ -131,6 +138,8 @@ def test_llm_retrieval_uses_embeddings_and_source_metadata(monkeypatch):
     assert payload["mode"] == "llm"
     assert [chunk["id"] for chunk in payload["results"]] == ["company_chunk_001"]
     assert 0 < payload["results"][0]["score"] <= 1
+    assert 0 < payload["results"][0]["relevance_percent"] <= 100
+    assert payload["results"][0]["source"]["uri"] == "fixture://company.md"
     assert payload["results"][0]["metadata"]["source_uri"] == "fixture://company.md"
 
 

@@ -74,9 +74,39 @@ export function summarizeHrToolResult(tool) {
     details.push(`query: ${output.query.trim()}`);
   }
 
+  const relevanceSummary = summarizeRetrievalRelevance(output.snippets);
+  if (relevanceSummary) {
+    details.push(`relevance: ${relevanceSummary}`);
+  }
+
   return details.length > 0
     ? `${name}: ${status} (${details.join(", ")})`
     : `${name}: ${status}`;
+}
+
+function summarizeRetrievalRelevance(snippets) {
+  if (!Array.isArray(snippets)) {
+    return "";
+  }
+
+  const percentages = snippets
+    .map((snippet) => {
+      if (!snippet || typeof snippet !== "object") {
+        return null;
+      }
+      const value = snippet.relevance_percent;
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        return null;
+      }
+      return Math.max(0, Math.min(100, Math.round(value)));
+    })
+    .filter((value) => value !== null);
+
+  if (percentages.length === 0) {
+    return "";
+  }
+
+  return percentages.map((value) => `${value}%`).join(", ");
 }
 
 function appendAdvancedSettings(payload, advancedSettings) {
