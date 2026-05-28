@@ -31,6 +31,7 @@ def run_hr_assistant(
     context: HrContext | None = None,
     setup_fields: Mapping[str, str | None] | None = None,
     model: str | None = None,
+    tool_event_recorder: Any | None = None,
 ) -> HrAssistantResult:
     """Answer an HR setup-assistant question or guide setup when no context exists."""
     normalized_message = _required_text(message, "message")
@@ -41,19 +42,25 @@ def run_hr_assistant(
 
     if context is None:
         return HrAssistantResult(
-            payload=_build_setup_guidance_payload(
-                message=normalized_message,
-                mode=normalized_mode,
-                setup_fields=setup_fields or {},
-            )
+            payload={
+                **_build_setup_guidance_payload(
+                    message=normalized_message,
+                    mode=normalized_mode,
+                    setup_fields=setup_fields or {},
+                ),
+                "tool_call_events": list(
+                    tool_event_recorder.to_public_dicts() if tool_event_recorder else []
+                ),
+            }
         )
 
-    retrieval_result = run_retrieve_company_context_tool(
+    retrieval_payload = _run_assistant_retrieval(
         context=context,
         query=normalized_message,
         mode=normalized_mode,
+        model=model,
+        tool_event_recorder=tool_event_recorder,
     )
-    retrieval_payload = hr_tool_result_to_dict(retrieval_result)
     context_tool_results = [
         hr_tool_result_to_dict(tool_result) for tool_result in context.tool_results
     ]
@@ -85,8 +92,111 @@ def run_hr_assistant(
             "next_steps": [],
             "tool_results": tool_results,
             "sources": sources,
+            "tool_call_events": list(
+                tool_event_recorder.to_public_dicts() if tool_event_recorder else []
+            ),
         }
     )
+
+
+def _run_assistant_retrieval(
+    *,
+    context: HrContext,
+    query: str,
+    mode: str,
+    model: str | None,
+    tool_event_recorder: Any | None,
+) -> dict[str, Any]:
+    if tool_event_recorder is not None:
+        from .hr_langchain_tools import (
+            build_tool_result_from_payload,
+            create_retrieve_company_context_tool,
+        )
+
+        tool = create_retrieve_company_context_tool(
+            context=context,
+            mode=mode,
+            recorder=tool_event_recorder,
+        )
+        if mode == "llm":
+            payload = _invoke_model_decided_assistant_retrieval(
+                tool=tool,
+                query=query,
+                model=model,
+            )
+            if payload is not None:
+                return payload
+            return {
+                "tool_name": RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
+                "status": "skipped",
+                "output": {
+                    "mode": mode,
+                    "query": query,
+                    "snippets": [],
+                    "result_count": 0,
+                    "decision": "model_skipped",
+                },
+            }
+        payload = tool.invoke({"query": query})
+        result = build_tool_result_from_payload(payload)
+        if result is None:
+            raise HrAssistantError("HR retrieval tool returned an invalid payload")
+        return hr_tool_result_to_dict(result)
+
+    retrieval_result = run_retrieve_company_context_tool(
+        context=context,
+        query=query,
+        mode=mode,
+    )
+    return hr_tool_result_to_dict(retrieval_result)
+
+
+def _invoke_model_decided_assistant_retrieval(
+    *, tool, query: str, model: str | None
+) -> dict[str, Any] | None:
+    from .config import load_config, resolve_model_name
+    from .hr_langchain_tools import build_tool_result_from_payload
+
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError as exc:  # pragma: no cover - depends on optional env install
+        raise HrAssistantError(
+            "langchain-openai is required for HR tool calling"
+        ) from exc
+
+    config = load_config()
+    llm = ChatOpenAI(
+        model=resolve_model_name(model),
+        api_key=config.api_key,
+        base_url=config.base_url,
+        temperature=0,
+        timeout=30,
+        max_retries=1,
+    ).bind_tools([tool])
+    response = llm.invoke(
+        [
+            (
+                "system",
+                "You decide whether HR context retrieval is useful before answering an "
+                "HR setup assistant question. Call retrieve_company_context when sources "
+                "would improve the answer.",
+            ),
+            ("human", query),
+        ]
+    )
+    tool_calls = getattr(response, "tool_calls", None) or []
+    if not tool_calls:
+        return None
+    first_call = tool_calls[0]
+    args = first_call.get("args") if isinstance(first_call, dict) else None
+    if not isinstance(args, dict):
+        args = {"query": query}
+    args.setdefault("query", query)
+    payload = tool.invoke(args)
+    result = build_tool_result_from_payload(payload)
+    if result is None:
+        raise HrAssistantError("HR retrieval tool returned an invalid payload")
+    return hr_tool_result_to_dict(result)
 
 
 def _build_setup_guidance_payload(

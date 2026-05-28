@@ -3,8 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +109,7 @@ class HrContextBuildResult:
     context: HrContext | None
     tool_results: tuple[HrToolResult, ...]
     errors: tuple[HrContextBuildIssue, ...]
+    tool_call_events: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     @property
     def status(self) -> str:
@@ -137,6 +139,7 @@ def build_hr_context_from_inputs(
     model: str | None = None,
     fixture_id: str | None = None,
     source_uris: Mapping[str, str] | None = None,
+    tool_event_recorder: Any | None = None,
 ) -> HrContextBuildResult:
     """Build an HR context from untrusted API/UI input text."""
     if mode not in SUPPORTED_HR_CONTEXT_MODES:
@@ -178,10 +181,42 @@ def build_hr_context_from_inputs(
         )
 
         try:
-            company_tool_result = run_fetch_company_website_tool(
-                mode="llm",
-                url=normalized_company_url,
-            )
+            if mode == "llm" and tool_event_recorder is not None:
+                from .hr_langchain_tools import create_fetch_company_website_tool
+
+                company_tool_result = _invoke_context_langchain_tool(
+                    tool=create_fetch_company_website_tool(recorder=tool_event_recorder),
+                    args={"url": normalized_company_url},
+                    model=model,
+                    instruction="Fetch company website context for an HR candidate-fit interview.",
+                )
+            else:
+                started_at = time.monotonic()
+                try:
+                    company_tool_result = run_fetch_company_website_tool(
+                        mode="llm",
+                        url=normalized_company_url,
+                    )
+                except Exception as exc:
+                    from .hr_langchain_tools import record_hr_tool_result
+
+                    record_hr_tool_result(
+                        recorder=tool_event_recorder,
+                        tool_name=FETCH_COMPANY_WEBSITE_TOOL_NAME,
+                        started_at=started_at,
+                        input_payload={"url": normalized_company_url},
+                        error=exc,
+                    )
+                    raise
+                from .hr_langchain_tools import record_hr_tool_result
+
+                record_hr_tool_result(
+                    recorder=tool_event_recorder,
+                    tool_name=FETCH_COMPANY_WEBSITE_TOOL_NAME,
+                    started_at=started_at,
+                    input_payload={"url": normalized_company_url},
+                    result=company_tool_result,
+                )
             tool_results.append(company_tool_result)
             company_source, company_document, _company_chunks = (
                 company_website_tool_result_to_context_entries(company_tool_result)
@@ -206,6 +241,9 @@ def build_hr_context_from_inputs(
                 context=None,
                 tool_results=tuple(tool_results),
                 errors=tuple(errors),
+                tool_call_events=tuple(
+                    tool_event_recorder.to_public_dicts() if tool_event_recorder else []
+                ),
             )
 
     role_document = _build_input_document(
@@ -257,12 +295,56 @@ def build_hr_context_from_inputs(
     )
 
     try:
-        candidate_profile_result = run_extract_candidate_profile_tool(
-            mode=mode,
-            resume_text=normalized_resume,
-            profile_text=normalized_profile,
-            model=model,
-        )
+        if mode == "llm" and tool_event_recorder is not None:
+            from .hr_langchain_tools import create_extract_candidate_profile_tool
+
+            candidate_profile_result = _invoke_context_langchain_tool(
+                tool=create_extract_candidate_profile_tool(
+                    recorder=tool_event_recorder,
+                    model=model,
+                ),
+                args={
+                    "resume_text": normalized_resume,
+                    "profile_text": normalized_profile,
+                },
+                model=model,
+                instruction="Extract candidate profile facts for HR interview preparation.",
+            )
+        else:
+            started_at = time.monotonic()
+            try:
+                candidate_profile_result = run_extract_candidate_profile_tool(
+                    mode=mode,
+                    resume_text=normalized_resume,
+                    profile_text=normalized_profile,
+                    model=model,
+                )
+            except Exception as exc:
+                from .hr_langchain_tools import record_hr_tool_result
+
+                record_hr_tool_result(
+                    recorder=tool_event_recorder,
+                    tool_name=EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
+                    started_at=started_at,
+                    input_payload={
+                        "resume_text": normalized_resume,
+                        "profile_text": normalized_profile,
+                    },
+                    error=exc,
+                )
+                raise
+            from .hr_langchain_tools import record_hr_tool_result
+
+            record_hr_tool_result(
+                recorder=tool_event_recorder,
+                tool_name=EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
+                started_at=started_at,
+                input_payload={
+                    "resume_text": normalized_resume,
+                    "profile_text": normalized_profile,
+                },
+                result=candidate_profile_result,
+            )
         tool_results.append(candidate_profile_result)
         candidate_profile = candidate_profile_tool_result_to_profile(
             candidate_profile_result
@@ -333,7 +415,53 @@ def build_hr_context_from_inputs(
         context=context,
         tool_results=tuple(tool_results),
         errors=tuple(errors),
+        tool_call_events=tuple(
+            tool_event_recorder.to_public_dicts() if tool_event_recorder else []
+        ),
     )
+
+
+def _invoke_context_langchain_tool(*, tool: Any, args: dict[str, Any], model: str | None, instruction: str) -> HrToolResult:
+    from .config import load_config, resolve_model_name
+    from .hr_langchain_tools import build_tool_result_from_payload
+
+    selected_args = args
+    try:
+        from langchain_openai import ChatOpenAI
+
+        config = load_config()
+        llm = ChatOpenAI(
+            model=resolve_model_name(model),
+            api_key=config.api_key,
+            base_url=config.base_url,
+            temperature=0,
+            timeout=30,
+            max_retries=1,
+        ).bind_tools([tool])
+        response = llm.invoke(
+            [
+                (
+                    "system",
+                    "You orchestrate HR context-building tools. If a tool is needed, call exactly one supplied tool with the provided data. Do not invent data.",
+                ),
+                ("human", f"{instruction}\n\nTool arguments:\n{json.dumps(args)}"),
+            ]
+        )
+        tool_calls = getattr(response, "tool_calls", None) or []
+        if tool_calls:
+            first_call = tool_calls[0]
+            call_args = first_call.get("args") if isinstance(first_call, dict) else None
+            if isinstance(call_args, dict):
+                selected_args = {**args, **call_args}
+    except Exception:
+        # Fall back to deterministic invocation; the tool call itself will still be recorded.
+        selected_args = args
+
+    payload = tool.invoke(selected_args)
+    result = build_tool_result_from_payload(payload)
+    if result is None:
+        raise HrContextValidationError("LangChain HR tool returned an invalid payload")
+    return result
 
 
 def build_mock_hr_context(fixture: HrFixture) -> HrContext:

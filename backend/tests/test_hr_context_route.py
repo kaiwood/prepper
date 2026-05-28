@@ -47,6 +47,8 @@ def test_hr_context_endpoint_builds_and_stores_context_from_text():
     assert data["context"]["fixture_id"] is None
     assert data["summaries"]["company"].startswith("Example Co")
     assert data["tool_results"][0]["tool_name"] == "extract_candidate_profile"
+    assert data["tool_call_events"][0]["tool_name"] == "extract_candidate_profile"
+    assert data["tool_call_events"][0]["status"] == "success"
     assert data["errors"] == []
     assert get_stored_hr_context(data["context_id"]).context_id == data["context_id"]
 

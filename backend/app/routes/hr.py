@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from copy import deepcopy
 from dataclasses import replace
@@ -26,6 +27,12 @@ from prepper_cli.hr_context import (
     build_hr_context_from_inputs,
     hr_context_to_dict,
 )
+from prepper_cli.config import load_config, resolve_model_name
+from prepper_cli.hr_langchain_tools import (
+    build_tool_result_from_payload,
+    create_retrieve_company_context_tool,
+)
+from prepper_cli.hr_tool_events import HrToolEventRecorder
 from prepper_cli.hr_tools import (
     hr_tool_result_to_dict,
     run_retrieve_company_context_tool,
@@ -38,6 +45,11 @@ _HR_CONTEXTS: dict[str, HrContext] = {}
 _HR_INTERVIEW_SESSIONS: dict[str, dict[str, Any]] = {}
 _HR_INTERVIEW_STYLE = "hr_candidate_fit"
 _HR_FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
+_HR_TOOL_EVENT_LOG_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "logs",
+    "hr_tool_events.jsonl",
+)
 
 
 @hr_bp.route("/api/hr/context", methods=["OPTIONS"])
@@ -70,6 +82,7 @@ def build_hr_context():
         model = _optional_string(data, "model")
         fixture_id = _optional_string(data, "fixture_id")
         source_uris = _optional_string_mapping(data, "source_uris")
+        tool_event_recorder = _build_tool_event_recorder("hr_context")
 
         result = build_hr_context_from_inputs(
             mode=mode,
@@ -81,6 +94,7 @@ def build_hr_context():
             model=model,
             fixture_id=fixture_id,
             source_uris=source_uris,
+            tool_event_recorder=tool_event_recorder,
         )
     except HrContextValidationError as exc:
         return jsonify({"error": str(exc)}), 400
@@ -149,11 +163,15 @@ def start_hr_interview():
         return jsonify({"error": str(exc)}), 400
 
     try:
+        tool_event_recorder = _build_tool_event_recorder("hr_interview_start")
         retrieval_payload = _run_hr_interview_retrieval(
             context=context,
             query="opening HR candidate fit interview",
             mode=mode,
+            recorder=tool_event_recorder,
+            model=_optional_string(data, "model"),
         )
+        tool_call_events = tool_event_recorder.to_public_dicts()
     except ValueError:
         return jsonify(_public_hr_error("HR retrieval failed")), 502
     except Exception:
@@ -226,6 +244,7 @@ def start_hr_interview():
             turn_type="question" if question_count else "other",
             metadata_warning=metadata_warning,
             retrieval_payload=retrieval_payload,
+            tool_call_events=tool_call_events,
         )
     )
 
@@ -256,11 +275,15 @@ def continue_hr_interview():
         return jsonify({"error": "interview_id does not match context_id"}), 400
 
     try:
+        tool_event_recorder = _build_tool_event_recorder("hr_interview_turn")
         retrieval_payload = _run_hr_interview_retrieval(
             context=context,
             query=message,
             mode=session["mode"],
+            recorder=tool_event_recorder,
+            model=session.get("model"),
         )
+        tool_call_events = tool_event_recorder.to_public_dicts()
     except ValueError:
         return jsonify(_public_hr_error("HR retrieval failed")), 502
     except Exception:
@@ -281,6 +304,7 @@ def continue_hr_interview():
                 metadata_warning=False,
                 retrieval_payload=retrieval_payload,
                 final_result=session.get("final_result"),
+                tool_call_events=tool_call_events,
             )
         )
 
@@ -331,6 +355,7 @@ def continue_hr_interview():
             metadata_warning=turn_result["metadata_warning"],
             retrieval_payload=retrieval_payload,
             final_result=turn_result.get("final_result"),
+            tool_call_events=tool_call_events,
         )
     )
 
@@ -359,12 +384,14 @@ def hr_assistant():
             "profile_text": _optional_string(data, "profile_text"),
         }
         _validate_hr_mode(mode)
+        tool_event_recorder = _build_tool_event_recorder("hr_assistant")
         result = run_hr_assistant(
             message=message,
             mode=mode,
             context=context,
             setup_fields=setup_fields,
             model=_optional_string(data, "model"),
+            tool_event_recorder=tool_event_recorder,
         )
     except ValueError as exc:
         if _is_public_validation_error(str(exc)):
@@ -374,6 +401,10 @@ def hr_assistant():
         return jsonify(_public_hr_error("HR assistant failed")), 502
 
     return jsonify(_sanitize_public_hr_payload(result.payload))
+
+
+def _build_tool_event_recorder(flow: str) -> HrToolEventRecorder:
+    return HrToolEventRecorder(flow=flow, log_path=_HR_TOOL_EVENT_LOG_PATH)
 
 
 def get_stored_hr_context(context_id: str) -> HrContext | None:
@@ -392,12 +423,78 @@ def _validate_hr_mode(mode: str) -> None:
         raise ValueError("mode must be one of: llm, mock")
 
 
-def _run_hr_interview_retrieval(*, context: HrContext, query: str, mode: str) -> dict[str, Any]:
-    result = run_retrieve_company_context_tool(
+def _run_hr_interview_retrieval(
+    *,
+    context: HrContext,
+    query: str,
+    mode: str,
+    recorder: HrToolEventRecorder,
+    model: str | None = None,
+) -> dict[str, Any]:
+    tool = create_retrieve_company_context_tool(
         context=context,
-        query=query,
         mode=mode,
+        recorder=recorder,
     )
+    if mode == "llm":
+        payload = _invoke_model_decided_retrieval(tool=tool, query=query, model=model)
+        if payload is not None:
+            return payload
+        return {
+            "tool_name": "retrieve_company_context",
+            "status": "skipped",
+            "output": {
+                "mode": mode,
+                "query": query,
+                "snippets": [],
+                "result_count": 0,
+                "decision": "model_skipped",
+            },
+        }
+
+    payload = tool.invoke({"query": query})
+    result = build_tool_result_from_payload(payload)
+    if result is None:
+        raise ValueError("HR retrieval tool returned an invalid payload")
+    return hr_tool_result_to_dict(result)
+
+
+def _invoke_model_decided_retrieval(*, tool, query: str, model: str | None) -> dict[str, Any] | None:
+    config = load_config()
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError as exc:  # pragma: no cover - depends on optional env install
+        raise ValueError("langchain-openai is required for HR tool calling") from exc
+
+    llm = ChatOpenAI(
+        model=resolve_model_name(model),
+        api_key=config.api_key,
+        base_url=config.base_url,
+        temperature=0,
+        timeout=30,
+        max_retries=1,
+    ).bind_tools([tool])
+    response = llm.invoke(
+        [
+            (
+                "system",
+                "You decide whether HR interview context retrieval is useful. Call retrieve_company_context when company or role context would improve the next HR interviewer response. Otherwise answer without tool calls.",
+            ),
+            ("human", f"Candidate/user message or interview stage: {query}"),
+        ]
+    )
+    tool_calls = getattr(response, "tool_calls", None) or []
+    if not tool_calls:
+        return None
+    first_call = tool_calls[0]
+    args = first_call.get("args") if isinstance(first_call, dict) else None
+    if not isinstance(args, dict):
+        args = {"query": query}
+    args.setdefault("query", query)
+    payload = tool.invoke(args)
+    result = build_tool_result_from_payload(payload)
+    if result is None:
+        raise ValueError("HR retrieval tool returned an invalid payload")
     return hr_tool_result_to_dict(result)
 
 
@@ -502,6 +599,7 @@ def _build_hr_interview_response_payload(
     metadata_warning: bool,
     retrieval_payload: dict[str, Any],
     final_result: dict[str, Any] | None = None,
+    tool_call_events: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "reply": reply,
@@ -514,8 +612,9 @@ def _build_hr_interview_response_payload(
         "pass_threshold": pass_threshold,
         "current_turn_type": turn_type,
         "metadata_warning": metadata_warning,
-        "tool_results": [retrieval_payload],
+        "tool_results": [retrieval_payload] if retrieval_payload else [],
         "sources": _sources_from_retrieval_payload(retrieval_payload),
+        "tool_call_events": tool_call_events or [],
     }
     if difficulty is not None:
         payload["difficulty"] = difficulty
@@ -567,6 +666,7 @@ def _build_response_payload(result: HrContextBuildResult) -> dict[str, Any]:
             _sanitize_public_tool_result(hr_tool_result_to_dict(tool_result))
             for tool_result in result.tool_results
         ],
+        "tool_call_events": list(result.tool_call_events),
         "errors": [
             {
                 "tool_name": error.tool_name,

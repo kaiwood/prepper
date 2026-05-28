@@ -71,6 +71,12 @@ from .hr_retrieval import (
     retrieval_result_to_dict,
     retrieve_hr_context,
 )
+from .hr_langchain_tools import (
+    create_extract_candidate_profile_tool,
+    create_fetch_company_website_tool,
+    create_retrieve_company_context_tool,
+)
+from .hr_tool_events import HrToolCallEvent, HrToolEventRecorder, hr_tool_call_event_to_dict
 from .hr_tools import (
     EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
@@ -180,6 +186,12 @@ __all__ = [
     "load_openrouter_embedding_config",
     "retrieval_result_to_dict",
     "retrieve_hr_context",
+    "HrToolCallEvent",
+    "HrToolEventRecorder",
+    "hr_tool_call_event_to_dict",
+    "create_extract_candidate_profile_tool",
+    "create_fetch_company_website_tool",
+    "create_retrieve_company_context_tool",
     "EXTRACT_CANDIDATE_PROFILE_TOOL_NAME",
     "FETCH_COMPANY_WEBSITE_TOOL_NAME",
     "RETRIEVE_COMPANY_CONTEXT_TOOL_NAME",

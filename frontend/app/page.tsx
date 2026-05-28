@@ -150,6 +150,16 @@ type HrToolResult = {
   };
 };
 
+type HrToolCallEvent = {
+  event_id?: string;
+  timestamp?: string;
+  flow?: string;
+  sequence?: number;
+  tool_name?: string;
+  status?: string;
+  duration_ms?: number;
+};
+
 type HrContextError = {
   tool_name?: string;
   message?: string;
@@ -162,6 +172,7 @@ type HrContextResponse = {
   summaries?: HrContextSummaries | null;
   sources?: HrContextSource[];
   tool_results?: HrToolResult[];
+  tool_call_events?: HrToolCallEvent[];
   errors?: HrContextError[];
   error?: string;
 };
@@ -208,6 +219,7 @@ type HrInterviewResponse = {
   final_result?: HrInterviewRating;
   sources?: HrInterviewSource[];
   tool_results?: HrToolResult[];
+  tool_call_events?: HrToolCallEvent[];
 };
 
 type AdvancedSettings = {
@@ -315,6 +327,9 @@ export default function Home() {
   >([]);
   const [hrInterviewToolResults, setHrInterviewToolResults] = useState<
     HrToolResult[]
+  >([]);
+  const [hrInterviewToolCallEvents, setHrInterviewToolCallEvents] = useState<
+    HrToolCallEvent[]
   >([]);
 
   const language = useSyncExternalStore(
@@ -480,6 +495,7 @@ export default function Home() {
     setHrInterviewError(null);
     setHrInterviewSources([]);
     setHrInterviewToolResults([]);
+    setHrInterviewToolCallEvents([]);
   }
 
   function updateHrInterviewMetadata(data: HrInterviewResponse) {
@@ -499,6 +515,9 @@ export default function Home() {
     setHrInterviewSources(Array.isArray(data.sources) ? data.sources : []);
     setHrInterviewToolResults(
       Array.isArray(data.tool_results) ? data.tool_results : [],
+    );
+    setHrInterviewToolCallEvents(
+      Array.isArray(data.tool_call_events) ? data.tool_call_events : [],
     );
   }
 
@@ -564,6 +583,7 @@ export default function Home() {
     setHrInterviewId(null);
     setHrInterviewSources([]);
     setHrInterviewToolResults([]);
+    setHrInterviewToolCallEvents([]);
 
     try {
       const res = await fetch(
@@ -1114,6 +1134,20 @@ export default function Home() {
                 </div>
               )}
 
+              {(hrContextResult.tool_call_events?.length ?? 0) > 0 && (
+                <div>
+                  <h3 className="font-medium text-gray-900">Tool-call events</h3>
+                  <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
+                    {hrContextResult.tool_call_events?.map((event, index) => (
+                      <li key={`${event.event_id ?? "event"}-${index}`}>
+                        #{event.sequence ?? index + 1} {event.tool_name ?? "tool"}: {event.status ?? "unknown"}
+                        {typeof event.duration_ms === "number" ? ` (${event.duration_ms}ms)` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {(hrContextResult.errors?.length ?? 0) > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   <h3 className="font-medium">Context build warnings</h3>
@@ -1233,7 +1267,7 @@ export default function Home() {
                 thinkingText="Thinking..."
               />
 
-              {(hrInterviewSources.length > 0 || hrInterviewToolResults.length > 0) && (
+              {(hrInterviewSources.length > 0 || hrInterviewToolResults.length > 0 || hrInterviewToolCallEvents.length > 0) && (
                 <div className="grid gap-4 rounded-xl border border-blue-100 bg-white p-4">
                   {hrInterviewSources.length > 0 && (
                     <div>
@@ -1277,6 +1311,20 @@ export default function Home() {
                         {hrInterviewToolResults.map((tool, index) => (
                           <li key={`${tool.tool_name ?? "tool"}-${index}`}>
                             {summarizeHrToolResult(tool)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {hrInterviewToolCallEvents.length > 0 && (
+                    <div>
+                      <h3 className="font-medium text-gray-900">Tool-call events</h3>
+                      <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
+                        {hrInterviewToolCallEvents.map((event, index) => (
+                          <li key={`${event.event_id ?? "event"}-${index}`}>
+                            #{event.sequence ?? index + 1} {event.tool_name ?? "tool"}: {event.status ?? "unknown"}
+                            {typeof event.duration_ms === "number" ? ` (${event.duration_ms}ms)` : ""}
                           </li>
                         ))}
                       </ul>
