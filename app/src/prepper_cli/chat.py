@@ -1,8 +1,11 @@
+import logging
+import time
 from typing import Any
 
 from .client import build_chat_model, coerce_llm_content
 from .config import resolve_model_name
 from .conversation import Conversation
+from .structured_logging import duration_ms, exception_log_fields, log_structured_event
 
 _INTERVIEW_OPENER_MESSAGE = (
     "Begin the interview now. Ask the first interview question and wait for the candidate's response."
@@ -42,12 +45,42 @@ def _request_chat_reply(
     if max_tokens is not None:
         model_kwargs["max_tokens"] = max_tokens
 
-    llm = build_chat_model(**model_kwargs)
     sent_messages = _to_langchain_messages(messages)
-    response = llm.invoke(sent_messages)
+    started_at = time.monotonic()
+    input_char_count = sum(len(content) for _, content in sent_messages)
+    try:
+        llm = build_chat_model(**model_kwargs)
+        response = llm.invoke(sent_messages)
+    except Exception as exc:
+        log_structured_event(
+            "llm_call",
+            status="error",
+            level=logging.WARNING,
+            duration_ms=duration_ms(started_at),
+            operation="chat_completion",
+            requested_model=model,
+            model=resolved_model,
+            message_count=len(sent_messages),
+            input_char_count=input_char_count,
+            max_tokens=max_tokens,
+            **exception_log_fields(exc),
+        )
+        raise
 
     raw_reply = coerce_llm_content(getattr(response, "content", response))
     normalized_reply = raw_reply.strip()
+    log_structured_event(
+        "llm_call",
+        status="success",
+        duration_ms=duration_ms(started_at),
+        operation="chat_completion",
+        requested_model=model,
+        model=resolved_model,
+        message_count=len(sent_messages),
+        input_char_count=input_char_count,
+        response_char_count=len(raw_reply),
+        max_tokens=max_tokens,
+    )
 
     if not include_diagnostics:
         return normalized_reply

@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from typing import Any
@@ -20,6 +21,7 @@ from prepper_cli import (
     resolve_pass_threshold,
     run_interview_turn,
 )
+from prepper_cli.structured_logging import exception_log_fields, log_structured_event
 from prepper_cli.interview_prompts import (
     build_forced_closing_system_prompt,
     build_interview_opener_system_prompt,
@@ -111,6 +113,19 @@ def _build_interview_response_payload(
     if turn_result.get("final_result") is not None:
         response_payload["final_result"] = turn_result["final_result"]
     return response_payload
+
+
+def _log_chat_route_failure(operation: str, exc: Exception) -> None:
+    log_structured_event(
+        "route_failure",
+        status="error",
+        level=logging.WARNING,
+        logger=current_app.logger,
+        route=request.path,
+        method=request.method,
+        operation=operation,
+        **exception_log_fields(exc),
+    )
 
 
 @chat_bp.route("/api/chat", methods=["OPTIONS"])
@@ -208,6 +223,7 @@ def presentation_candidate_answer():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
+        _log_chat_route_failure("presentation_candidate_answer_llm", exc)
         return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
     return jsonify({"answer": answer})
@@ -342,6 +358,7 @@ def chat():
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except Exception as exc:
+            _log_chat_route_failure("chat_interview_turn_llm", exc)
             return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
         if turn_result["interview_complete"] and turn_result["turn_type"] != "other":
@@ -358,6 +375,7 @@ def chat():
                 turn_result["turn_type"] = "other"
                 turn_result["metadata_warning"] = True
             except Exception as exc:
+                _log_chat_route_failure("chat_forced_closing_llm", exc)
                 return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
         if debug_mode:
@@ -412,6 +430,7 @@ def chat():
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except Exception as exc:
+            _log_chat_route_failure("chat_reply_llm", exc)
             return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
         if debug_mode:
@@ -515,6 +534,7 @@ def chat_start():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
+        _log_chat_route_failure("chat_start_llm", exc)
         return jsonify({"error": f"LLM request failed: {exc}"}), 502
 
     if debug_mode:

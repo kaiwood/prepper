@@ -1,3 +1,4 @@
+import logging
 from dataclasses import replace
 
 import pytest
@@ -73,6 +74,21 @@ def test_mock_retrieval_returns_expected_chunks_and_metadata():
     }
     assert payload["results"][0]["metadata"]["source_title"] == "Northstar Analytics"
     assert payload["results"][0]["metadata"]["source_uri"] == "fixture://company.md"
+
+
+def test_retrieval_logs_latency_and_counts(caplog):
+    caplog.set_level(logging.INFO, logger="prepper_cli.observability")
+    context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
+
+    retrieve_hr_context(context, query="company values", mode="mock")
+
+    assert any(
+        'event="retrieval"' in record.getMessage()
+        and 'status="success"' in record.getMessage()
+        and 'result_count=2' in record.getMessage()
+        and 'duration_ms=' in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_mock_retrieval_can_rebuild_missing_chunks_for_old_contexts():

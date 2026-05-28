@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import socket
 from dataclasses import replace
 from email.message import Message
@@ -105,6 +106,20 @@ def test_extract_candidate_profile_mock_returns_structured_profile():
     assert payload["output"]["input_metadata"]["combined_char_count"] > 0
 
 
+def test_tool_call_logs_success(caplog):
+    caplog.set_level(logging.INFO, logger="prepper_cli.observability")
+
+    run_extract_candidate_profile_tool(mode="mock", fixture=validate_hr_fixture("demo_hr"))
+
+    assert any(
+        'event="tool_call"' in record.getMessage()
+        and 'tool_name="extract_candidate_profile"' in record.getMessage()
+        and 'status="success"' in record.getMessage()
+        and 'duration_ms=' in record.getMessage()
+        for record in caplog.records
+    )
+
+
 def test_extract_candidate_profile_converts_to_context_profile():
     result = run_extract_candidate_profile_tool(
         mode="mock", fixture=validate_hr_fixture("demo_hr")
@@ -196,6 +211,27 @@ def test_extract_candidate_profile_rejects_empty_inputs():
             resume_text="  ",
             profile_text="\n",
         )
+
+
+def test_tool_call_logs_failure(caplog):
+    caplog.set_level(logging.WARNING, logger="prepper_cli.observability")
+
+    with pytest.raises(HrToolError, match="size limit"):
+        run_extract_candidate_profile_tool(
+            mode="mock",
+            resume_text="candidate@example.com",
+            profile_text="",
+            max_chars=1,
+        )
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(
+        'event="tool_call"' in message
+        and 'tool_name="extract_candidate_profile"' in message
+        and 'status="error"' in message
+        for message in messages
+    )
+    assert "candidate@example.com" not in "\n".join(messages)
 
 
 def test_extract_candidate_profile_rejects_oversized_inputs():

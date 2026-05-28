@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -10,6 +12,7 @@ from .hr_tools import (
     hr_tool_result_to_dict,
     run_retrieve_company_context_tool,
 )
+from .structured_logging import duration_ms, exception_log_fields, log_structured_event
 
 HR_ASSISTANT_RESPONSE_SCHEMA_VERSION = "hr-assistant-response.v1"
 SUPPORTED_HR_ASSISTANT_MODES = {"mock", "llm"}
@@ -168,18 +171,42 @@ def _invoke_model_decided_assistant_retrieval(
         raise HrAssistantError(
             "langchain-openai is required for HR tool calling"
         ) from exc
-    response = llm.invoke(
-        [
-            (
-                "system",
-                "You decide whether HR context retrieval is useful before answering an "
-                "HR setup assistant question. Call retrieve_company_context when sources "
-                "would improve the answer.",
-            ),
-            ("human", query),
-        ]
-    )
+    messages = [
+        (
+            "system",
+            "You decide whether HR context retrieval is useful before answering an "
+            "HR setup assistant question. Call retrieve_company_context when sources "
+            "would improve the answer.",
+        ),
+        ("human", query),
+    ]
+    started_at = time.monotonic()
+    try:
+        response = llm.invoke(messages)
+    except Exception as exc:
+        log_structured_event(
+            "llm_call",
+            status="error",
+            level=logging.WARNING,
+            duration_ms=duration_ms(started_at),
+            operation="hr_assistant_retrieval_decision",
+            model=model,
+            message_count=len(messages),
+            input_char_count=sum(len(content) for _, content in messages),
+            **exception_log_fields(exc),
+        )
+        raise
     tool_calls = getattr(response, "tool_calls", None) or []
+    log_structured_event(
+        "llm_call",
+        status="success",
+        duration_ms=duration_ms(started_at),
+        operation="hr_assistant_retrieval_decision",
+        model=model,
+        message_count=len(messages),
+        input_char_count=sum(len(content) for _, content in messages),
+        tool_call_count=len(tool_calls),
+    )
     if not tool_calls:
         return None
     first_call = tool_calls[0]

@@ -1,3 +1,4 @@
+import logging
 from types import SimpleNamespace
 
 from prepper_cli.chat import (
@@ -172,6 +173,36 @@ def test_get_chat_reply_does_not_retry_errors(monkeypatch):
         raise AssertionError("expected RuntimeError")
 
     assert len(captured["calls"]) == 1
+
+
+def test_get_chat_reply_logs_llm_latency(monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger="prepper_cli.observability")
+    _patch_fake_chat_model(monkeypatch, content="assistant reply")
+
+    get_chat_reply("hello")
+
+    assert any(
+        'event="llm_call"' in record.getMessage()
+        and 'status="success"' in record.getMessage()
+        and 'duration_ms=' in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_get_chat_reply_logs_llm_failure(monkeypatch, caplog):
+    caplog.set_level(logging.WARNING, logger="prepper_cli.observability")
+    _patch_fake_chat_model(monkeypatch, error=RuntimeError("Connection error from candidate@example.com"))
+
+    try:
+        get_chat_reply("hello")
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("expected RuntimeError")
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any('event="llm_call"' in message and 'status="error"' in message for message in messages)
+    assert "candidate@example.com" not in "\n".join(messages)
 
 
 def test_get_chat_reply_wraps_only_current_message_when_untrusted(monkeypatch):

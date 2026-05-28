@@ -1,3 +1,4 @@
+import logging
 from email.message import Message
 
 from app import create_app
@@ -145,7 +146,9 @@ def test_hr_context_endpoint_returns_partial_without_context_when_url_fetch_fail
     assert "slow private site details" not in response.get_data(as_text=True)
 
 
-def test_hr_context_endpoint_redacts_unexpected_exception(monkeypatch):
+def test_hr_context_endpoint_redacts_unexpected_exception(monkeypatch, caplog):
+    caplog.set_level(logging.WARNING)
+
     def fail_build(**kwargs):
         raise RuntimeError("resume secret: candidate@example.com")
 
@@ -158,6 +161,14 @@ def test_hr_context_endpoint_redacts_unexpected_exception(monkeypatch):
     assert response.status_code == 502
     assert response.get_json() == {"error": "HR context build failed"}
     assert "candidate@example.com" not in response.get_data(as_text=True)
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(
+        'event="route_failure"' in message
+        and 'operation="hr_context_build"' in message
+        and 'status="error"' in message
+        for message in messages
+    )
+    assert "candidate@example.com" not in "\n".join(messages)
 
 
 def test_hr_context_options_preflight_returns_cors_headers():

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 from collections.abc import Mapping
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .hr_fixtures import HrFixture, Transcript
+from .structured_logging import duration_ms, exception_log_fields, log_structured_event
 
 
 HR_CONTEXT_SCHEMA_VERSION = "hr-context.v2"
@@ -426,6 +428,14 @@ def _invoke_context_langchain_tool(*, tool: Any, args: dict[str, Any], model: st
     from .hr_langchain_tools import build_tool_result_from_payload
 
     selected_args = args
+    messages = [
+        (
+            "system",
+            "You orchestrate HR context-building tools. If a tool is needed, call exactly one supplied tool with the provided data. Do not invent data.",
+        ),
+        ("human", f"{instruction}\n\nTool arguments:\n{json.dumps(args)}"),
+    ]
+    started_at = time.monotonic()
     try:
         llm = build_chat_model(
             model=model,
@@ -433,22 +443,35 @@ def _invoke_context_langchain_tool(*, tool: Any, args: dict[str, Any], model: st
             timeout=30,
             max_retries=1,
         ).bind_tools([tool])
-        response = llm.invoke(
-            [
-                (
-                    "system",
-                    "You orchestrate HR context-building tools. If a tool is needed, call exactly one supplied tool with the provided data. Do not invent data.",
-                ),
-                ("human", f"{instruction}\n\nTool arguments:\n{json.dumps(args)}"),
-            ]
-        )
+        response = llm.invoke(messages)
         tool_calls = getattr(response, "tool_calls", None) or []
+        log_structured_event(
+            "llm_call",
+            status="success",
+            duration_ms=duration_ms(started_at),
+            operation="hr_context_tool_selection",
+            model=model,
+            message_count=len(messages),
+            input_char_count=sum(len(content) for _, content in messages),
+            tool_call_count=len(tool_calls),
+        )
         if tool_calls:
             first_call = tool_calls[0]
             call_args = first_call.get("args") if isinstance(first_call, dict) else None
             if isinstance(call_args, dict):
                 selected_args = {**args, **call_args}
-    except Exception:
+    except Exception as exc:
+        log_structured_event(
+            "llm_call",
+            status="error",
+            level=logging.WARNING,
+            duration_ms=duration_ms(started_at),
+            operation="hr_context_tool_selection",
+            model=model,
+            message_count=len(messages),
+            input_char_count=sum(len(content) for _, content in messages),
+            **exception_log_fields(exc),
+        )
         # Fall back to deterministic invocation; the tool call itself will still be recorded.
         selected_args = args
 

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import logging
 import os
+import time
 import uuid
 from copy import deepcopy
 from dataclasses import replace
 from typing import Any
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_cors import cross_origin
 
 from app import limiter
@@ -33,6 +35,11 @@ from prepper_cli.hr_langchain_tools import (
     create_retrieve_company_context_tool,
 )
 from prepper_cli.hr_tool_events import HrToolEventRecorder
+from prepper_cli.structured_logging import (
+    duration_ms,
+    exception_log_fields,
+    log_structured_event,
+)
 from prepper_cli.hr_tools import (
     hr_tool_result_to_dict,
     run_retrieve_company_context_tool,
@@ -100,7 +107,8 @@ def build_hr_context():
         return jsonify({"error": str(exc)}), 400
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    except Exception:  # pragma: no cover - defensive API safety net
+    except Exception as exc:  # pragma: no cover - defensive API safety net
+        _log_hr_route_failure("hr_context_build", exc)
         return jsonify(_public_hr_error("HR context build failed")), 502
 
     if result.context is not None:
@@ -172,9 +180,11 @@ def start_hr_interview():
             model=_optional_string(data, "model"),
         )
         tool_call_events = tool_event_recorder.to_public_dicts()
-    except ValueError:
+    except ValueError as exc:
+        _log_hr_route_failure("hr_interview_start_retrieval", exc)
         return jsonify(_public_hr_error("HR retrieval failed")), 502
-    except Exception:
+    except Exception as exc:
+        _log_hr_route_failure("hr_interview_start_retrieval", exc)
         return jsonify(_public_hr_error("HR retrieval failed")), 502
 
     if mode == "mock":
@@ -202,9 +212,11 @@ def start_hr_interview():
             )
             parsed = parse_reply_metadata(raw_reply)
             metadata_warning = not parsed["metadata_valid"]
-        except ValueError:
+        except ValueError as exc:
+            _log_hr_route_failure("hr_interview_start_llm", exc)
             return jsonify(_public_hr_error("LLM request failed")), 502
-        except Exception:
+        except Exception as exc:
+            _log_hr_route_failure("hr_interview_start_llm", exc)
             return jsonify(_public_hr_error("LLM request failed")), 502
 
     interview_id = uuid.uuid4().hex
@@ -284,9 +296,11 @@ def continue_hr_interview():
             model=session.get("model"),
         )
         tool_call_events = tool_event_recorder.to_public_dicts()
-    except ValueError:
+    except ValueError as exc:
+        _log_hr_route_failure("hr_interview_turn_retrieval", exc)
         return jsonify(_public_hr_error("HR retrieval failed")), 502
-    except Exception:
+    except Exception as exc:
+        _log_hr_route_failure("hr_interview_turn_retrieval", exc)
         return jsonify(_public_hr_error("HR retrieval failed")), 502
 
     if session["interview_complete"]:
@@ -330,9 +344,11 @@ def continue_hr_interview():
                 treat_candidate_input_as_untrusted=True,
                 prior_question_count=session["question_count"],
             )
-        except ValueError:
+        except ValueError as exc:
+            _log_hr_route_failure("hr_interview_turn_llm", exc)
             return jsonify(_public_hr_error("LLM request failed")), 502
-        except Exception:
+        except Exception as exc:
+            _log_hr_route_failure("hr_interview_turn_llm", exc)
             return jsonify(_public_hr_error("LLM request failed")), 502
 
     session["question_count"] = turn_result["question_count"]
@@ -396,8 +412,10 @@ def hr_assistant():
     except ValueError as exc:
         if _is_public_validation_error(str(exc)):
             return jsonify({"error": str(exc)}), 400
+        _log_hr_route_failure("hr_assistant", exc)
         return jsonify(_public_hr_error("HR assistant failed")), 502
-    except Exception:  # pragma: no cover - defensive API safety net
+    except Exception as exc:  # pragma: no cover - defensive API safety net
+        _log_hr_route_failure("hr_assistant", exc)
         return jsonify(_public_hr_error("HR assistant failed")), 502
 
     return jsonify(_sanitize_public_hr_payload(result.payload))
@@ -469,16 +487,42 @@ def _invoke_model_decided_retrieval(*, tool, query: str, model: str | None) -> d
         ).bind_tools([tool])
     except RuntimeError as exc:  # pragma: no cover - depends on optional env install
         raise ValueError("langchain-openai is required for HR tool calling") from exc
-    response = llm.invoke(
-        [
-            (
-                "system",
-                "You decide whether HR interview context retrieval is useful. Call retrieve_company_context when company or role context would improve the next HR interviewer response. Otherwise answer without tool calls.",
-            ),
-            ("human", f"Candidate/user message or interview stage: {query}"),
-        ]
-    )
+    messages = [
+        (
+            "system",
+            "You decide whether HR interview context retrieval is useful. Call retrieve_company_context when company or role context would improve the next HR interviewer response. Otherwise answer without tool calls.",
+        ),
+        ("human", f"Candidate/user message or interview stage: {query}"),
+    ]
+    started_at = time.monotonic()
+    try:
+        response = llm.invoke(messages)
+    except Exception as exc:
+        log_structured_event(
+            "llm_call",
+            status="error",
+            level=logging.WARNING,
+            logger=current_app.logger,
+            duration_ms=duration_ms(started_at),
+            operation="hr_interview_retrieval_decision",
+            model=model,
+            message_count=len(messages),
+            input_char_count=sum(len(content) for _, content in messages),
+            **exception_log_fields(exc),
+        )
+        raise
     tool_calls = getattr(response, "tool_calls", None) or []
+    log_structured_event(
+        "llm_call",
+        status="success",
+        logger=current_app.logger,
+        duration_ms=duration_ms(started_at),
+        operation="hr_interview_retrieval_decision",
+        model=model,
+        message_count=len(messages),
+        input_char_count=sum(len(content) for _, content in messages),
+        tool_call_count=len(tool_calls),
+    )
     if not tool_calls:
         return None
     first_call = tool_calls[0]
@@ -706,6 +750,19 @@ def _build_response_payload(result: HrContextBuildResult) -> dict[str, Any]:
 
 def _public_hr_error(message: str) -> dict[str, str]:
     return {"error": message}
+
+
+def _log_hr_route_failure(operation: str, exc: Exception) -> None:
+    log_structured_event(
+        "route_failure",
+        status="error",
+        level=logging.WARNING,
+        logger=current_app.logger,
+        route=request.path,
+        method=request.method,
+        operation=operation,
+        **exception_log_fields(exc),
+    )
 
 
 def _is_public_validation_error(message: str) -> bool:

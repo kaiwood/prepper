@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +18,12 @@ from .hr_context import (
     HrContextInputDocument,
     HrContextSource,
     HrContextValidationError,
+)
+from .structured_logging import (
+    duration_ms,
+    exception_log_fields,
+    log_structured_event,
+    safe_snippet,
 )
 
 DEFAULT_MOCK_RETRIEVAL_LIMIT = 3
@@ -105,52 +113,83 @@ def retrieve_hr_context(
     limit: int = DEFAULT_MOCK_RETRIEVAL_LIMIT,
     rebuild_missing_chunks: bool = True,
 ) -> HrRetrievalResult:
+    started_at = time.monotonic()
     normalized_query = " ".join(query.split())
-    if not normalized_query:
-        raise HrContextValidationError("Retrieval query must be a non-empty string")
-    if limit <= 0:
-        raise HrContextValidationError("Retrieval limit must be greater than 0")
-    if mode not in {"llm", "mock"}:
-        raise HrContextValidationError("Retrieval mode must be one of: llm, mock")
+    log_fields: dict[str, Any] = {
+        "mode": mode,
+        "limit": limit,
+        "context_id": context.context_id,
+        "query_snippet": safe_snippet(normalized_query),
+        "rebuild_missing_chunks": rebuild_missing_chunks,
+    }
+    try:
+        if not normalized_query:
+            raise HrContextValidationError("Retrieval query must be a non-empty string")
+        if limit <= 0:
+            raise HrContextValidationError("Retrieval limit must be greater than 0")
+        if mode not in {"llm", "mock"}:
+            raise HrContextValidationError("Retrieval mode must be one of: llm, mock")
 
-    chunks = context.chunks
-    if not chunks and rebuild_missing_chunks:
-        chunks = build_retrieval_chunks(
-            company_inputs=context.company_inputs,
-            role_description=context.role_description,
-            sources=context.sources,
+        chunks = context.chunks
+        rebuilt_chunks = False
+        if not chunks and rebuild_missing_chunks:
+            chunks = build_retrieval_chunks(
+                company_inputs=context.company_inputs,
+                role_description=context.role_description,
+                sources=context.sources,
+            )
+            rebuilt_chunks = True
+        log_fields["chunk_count"] = len(chunks)
+        log_fields["rebuilt_chunks"] = rebuilt_chunks
+        if not chunks:
+            result = HrRetrievalResult(query=normalized_query, mode=mode, results=())
+        elif mode == "mock":
+            result = HrRetrievalResult(
+                query=normalized_query,
+                mode=mode,
+                results=_retrieve_mock_chunks(
+                    chunks,
+                    normalized_query,
+                    limit=limit,
+                ),
+            )
+        elif mode == "llm":
+            try:
+                config = load_openrouter_embedding_config()
+            except ValueError as exc:
+                raise HrContextValidationError(str(exc)) from exc
+            log_fields["embedding_model"] = config.embedding_model
+            result = HrRetrievalResult(
+                query=normalized_query,
+                mode=mode,
+                results=_retrieve_llm_chunks(
+                    chunks,
+                    normalized_query,
+                    config=config,
+                    limit=limit,
+                ),
+            )
+        else:  # pragma: no cover - guarded above
+            raise HrContextValidationError("Retrieval mode must be one of: llm, mock")
+    except Exception as exc:
+        log_structured_event(
+            "retrieval",
+            status="error",
+            level=logging.WARNING,
+            duration_ms=duration_ms(started_at),
+            **log_fields,
+            **exception_log_fields(exc),
         )
-    if not chunks:
-        return HrRetrievalResult(query=normalized_query, mode=mode, results=())
+        raise
 
-    if mode == "mock":
-        return HrRetrievalResult(
-            query=normalized_query,
-            mode=mode,
-            results=_retrieve_mock_chunks(
-                chunks,
-                normalized_query,
-                limit=limit,
-            ),
-        )
-
-    if mode == "llm":
-        try:
-            config = load_openrouter_embedding_config()
-        except ValueError as exc:
-            raise HrContextValidationError(str(exc)) from exc
-        return HrRetrievalResult(
-            query=normalized_query,
-            mode=mode,
-            results=_retrieve_llm_chunks(
-                chunks,
-                normalized_query,
-                config=config,
-                limit=limit,
-            ),
-        )
-
-    raise HrContextValidationError("Retrieval mode must be one of: llm, mock")
+    log_structured_event(
+        "retrieval",
+        status="success",
+        duration_ms=duration_ms(started_at),
+        result_count=len(result.results),
+        **log_fields,
+    )
+    return result
 
 
 def retrieval_score_to_percent(score: float) -> int:

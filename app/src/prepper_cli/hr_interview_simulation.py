@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .client import build_chat_model, coerce_llm_content
+from .structured_logging import duration_ms, exception_log_fields, log_structured_event
 from .config import load_openrouter_embedding_config, resolve_model_name
 from .conversation import Conversation
 from .hr_context import HrContext, build_mock_hr_context
@@ -282,11 +285,34 @@ def _invoke_langchain_chat(
             messages.append((role, message["content"]))
     messages.append(("human", user_message))
 
+    started_at = time.monotonic()
     try:
         response = llm.invoke(messages)
     except Exception as exc:  # pragma: no cover - provider/runtime boundary
+        log_structured_event(
+            "llm_call",
+            status="error",
+            level=logging.WARNING,
+            duration_ms=duration_ms(started_at),
+            operation="hr_interview_simulation",
+            model=model,
+            message_count=len(messages),
+            input_char_count=sum(len(content) for _, content in messages),
+            **exception_log_fields(exc),
+        )
         raise HrInterviewSimulationError(f"HR simulation LLM call failed: {exc}") from exc
-    return coerce_llm_content(getattr(response, "content", response)).strip()
+    content = coerce_llm_content(getattr(response, "content", response)).strip()
+    log_structured_event(
+        "llm_call",
+        status="success",
+        duration_ms=duration_ms(started_at),
+        operation="hr_interview_simulation",
+        model=model,
+        message_count=len(messages),
+        input_char_count=sum(len(content) for _, content in messages),
+        response_char_count=len(content),
+    )
+    return content
 
 
 def _generate_active_interviewer_turn(
