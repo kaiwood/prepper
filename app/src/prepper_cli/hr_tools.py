@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import logging
+import os
 import re
+import socket
 import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from bs4 import BeautifulSoup
 
@@ -42,7 +45,9 @@ RETRIEVE_COMPANY_CONTEXT_TOOL_NAME = "retrieve_company_context"
 DEFAULT_COMPANY_WEBSITE_TIMEOUT_SECONDS = 10.0
 DEFAULT_COMPANY_WEBSITE_MAX_BYTES = 1_000_000
 DEFAULT_CANDIDATE_PROFILE_MAX_CHARS = 40_000
+ALLOW_PRIVATE_URL_FETCH_ENV = "PREPPER_ALLOW_PRIVATE_URL_FETCH"
 _ALLOWED_COMPANY_WEBSITE_SCHEMES = {"http", "https"}
+_TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 _HTML_NOISE_TAGS = {
     "script",
     "style",
@@ -57,6 +62,10 @@ _HTML_NOISE_TAGS = {
 
 class HrToolError(ValueError):
     """Raised when an HR domain tool cannot complete safely."""
+
+
+class UnsafeCompanyWebsiteUrlError(HrToolError):
+    """Raised when a company website URL targets an unsafe network location."""
 
 
 @dataclass(frozen=True)
@@ -76,6 +85,7 @@ def run_fetch_company_website_tool(
     url: str | None = None,
     timeout_seconds: float = DEFAULT_COMPANY_WEBSITE_TIMEOUT_SECONDS,
     max_bytes: int = DEFAULT_COMPANY_WEBSITE_MAX_BYTES,
+    allow_private_url_fetch: bool | None = None,
 ) -> HrToolResult:
     """Fetch company website content in mock or live mode."""
     started_at = time.monotonic()
@@ -95,7 +105,10 @@ def run_fetch_company_website_tool(
             if url is None or not url.strip():
                 raise HrToolError("fetch_company_website llm mode requires --url")
             fetch = _fetch_company_website_from_url(
-                url.strip(), timeout_seconds=timeout_seconds, max_bytes=max_bytes
+                url.strip(),
+                timeout_seconds=timeout_seconds,
+                max_bytes=max_bytes,
+                allow_private_url_fetch=allow_private_url_fetch,
             )
         else:
             raise HrToolError("Tool mode must be one of: llm, mock")
@@ -326,19 +339,146 @@ def _fetch_company_website_from_fixture(fixture: HrFixture) -> CompanyWebsiteFet
     )
 
 
-def _fetch_company_website_from_url(
-    url: str, *, timeout_seconds: float, max_bytes: int
-) -> CompanyWebsiteFetch:
+def validate_company_website_url_safety(
+    url: str,
+    *,
+    allow_private_url_fetch: bool | None = None,
+    url_label: str = "Company website URL",
+) -> None:
+    """Validate that a company website URL cannot target internal resources."""
     parsed = urlparse(url)
     if parsed.scheme.lower() not in _ALLOWED_COMPANY_WEBSITE_SCHEMES:
         allowed = ", ".join(sorted(_ALLOWED_COMPANY_WEBSITE_SCHEMES))
-        raise HrToolError(f"Company website URL scheme must be one of: {allowed}")
-    if not parsed.netloc:
-        raise HrToolError("Company website URL must include a host")
+        raise UnsafeCompanyWebsiteUrlError(
+            f"{url_label} scheme must be one of: {allowed}"
+        )
+    if not parsed.netloc or not parsed.hostname:
+        raise UnsafeCompanyWebsiteUrlError(f"{url_label} must include a host")
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise UnsafeCompanyWebsiteUrlError(
+            f"{url_label} must include a valid port"
+        ) from exc
+
+    if _allow_private_url_fetch(allow_private_url_fetch):
+        return
+
+    for ip_address in _resolve_company_website_host_ips(parsed.hostname):
+        if _is_blocked_company_website_ip(ip_address):
+            raise UnsafeCompanyWebsiteUrlError(
+                f"{url_label} resolves to blocked address: {ip_address}"
+            )
+
+
+class _CompanyWebsiteRedirectHandler(HTTPRedirectHandler):
+    def __init__(self, *, allow_private_url_fetch: bool):
+        self._allow_private_url_fetch = allow_private_url_fetch
+        super().__init__()
+
+    def redirect_request(  # type: ignore[override]
+        self, req, fp, code, msg, headers, newurl
+    ):
+        validate_company_website_url_safety(
+            newurl,
+            allow_private_url_fetch=self._allow_private_url_fetch,
+            url_label="Company website redirect URL",
+        )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _open_company_website_request(
+    request: Request,
+    *,
+    timeout_seconds: float,
+    allow_private_url_fetch: bool,
+):
+    opener = build_opener(
+        _CompanyWebsiteRedirectHandler(
+            allow_private_url_fetch=allow_private_url_fetch,
+        )
+    )
+    return opener.open(request, timeout=timeout_seconds)
+
+
+def _allow_private_url_fetch(value: bool | None) -> bool:
+    if value is not None:
+        return value
+    return (
+        os.environ.get(ALLOW_PRIVATE_URL_FETCH_ENV, "").strip().lower()
+        in _TRUTHY_ENV_VALUES
+    )
+
+
+def _resolve_company_website_host_ips(
+    hostname: str,
+) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
+    try:
+        return (ipaddress.ip_address(hostname),)
+    except ValueError:
+        pass
+
+    try:
+        resolved = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise UnsafeCompanyWebsiteUrlError(
+            f"Company website URL host could not be resolved: {hostname}"
+        ) from exc
+
+    addresses = []
+    seen = set()
+    for family, _socktype, _proto, _canonname, sockaddr in resolved:
+        if family not in {socket.AF_INET, socket.AF_INET6}:
+            continue
+        raw_address = sockaddr[0]
+        if raw_address in seen:
+            continue
+        seen.add(raw_address)
+        try:
+            addresses.append(ipaddress.ip_address(raw_address))
+        except ValueError as exc:
+            raise UnsafeCompanyWebsiteUrlError(
+                f"Company website URL host resolved to invalid address: {raw_address}"
+            ) from exc
+    if not addresses:
+        raise UnsafeCompanyWebsiteUrlError(
+            f"Company website URL host could not be resolved: {hostname}"
+        )
+    return tuple(addresses)
+
+
+def _is_blocked_company_website_ip(
+    ip_address: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> bool:
+    return any(
+        (
+            ip_address.is_loopback,
+            ip_address.is_private,
+            ip_address.is_link_local,
+            ip_address.is_multicast,
+            ip_address.is_reserved,
+            ip_address.is_unspecified,
+        )
+    )
+
+
+def _fetch_company_website_from_url(
+    url: str,
+    *,
+    timeout_seconds: float,
+    max_bytes: int,
+    allow_private_url_fetch: bool | None,
+) -> CompanyWebsiteFetch:
     if timeout_seconds <= 0:
         raise HrToolError("Company website timeout must be greater than 0")
     if max_bytes <= 0:
         raise HrToolError("Company website max_bytes must be greater than 0")
+
+    resolved_allow_private = _allow_private_url_fetch(allow_private_url_fetch)
+    validate_company_website_url_safety(
+        url,
+        allow_private_url_fetch=resolved_allow_private,
+    )
 
     request = Request(
         url,
@@ -350,7 +490,11 @@ def _fetch_company_website_from_url(
 
     response = None
     try:
-        response = urlopen(request, timeout=timeout_seconds)
+        response = _open_company_website_request(
+            request,
+            timeout_seconds=timeout_seconds,
+            allow_private_url_fetch=resolved_allow_private,
+        )
         content_length = _safe_int(response.headers.get("Content-Length"))
         if content_length is not None and content_length > max_bytes:
             raise HrToolError("Company website response exceeded size limit")
@@ -359,10 +503,17 @@ def _fetch_company_website_from_url(
         if len(raw) > max_bytes:
             raise HrToolError("Company website response exceeded size limit")
 
-        content_type = response.headers.get("Content-Type", "") or "application/octet-stream"
+        content_type = (
+            response.headers.get("Content-Type", "") or "application/octet-stream"
+        )
         charset = _response_charset(response) or "utf-8"
         decoded = raw.decode(charset, errors="replace")
         final_url = response.geturl() or url
+        validate_company_website_url_safety(
+            final_url,
+            allow_private_url_fetch=resolved_allow_private,
+            url_label="Company website final URL",
+        )
     except TimeoutError as exc:
         raise HrToolError("Company website fetch timed out") from exc
     except HrToolError:

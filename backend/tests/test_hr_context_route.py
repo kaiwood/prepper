@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 from email.message import Message
 
@@ -6,8 +7,9 @@ from app.routes.hr import get_stored_hr_context
 
 
 class FakeResponse:
-    def __init__(self, body: bytes):
+    def __init__(self, body: bytes, *, url: str = "https://example.com/about"):
         self._body = body
+        self._url = url
         self.headers = Message()
         self.headers["Content-Type"] = "text/html; charset=utf-8"
 
@@ -15,7 +17,7 @@ class FakeResponse:
         return self._body
 
     def geturl(self) -> str:
-        return "https://example.com/about"
+        return self._url
 
     def close(self) -> None:
         pass
@@ -55,13 +57,21 @@ def test_hr_context_endpoint_builds_and_stores_context_from_text():
 
 
 def test_hr_context_endpoint_fetches_company_url(monkeypatch):
-    def fake_urlopen(request, timeout):
+    def fake_open(request, *, timeout_seconds, allow_private_url_fetch):
         assert request.full_url == "https://example.com/about"
+        assert allow_private_url_fetch is False
         return FakeResponse(
             b"<html><head><title>Example</title></head><body><p>HR analytics platform.</p></body></html>"
         )
 
-    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._resolve_company_website_host_ips",
+        lambda _hostname: (ipaddress.ip_address("93.184.216.34"),),
+    )
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._open_company_website_request",
+        fake_open,
+    )
     app = create_app()
     client = app.test_client()
 
@@ -91,6 +101,45 @@ def test_hr_context_endpoint_rejects_validation_errors():
     assert response.get_json() == {
         "error": "Exactly one of company_text or company_url is required"
     }
+
+
+def test_hr_context_endpoint_rejects_private_company_url(monkeypatch):
+    monkeypatch.delenv("PREPPER_ALLOW_PRIVATE_URL_FETCH", raising=False)
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/hr/context",
+        json=_payload(company_text=None, company_url="http://127.0.0.1/about"),
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "Company website URL resolves to blocked address: 127.0.0.1"
+    }
+
+
+def test_hr_context_endpoint_allows_private_company_url_with_env(monkeypatch):
+    monkeypatch.setenv("PREPPER_ALLOW_PRIVATE_URL_FETCH", "1")
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._open_company_website_request",
+        lambda _request, **_kwargs: FakeResponse(
+            b"<html><head><title>Local</title></head><body><p>Local HR platform.</p></body></html>",
+            url="http://127.0.0.1/about",
+        ),
+    )
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/hr/context",
+        json=_payload(company_text=None, company_url="http://127.0.0.1/about"),
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["sources"][0]["uri"] == "http://127.0.0.1/about"
 
 
 def test_hr_context_endpoint_returns_partial_when_candidate_tool_fails(monkeypatch):
@@ -124,10 +173,17 @@ def test_hr_context_endpoint_returns_partial_when_candidate_tool_fails(monkeypat
 
 
 def test_hr_context_endpoint_returns_partial_without_context_when_url_fetch_fails(monkeypatch):
-    def fail_urlopen(request, timeout):
+    def fail_open(request, *, timeout_seconds, allow_private_url_fetch):
         raise TimeoutError("slow private site details")
 
-    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fail_urlopen)
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._resolve_company_website_host_ips",
+        lambda _hostname: (ipaddress.ip_address("93.184.216.34"),),
+    )
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._open_company_website_request",
+        fail_open,
+    )
     app = create_app()
     client = app.test_client()
 

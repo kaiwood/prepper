@@ -233,9 +233,11 @@ def test_hr_tool_run_extract_candidate_profile_reports_missing_fixture(monkeypat
 
 
 def test_hr_tool_run_fetch_company_website_live_prints_json(monkeypatch, capsys):
-    monkeypatch.setattr(
-        "prepper_cli.main.run_fetch_company_website_tool",
-        lambda **_kwargs: HrToolResult(
+    captured_kwargs = {}
+
+    def fake_fetch(**kwargs):
+        captured_kwargs.update(kwargs)
+        return HrToolResult(
             tool_name="fetch_company_website",
             status="success",
             output={
@@ -261,7 +263,11 @@ def test_hr_tool_run_fetch_company_website_live_prints_json(monkeypatch, capsys)
                     "truncated": False,
                 },
             },
-        ),
+        )
+
+    monkeypatch.setattr(
+        "prepper_cli.main.run_fetch_company_website_tool",
+        fake_fetch,
     )
     monkeypatch.setattr(
         "sys.argv",
@@ -275,6 +281,7 @@ def test_hr_tool_run_fetch_company_website_live_prints_json(monkeypatch, capsys)
             "https://example.com",
             "--mode",
             "llm",
+            "--allow-private-url-fetch",
             "--json",
         ],
     )
@@ -284,6 +291,7 @@ def test_hr_tool_run_fetch_company_website_live_prints_json(monkeypatch, capsys)
     captured = capsys.readouterr()
     assert captured.err == ""
     payload = json.loads(captured.out)
+    assert captured_kwargs["allow_private_url_fetch"] is True
     assert payload["output"]["mode"] == "llm"
     assert payload["output"]["source"]["uri"] == "https://example.com"
 

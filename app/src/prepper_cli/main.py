@@ -346,6 +346,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Tool execution mode",
     )
     tool_run_parser.add_argument(
+        "--allow-private-url-fetch",
+        action="store_true",
+        help="Allow fetch_company_website to request private/internal URLs",
+    )
+    tool_run_parser.add_argument(
         "--json",
         action="store_true",
         help="Print tool result JSON",
@@ -981,6 +986,7 @@ def _run_hr_command(args: argparse.Namespace) -> int:
                     mode=args.mode,
                     fixture=fixture,
                     url=args.url,
+                    allow_private_url_fetch=args.allow_private_url_fetch,
                 )
             elif args.tool_name == EXTRACT_CANDIDATE_PROFILE_TOOL_NAME:
                 result = run_extract_candidate_profile_tool(

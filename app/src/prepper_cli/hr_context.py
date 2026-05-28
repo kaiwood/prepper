@@ -142,6 +142,7 @@ def build_hr_context_from_inputs(
     fixture_id: str | None = None,
     source_uris: Mapping[str, str] | None = None,
     tool_event_recorder: Any | None = None,
+    allow_private_url_fetch: bool | None = None,
 ) -> HrContextBuildResult:
     """Build an HR context from untrusted API/UI input text."""
     if mode not in SUPPORTED_HR_CONTEXT_MODES:
@@ -178,16 +179,29 @@ def build_hr_context_from_inputs(
     else:
         from .hr_tools import (
             FETCH_COMPANY_WEBSITE_TOOL_NAME,
+            UnsafeCompanyWebsiteUrlError,
             company_website_tool_result_to_context_entries,
             run_fetch_company_website_tool,
+            validate_company_website_url_safety,
         )
 
         try:
+            try:
+                validate_company_website_url_safety(
+                    normalized_company_url,
+                    allow_private_url_fetch=allow_private_url_fetch,
+                )
+            except UnsafeCompanyWebsiteUrlError as exc:
+                raise HrContextValidationError(str(exc)) from exc
+
             if mode == "llm" and tool_event_recorder is not None:
                 from .hr_langchain_tools import create_fetch_company_website_tool
 
                 company_tool_result = _invoke_context_langchain_tool(
-                    tool=create_fetch_company_website_tool(recorder=tool_event_recorder),
+                    tool=create_fetch_company_website_tool(
+                        recorder=tool_event_recorder,
+                        allow_private_url_fetch=allow_private_url_fetch,
+                    ),
                     args={"url": normalized_company_url},
                     model=model,
                     instruction="Fetch company website context for an HR candidate-fit interview.",
@@ -198,6 +212,7 @@ def build_hr_context_from_inputs(
                     company_tool_result = run_fetch_company_website_tool(
                         mode="llm",
                         url=normalized_company_url,
+                        allow_private_url_fetch=allow_private_url_fetch,
                     )
                 except Exception as exc:
                     from .hr_langchain_tools import record_hr_tool_result
@@ -223,6 +238,10 @@ def build_hr_context_from_inputs(
             company_source, company_document, _company_chunks = (
                 company_website_tool_result_to_context_entries(company_tool_result)
             )
+        except UnsafeCompanyWebsiteUrlError as exc:
+            raise HrContextValidationError(str(exc)) from exc
+        except HrContextValidationError:
+            raise
         except Exception as exc:
             message = str(exc)
             errors.append(

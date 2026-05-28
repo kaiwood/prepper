@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import logging
 import socket
 from dataclasses import replace
@@ -8,6 +9,7 @@ from urllib.error import URLError
 
 import pytest
 
+import prepper_cli.hr_tools as hr_tools
 from prepper_cli.hr_context import build_mock_hr_context
 from prepper_cli.hr_fixtures import validate_hr_fixture
 from prepper_cli.hr_tools import (
@@ -42,6 +44,18 @@ class FakeCandidateProfileLlm:
 @pytest.fixture(autouse=True)
 def isolated_vector_store(monkeypatch, tmp_path):
     monkeypatch.setenv("PREPPER_HR_VECTOR_STORE_DIR", str(tmp_path / "faiss"))
+    monkeypatch.delenv("PREPPER_ALLOW_PRIVATE_URL_FETCH", raising=False)
+
+    def fake_resolve(hostname):
+        try:
+            return (ipaddress.ip_address(hostname),)
+        except ValueError:
+            return (ipaddress.ip_address("93.184.216.34"),)
+
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._resolve_company_website_host_ips",
+        fake_resolve,
+    )
 
 
 class FakeResponse:
@@ -295,12 +309,13 @@ def test_fetch_company_website_live_extracts_readable_html(monkeypatch):
     </html>
     """
 
-    def fake_urlopen(request, timeout):
+    def fake_open(request, *, timeout_seconds, allow_private_url_fetch):
         assert request.full_url == "https://example.com/about"
-        assert timeout == 10.0
+        assert timeout_seconds == 10.0
+        assert allow_private_url_fetch is False
         return FakeResponse(html)
 
-    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fake_urlopen)
+    monkeypatch.setattr("prepper_cli.hr_tools._open_company_website_request", fake_open)
 
     result = run_fetch_company_website_tool(
         mode="llm", url="https://example.com/about"
@@ -321,41 +336,122 @@ def test_fetch_company_website_rejects_invalid_scheme():
         run_fetch_company_website_tool(mode="llm", url="file:///etc/passwd")
 
 
+def test_fetch_company_website_rejects_loopback_url():
+    with pytest.raises(HrToolError, match="blocked address: 127.0.0.1"):
+        run_fetch_company_website_tool(mode="llm", url="http://127.0.0.1/admin")
+
+
+def test_fetch_company_website_rejects_private_dns_resolution(monkeypatch):
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._resolve_company_website_host_ips",
+        lambda _hostname: (ipaddress.ip_address("10.0.0.5"),),
+    )
+
+    with pytest.raises(HrToolError, match="blocked address: 10.0.0.5"):
+        run_fetch_company_website_tool(mode="llm", url="https://internal.example")
+
+
+def test_fetch_company_website_allows_private_url_with_flag(monkeypatch):
+    def fake_open(request, *, timeout_seconds, allow_private_url_fetch):
+        assert request.full_url == "http://127.0.0.1/about"
+        assert allow_private_url_fetch is True
+        return FakeResponse(
+            b"<html><body><p>Local company facts</p></body></html>",
+            url="http://127.0.0.1/about",
+        )
+
+    monkeypatch.setattr("prepper_cli.hr_tools._open_company_website_request", fake_open)
+
+    result = run_fetch_company_website_tool(
+        mode="llm",
+        url="http://127.0.0.1/about",
+        allow_private_url_fetch=True,
+    )
+
+    assert result.status == "success"
+    assert result.output["source"]["uri"] == "http://127.0.0.1/about"
+
+
+def test_fetch_company_website_allows_private_url_with_env(monkeypatch):
+    monkeypatch.setenv("PREPPER_ALLOW_PRIVATE_URL_FETCH", "1")
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._open_company_website_request",
+        lambda _request, **_kwargs: FakeResponse(
+            b"<html><body><p>Local company facts</p></body></html>",
+            url="http://127.0.0.1/about",
+        ),
+    )
+
+    result = run_fetch_company_website_tool(
+        mode="llm",
+        url="http://127.0.0.1/about",
+    )
+
+    assert result.status == "success"
+
+
+def test_fetch_company_website_rejects_unsafe_redirect_before_following():
+    handler = hr_tools._CompanyWebsiteRedirectHandler(allow_private_url_fetch=False)
+
+    with pytest.raises(HrToolError, match="redirect URL resolves to blocked address"):
+        handler.redirect_request(
+            None,
+            None,
+            302,
+            "Found",
+            Message(),
+            "http://127.0.0.1/about",
+        )
+
+
+def test_fetch_company_website_rejects_unsafe_final_url(monkeypatch):
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._open_company_website_request",
+        lambda _request, **_kwargs: FakeResponse(
+            b"<html><body><p>Private company facts</p></body></html>",
+            url="http://127.0.0.1/about",
+        ),
+    )
+
+    with pytest.raises(HrToolError, match="final URL resolves to blocked address"):
+        run_fetch_company_website_tool(mode="llm", url="https://example.com/about")
+
+
 def test_fetch_company_website_reports_timeout(monkeypatch):
-    def fake_urlopen(_request, timeout):
+    def fake_open(_request, *, timeout_seconds, allow_private_url_fetch):
         raise TimeoutError("timed out")
 
-    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fake_urlopen)
+    monkeypatch.setattr("prepper_cli.hr_tools._open_company_website_request", fake_open)
 
     with pytest.raises(HrToolError, match="timed out"):
         run_fetch_company_website_tool(mode="llm", url="https://example.com")
 
 
 def test_fetch_company_website_reports_url_failure(monkeypatch):
-    def fake_urlopen(_request, timeout):
+    def fake_open(_request, *, timeout_seconds, allow_private_url_fetch):
         raise URLError("blocked")
 
-    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fake_urlopen)
+    monkeypatch.setattr("prepper_cli.hr_tools._open_company_website_request", fake_open)
 
     with pytest.raises(HrToolError, match="fetch failed"):
         run_fetch_company_website_tool(mode="llm", url="https://example.com")
 
 
 def test_fetch_company_website_reports_socket_timeout(monkeypatch):
-    def fake_urlopen(_request, timeout):
+    def fake_open(_request, *, timeout_seconds, allow_private_url_fetch):
         raise socket.timeout("slow")
 
-    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fake_urlopen)
+    monkeypatch.setattr("prepper_cli.hr_tools._open_company_website_request", fake_open)
 
     with pytest.raises(HrToolError, match="timed out"):
         run_fetch_company_website_tool(mode="llm", url="https://example.com")
 
 
 def test_fetch_company_website_rejects_oversized_content_length(monkeypatch):
-    def fake_urlopen(_request, timeout):
+    def fake_open(_request, *, timeout_seconds, allow_private_url_fetch):
         return FakeResponse(b"small", content_length=20)
 
-    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fake_urlopen)
+    monkeypatch.setattr("prepper_cli.hr_tools._open_company_website_request", fake_open)
 
     with pytest.raises(HrToolError, match="size limit"):
         run_fetch_company_website_tool(
@@ -364,10 +460,10 @@ def test_fetch_company_website_rejects_oversized_content_length(monkeypatch):
 
 
 def test_fetch_company_website_rejects_oversized_body(monkeypatch):
-    def fake_urlopen(_request, timeout):
+    def fake_open(_request, *, timeout_seconds, allow_private_url_fetch):
         return FakeResponse(b"01234567890", content_length=None)
 
-    monkeypatch.setattr("prepper_cli.hr_tools.urlopen", fake_urlopen)
+    monkeypatch.setattr("prepper_cli.hr_tools._open_company_website_request", fake_open)
 
     with pytest.raises(HrToolError, match="size limit"):
         run_fetch_company_website_tool(
@@ -378,8 +474,8 @@ def test_fetch_company_website_rejects_oversized_body(monkeypatch):
 def test_fetch_company_website_mock_and_live_have_same_output_shape(monkeypatch):
     fixture = validate_hr_fixture("demo_hr")
     monkeypatch.setattr(
-        "prepper_cli.hr_tools.urlopen",
-        lambda _request, timeout: FakeResponse(
+        "prepper_cli.hr_tools._open_company_website_request",
+        lambda _request, **_kwargs: FakeResponse(
             b"<html><head><title>Example</title></head><body><p>Company facts</p></body></html>"
         ),
     )

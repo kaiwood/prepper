@@ -47,7 +47,11 @@ def record_hr_tool_result(
     )
 
 
-def create_fetch_company_website_tool(*, recorder: HrToolEventRecorder | None = None):
+def create_fetch_company_website_tool(
+    *,
+    recorder: HrToolEventRecorder | None = None,
+    allow_private_url_fetch: bool | None = None,
+):
     try:
         from langchain_core.tools import StructuredTool
     except ImportError as exc:  # pragma: no cover - depends on env install
@@ -57,7 +61,11 @@ def create_fetch_company_website_tool(*, recorder: HrToolEventRecorder | None = 
         """Fetch public company website text for HR interview context building."""
         started_at = time.monotonic()
         try:
-            result = run_fetch_company_website_tool(mode="llm", url=url)
+            result = run_fetch_company_website_tool(
+                mode="llm",
+                url=url,
+                allow_private_url_fetch=allow_private_url_fetch,
+            )
         except Exception as exc:
             record_hr_tool_result(
                 recorder=recorder,
