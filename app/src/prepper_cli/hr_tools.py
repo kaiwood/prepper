@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup
 
-from .config import load_config, resolve_model_name
+from .client import build_chat_model, coerce_llm_content
 from .hr_context import (
     HrCandidateProfile,
     HrContext,
@@ -359,28 +359,23 @@ def _extract_candidate_profile_llm(
             ("human", prompt),
         ]
     )
-    raw_content = _coerce_llm_content(getattr(response, "content", response))
+    raw_content = coerce_llm_content(getattr(response, "content", response))
     payload = _parse_candidate_profile_json(raw_content)
     return _candidate_profile_from_payload(payload)
 
 
 def _build_candidate_profile_llm(*, model: str | None):
     try:
-        from langchain_openai import ChatOpenAI
-    except ImportError as exc:  # pragma: no cover - depends on optional env install
+        llm = build_chat_model(
+            model=model,
+            temperature=0,
+            timeout=30,
+            max_retries=1,
+        )
+    except RuntimeError as exc:  # pragma: no cover - depends on optional env install
         raise HrToolError(
             "langchain-openai is required for extract_candidate_profile llm mode"
         ) from exc
-
-    config = load_config()
-    llm = ChatOpenAI(
-        model=resolve_model_name(model),
-        api_key=config.api_key,
-        base_url=config.base_url,
-        temperature=0,
-        timeout=30,
-        max_retries=1,
-    )
     return llm.bind(response_format={"type": "json_object"})
 
 
@@ -659,19 +654,6 @@ def _unique_non_empty(values: list[str], *, limit: int) -> list[str]:
             break
     return result
 
-
-def _coerce_llm_content(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for item in content:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict) and isinstance(item.get("text"), str):
-                parts.append(item["text"])
-        return "".join(parts)
-    return str(content)
 
 
 def _candidate_profile_to_dict(profile: HrCandidateProfile) -> dict[str, list[str]]:

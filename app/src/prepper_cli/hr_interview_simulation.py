@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .config import load_config, load_openrouter_embedding_config, resolve_model_name
+from .client import build_chat_model, coerce_llm_content
+from .config import load_openrouter_embedding_config, resolve_model_name
 from .conversation import Conversation
 from .hr_context import HrContext, build_mock_hr_context
 from .hr_fixtures import HrFixture, validate_hr_fixture
@@ -242,27 +243,20 @@ def _build_langchain_chat_model(
     presence_penalty: float,
 ):
     try:
-        from langchain_openai import ChatOpenAI
-    except ImportError as exc:  # pragma: no cover - depends on optional install
+        return build_chat_model(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            timeout=60,
+            max_retries=1,
+        )
+    except RuntimeError as exc:  # pragma: no cover - depends on optional install
         raise HrInterviewSimulationError(
             "langchain-openai is required for HR interview simulation"
         ) from exc
-
-    config = load_config()
-    return ChatOpenAI(
-        model=model,
-        api_key=config.api_key,
-        base_url=config.base_url,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        timeout=60,
-        max_retries=1,
-        model_kwargs={
-            "top_p": top_p,
-            "frequency_penalty": frequency_penalty,
-            "presence_penalty": presence_penalty,
-        },
-    )
 
 
 def _invoke_langchain_chat(
@@ -292,7 +286,7 @@ def _invoke_langchain_chat(
         response = llm.invoke(messages)
     except Exception as exc:  # pragma: no cover - provider/runtime boundary
         raise HrInterviewSimulationError(f"HR simulation LLM call failed: {exc}") from exc
-    return _coerce_llm_content(getattr(response, "content", response)).strip()
+    return coerce_llm_content(getattr(response, "content", response)).strip()
 
 
 def _generate_active_interviewer_turn(
@@ -620,19 +614,6 @@ def _resolve_turn_type(metadata: dict[str, Any], reply: str) -> str:
 def _wrap_untrusted(content: str, source: str) -> str:
     return f"<untrusted_input source=\"{source}\">\n{content}\n</untrusted_input>"
 
-
-def _coerce_llm_content(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for item in content:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict) and isinstance(item.get("text"), str):
-                parts.append(item["text"])
-        return "".join(parts)
-    return str(content)
 
 
 def _single_line(value: str, *, max_chars: int) -> str:

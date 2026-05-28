@@ -1,6 +1,7 @@
 from typing import Any
 
-from .client import get_client
+from .client import build_chat_model, coerce_llm_content
+from .config import resolve_model_name
 from .conversation import Conversation
 
 _INTERVIEW_OPENER_MESSAGE = (
@@ -28,35 +29,24 @@ def _request_chat_reply(
     model: str | None = None,
     include_diagnostics: bool = False,
 ) -> str | tuple[str, dict[str, Any]]:
-    client, resolved_model = get_client(model)
-
-    sent_messages = messages
-    kwargs: dict = {"model": resolved_model, "messages": sent_messages}
+    resolved_model = resolve_model_name(model)
+    model_kwargs: dict[str, Any] = {"model": model}
     if temperature is not None:
-        kwargs["temperature"] = temperature
+        model_kwargs["temperature"] = temperature
     if top_p is not None:
-        kwargs["top_p"] = top_p
+        model_kwargs["top_p"] = top_p
     if frequency_penalty is not None:
-        kwargs["frequency_penalty"] = frequency_penalty
+        model_kwargs["frequency_penalty"] = frequency_penalty
     if presence_penalty is not None:
-        kwargs["presence_penalty"] = presence_penalty
+        model_kwargs["presence_penalty"] = presence_penalty
     if max_tokens is not None:
-        kwargs["max_tokens"] = max_tokens
+        model_kwargs["max_tokens"] = max_tokens
 
-    system_messages_inlined = False
-    try:
-        response = client.chat.completions.create(**kwargs)
-    except Exception as exc:
-        if not _is_system_role_unsupported_error(exc):
-            raise
-        sent_messages = _inline_system_messages(messages)
-        if sent_messages == messages:
-            raise
-        kwargs["messages"] = sent_messages
-        system_messages_inlined = True
-        response = client.chat.completions.create(**kwargs)
+    llm = build_chat_model(**model_kwargs)
+    sent_messages = _to_langchain_messages(messages)
+    response = llm.invoke(sent_messages)
 
-    raw_reply = response.choices[0].message.content or ""
+    raw_reply = coerce_llm_content(getattr(response, "content", response))
     normalized_reply = raw_reply.strip()
 
     if not include_diagnostics:
@@ -67,7 +57,6 @@ def _request_chat_reply(
             "requested_model": model,
             "model": resolved_model,
             "messages": sent_messages,
-            "system_messages_inlined": system_messages_inlined,
             "temperature": temperature,
             "top_p": top_p,
             "frequency_penalty": frequency_penalty,
@@ -96,46 +85,16 @@ def _serialize_response(response: Any) -> Any:
     return str(response)
 
 
-def _is_system_role_unsupported_error(exc: Exception) -> bool:
-    message = str(exc)
-    return (
-        "Only user, assistant and tool roles are supported" in message
-        and "got system" in message
-    )
-
-
-def _inline_system_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
-    system_parts: list[str] = []
-    non_system_messages: list[dict[str, str]] = []
-
-    for message in messages:
-        role = message["role"]
-        content = message["content"]
-        if role == "system":
-            system_parts.append(content)
-        else:
-            non_system_messages.append({"role": role, "content": content})
-
-    if not system_parts:
-        return messages
-
-    system_preamble = "\n\n".join(system_parts)
-    wrapped_preamble = (
-        "System instructions for this conversation:\n"
-        f"{system_preamble}\n\n"
-        "Conversation begins below."
-    )
-
-    for index, message in enumerate(non_system_messages):
-        if message["role"] == "user":
-            updated_messages = [dict(item) for item in non_system_messages]
-            updated_messages[index] = {
-                "role": "user",
-                "content": f"{wrapped_preamble}\n\n{message['content']}",
-            }
-            return updated_messages
-
-    return [{"role": "user", "content": wrapped_preamble}] + non_system_messages
+def _to_langchain_messages(messages: list[dict[str, str]]) -> list[tuple[str, str]]:
+    role_map = {
+        "system": "system",
+        "user": "human",
+        "assistant": "ai",
+    }
+    return [
+        (role_map.get(message["role"], message["role"]), message["content"])
+        for message in messages
+    ]
 
 
 def _build_language_prompt(language: str | None) -> str | None:
@@ -160,13 +119,11 @@ def _prepend_system_prompts(
 
     language_prompt = _build_language_prompt(language)
     if language_prompt:
-        prefixed_messages.append(
-            {"role": "system", "content": language_prompt})
+        prefixed_messages.append({"role": "system", "content": language_prompt})
 
     normalized_system_prompt = (system_prompt or "").strip()
     if normalized_system_prompt:
-        prefixed_messages.append(
-            {"role": "system", "content": normalized_system_prompt})
+        prefixed_messages.append({"role": "system", "content": normalized_system_prompt})
 
     return prefixed_messages + messages if prefixed_messages else messages
 
@@ -207,12 +164,12 @@ def get_chat_reply(
     current_message = {"role": "user", "content": current_content}
     messages = [current_message]
     if conversation is not None and history_limit > 1:
-        context_messages = conversation.get_recent_messages(
-            limit=history_limit - 1)
+        context_messages = conversation.get_recent_messages(limit=history_limit - 1)
         messages = context_messages + messages
 
     messages = _prepend_system_prompts(
-        messages, language=language, system_prompt=system_prompt)
+        messages, language=language, system_prompt=system_prompt
+    )
 
     chat_result = _request_chat_reply(
         messages,
@@ -259,7 +216,8 @@ def get_interview_opener(
 ) -> str | tuple[str, dict[str, Any]]:
     messages = [{"role": "user", "content": _INTERVIEW_OPENER_MESSAGE}]
     messages = _prepend_system_prompts(
-        messages, language=language, system_prompt=system_prompt)
+        messages, language=language, system_prompt=system_prompt
+    )
 
     return _request_chat_reply(
         messages,

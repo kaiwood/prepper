@@ -422,18 +422,13 @@ def build_hr_context_from_inputs(
 
 
 def _invoke_context_langchain_tool(*, tool: Any, args: dict[str, Any], model: str | None, instruction: str) -> HrToolResult:
-    from .config import load_config, resolve_model_name
+    from .client import build_chat_model
     from .hr_langchain_tools import build_tool_result_from_payload
 
     selected_args = args
     try:
-        from langchain_openai import ChatOpenAI
-
-        config = load_config()
-        llm = ChatOpenAI(
-            model=resolve_model_name(model),
-            api_key=config.api_key,
-            base_url=config.base_url,
+        llm = build_chat_model(
+            model=model,
             temperature=0,
             timeout=30,
             max_retries=1,

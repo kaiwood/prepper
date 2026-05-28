@@ -27,7 +27,7 @@ from prepper_cli.hr_context import (
     build_hr_context_from_inputs,
     hr_context_to_dict,
 )
-from prepper_cli.config import load_config, resolve_model_name
+from prepper_cli.client import build_chat_model
 from prepper_cli.hr_langchain_tools import (
     build_tool_result_from_payload,
     create_retrieve_company_context_tool,
@@ -460,20 +460,15 @@ def _run_hr_interview_retrieval(
 
 
 def _invoke_model_decided_retrieval(*, tool, query: str, model: str | None) -> dict[str, Any] | None:
-    config = load_config()
     try:
-        from langchain_openai import ChatOpenAI
-    except ImportError as exc:  # pragma: no cover - depends on optional env install
+        llm = build_chat_model(
+            model=model,
+            temperature=0,
+            timeout=30,
+            max_retries=1,
+        ).bind_tools([tool])
+    except RuntimeError as exc:  # pragma: no cover - depends on optional env install
         raise ValueError("langchain-openai is required for HR tool calling") from exc
-
-    llm = ChatOpenAI(
-        model=resolve_model_name(model),
-        api_key=config.api_key,
-        base_url=config.base_url,
-        temperature=0,
-        timeout=30,
-        max_retries=1,
-    ).bind_tools([tool])
     response = llm.invoke(
         [
             (

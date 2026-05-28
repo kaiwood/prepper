@@ -8,36 +8,33 @@ from prepper_cli.chat import (
 from prepper_cli.conversation import Conversation
 
 
-def _make_fake_client(captured: dict):
-    def fake_create(**kwargs):
-        captured.update(kwargs)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(
-                message=SimpleNamespace(content="assistant reply"))]
-        )
+class _FakeChatModel:
+    def __init__(self, captured: dict, *, content="assistant reply", error=None):
+        self.captured = captured
+        self.content = content
+        self.error = error
 
-    return SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
-    )
+    def invoke(self, messages):
+        self.captured.setdefault("calls", []).append(messages)
+        self.captured["messages"] = messages
+        if self.error is not None:
+            raise self.error
+        return SimpleNamespace(content=self.content)
+
+
+def _patch_fake_chat_model(monkeypatch, *, content="assistant reply", error=None):
+    captured: dict = {}
+
+    def fake_build_chat_model(**kwargs):
+        captured["model_kwargs"] = kwargs
+        return _FakeChatModel(captured, content=content, error=error)
+
+    monkeypatch.setattr("prepper_cli.chat.build_chat_model", fake_build_chat_model)
+    return captured
 
 
 def test_get_chat_reply_prepends_system_prompt_and_context(monkeypatch):
-    captured_messages = []
-
-    def fake_create(*, model, messages, **kwargs):
-        captured_messages.extend(messages)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(
-                message=SimpleNamespace(content="assistant reply"))]
-        )
-
-    fake_client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
-    )
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+    captured = _patch_fake_chat_model(monkeypatch)
 
     conversation = Conversation.from_messages(
         [
@@ -55,19 +52,19 @@ def test_get_chat_reply_prepends_system_prompt_and_context(monkeypatch):
     )
 
     assert reply == "assistant reply"
-    assert captured_messages == [
-        {
-            "role": "system",
-            "content": _PROMPT_INJECTION_GUARDRAIL,
-        },
-        {
-            "role": "system",
-            "content": "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.",
-        },
-        {"role": "system", "content": "You are a coach."},
-        {"role": "user", "content": "previous question"},
-        {"role": "assistant", "content": "previous answer"},
-        {"role": "user", "content": "new question"},
+    assert captured["messages"] == [
+        (
+            "system",
+            _PROMPT_INJECTION_GUARDRAIL,
+        ),
+        (
+            "system",
+            "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.",
+        ),
+        ("system", "You are a coach."),
+        ("human", "previous question"),
+        ("ai", "previous answer"),
+        ("human", "new question"),
     ]
 
     assert conversation.get_messages()[-2:] == [
@@ -77,38 +74,18 @@ def test_get_chat_reply_prepends_system_prompt_and_context(monkeypatch):
 
 
 def test_get_chat_reply_uses_french_language_prompt(monkeypatch):
-    captured_messages = []
-
-    def fake_create(*, model, messages, **kwargs):
-        captured_messages.extend(messages)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(
-                message=SimpleNamespace(content="assistant reply"))]
-        )
-
-    fake_client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
-    )
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+    captured = _patch_fake_chat_model(monkeypatch)
 
     get_chat_reply("bonjour", language="fr")
 
-    assert captured_messages[1] == {
-        "role": "system",
-        "content": "Respond in French. Keep the full response in French unless the user explicitly asks to switch language.",
-    }
+    assert captured["messages"][1] == (
+        "system",
+        "Respond in French. Keep the full response in French unless the user explicitly asks to switch language.",
+    )
 
 
 def test_get_chat_reply_forwards_tuning_params(monkeypatch):
-    captured: dict = {}
-    fake_client = _make_fake_client(captured)
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+    captured = _patch_fake_chat_model(monkeypatch)
 
     get_chat_reply(
         "question",
@@ -119,169 +96,73 @@ def test_get_chat_reply_forwards_tuning_params(monkeypatch):
         max_tokens=700,
     )
 
-    assert captured["temperature"] == 0.3
-    assert captured["top_p"] == 0.95
-    assert captured["frequency_penalty"] == 0.2
-    assert captured["presence_penalty"] == 0.1
-    assert captured["max_tokens"] == 700
+    assert captured["model_kwargs"]["temperature"] == 0.3
+    assert captured["model_kwargs"]["top_p"] == 0.95
+    assert captured["model_kwargs"]["frequency_penalty"] == 0.2
+    assert captured["model_kwargs"]["presence_penalty"] == 0.1
+    assert captured["model_kwargs"]["max_tokens"] == 700
 
 
 def test_get_chat_reply_omits_tuning_params_when_not_provided(monkeypatch):
-    captured: dict = {}
-    fake_client = _make_fake_client(captured)
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+    captured = _patch_fake_chat_model(monkeypatch)
 
     get_chat_reply("question")
 
-    assert "temperature" not in captured
-    assert "top_p" not in captured
-    assert "frequency_penalty" not in captured
-    assert "presence_penalty" not in captured
-    assert "max_tokens" not in captured
+    assert "temperature" not in captured["model_kwargs"]
+    assert "top_p" not in captured["model_kwargs"]
+    assert "frequency_penalty" not in captured["model_kwargs"]
+    assert "presence_penalty" not in captured["model_kwargs"]
+    assert "max_tokens" not in captured["model_kwargs"]
 
 
 def test_get_chat_reply_omits_individual_none_tuning_params(monkeypatch):
-    captured: dict = {}
-    fake_client = _make_fake_client(captured)
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+    captured = _patch_fake_chat_model(monkeypatch)
 
     get_chat_reply("question", temperature=0.5, top_p=None)
 
-    assert captured["temperature"] == 0.5
-    assert "top_p" not in captured
+    assert captured["model_kwargs"]["temperature"] == 0.5
+    assert "top_p" not in captured["model_kwargs"]
 
 
 def test_get_interview_opener_prepends_system_prompt_and_bootstrap_message(monkeypatch):
-    captured_messages = []
-
-    def fake_create(*, model, messages, **kwargs):
-        captured_messages.extend(messages)
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(message=SimpleNamespace(
-                    content="  first question?  "))
-            ]
-        )
-
-    fake_client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
-    )
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+    captured = _patch_fake_chat_model(monkeypatch, content="  first question?  ")
 
     reply = get_interview_opener(
-        system_prompt="You are an interviewer.", language="de")
+        system_prompt="You are an interviewer.", language="de"
+    )
 
     assert reply == "first question?"
-    assert captured_messages == [
-        {
-            "role": "system",
-            "content": _PROMPT_INJECTION_GUARDRAIL,
-        },
-        {
-            "role": "system",
-            "content": "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.",
-        },
-        {"role": "system", "content": "You are an interviewer."},
-        {
-            "role": "user",
-            "content": "Begin the interview now. Ask the first interview question and wait for the candidate's response.",
-        },
+    assert captured["messages"] == [
+        (
+            "system",
+            _PROMPT_INJECTION_GUARDRAIL,
+        ),
+        (
+            "system",
+            "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.",
+        ),
+        ("system", "You are an interviewer."),
+        (
+            "human",
+            "Begin the interview now. Ask the first interview question and wait for the candidate's response.",
+        ),
     ]
 
 
 def test_get_chat_reply_includes_guardrail_without_other_system_prompts(monkeypatch):
-    captured_messages = []
-
-    def fake_create(*, model, messages, **kwargs):
-        captured_messages.extend(messages)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="assistant reply"))]
-        )
-
-    fake_client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
-    )
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+    captured = _patch_fake_chat_model(monkeypatch)
 
     get_chat_reply("hello")
 
-    assert captured_messages[0] == {
-        "role": "system",
-        "content": _PROMPT_INJECTION_GUARDRAIL,
-    }
-    assert captured_messages[1] == {
-        "role": "user",
-        "content": "hello",
-    }
-
-
-def test_get_chat_reply_retries_with_inlined_system_messages_when_role_is_unsupported(monkeypatch):
-    calls = []
-
-    def fake_create(*, model, messages, **kwargs):
-        calls.append(messages)
-        if len(calls) == 1:
-            raise RuntimeError(
-                "Only user, assistant and tool roles are supported, got system."
-            )
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="assistant reply"))]
-        )
-
-    fake_client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    assert captured["messages"][0] == (
+        "system",
+        _PROMPT_INJECTION_GUARDRAIL,
     )
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
-
-    reply = get_chat_reply("hello", system_prompt="You are a coach.", language="de")
-
-    assert reply == "assistant reply"
-    assert calls[0][0]["role"] == "system"
-    assert calls[1] == [
-        {
-            "role": "user",
-            "content": (
-                "System instructions for this conversation:\n"
-                f"{_PROMPT_INJECTION_GUARDRAIL}\n\n"
-                "Respond in German. Keep the full response in German unless the user explicitly asks to switch language.\n\n"
-                "You are a coach.\n\n"
-                "Conversation begins below.\n\n"
-                "hello"
-            ),
-        }
-    ]
+    assert captured["messages"][1] == ("human", "hello")
 
 
-def test_get_chat_reply_does_not_retry_for_other_errors(monkeypatch):
-    calls = 0
-
-    def fake_create(*, model, messages, **kwargs):
-        nonlocal calls
-        calls += 1
-        raise RuntimeError("Connection error.")
-
-    fake_client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
-    )
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+def test_get_chat_reply_does_not_retry_errors(monkeypatch):
+    captured = _patch_fake_chat_model(monkeypatch, error=RuntimeError("Connection error."))
 
     try:
         get_chat_reply("hello")
@@ -290,25 +171,11 @@ def test_get_chat_reply_does_not_retry_for_other_errors(monkeypatch):
     else:
         raise AssertionError("expected RuntimeError")
 
-    assert calls == 1
+    assert len(captured["calls"]) == 1
 
 
 def test_get_chat_reply_wraps_only_current_message_when_untrusted(monkeypatch):
-    captured_messages = []
-
-    def fake_create(*, model, messages, **kwargs):
-        captured_messages.extend(messages)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="assistant reply"))]
-        )
-
-    fake_client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
-    )
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+    captured = _patch_fake_chat_model(monkeypatch)
 
     conversation = Conversation.from_messages(
         [
@@ -324,21 +191,16 @@ def test_get_chat_reply_wraps_only_current_message_when_untrusted(monkeypatch):
         treat_input_as_untrusted=True,
     )
 
-    assert captured_messages[1] == {"role": "user", "content": "previous question"}
-    assert captured_messages[2] == {"role": "assistant", "content": "previous answer"}
-    assert captured_messages[3] == {
-        "role": "user",
-        "content": '<untrusted_input source="current_user_message">\nhello\n</untrusted_input>',
-    }
+    assert captured["messages"][1] == ("human", "previous question")
+    assert captured["messages"][2] == ("ai", "previous answer")
+    assert captured["messages"][3] == (
+        "human",
+        '<untrusted_input source="current_user_message">\nhello\n</untrusted_input>',
+    )
 
 
 def test_get_interview_opener_forwards_tuning_params(monkeypatch):
-    captured: dict = {}
-    fake_client = _make_fake_client(captured)
-
-    monkeypatch.setattr(
-        "prepper_cli.chat.get_client", lambda model=None: (fake_client, "fake-model")
-    )
+    captured = _patch_fake_chat_model(monkeypatch)
 
     get_interview_opener(
         temperature=0.3,
@@ -348,8 +210,8 @@ def test_get_interview_opener_forwards_tuning_params(monkeypatch):
         max_tokens=700,
     )
 
-    assert captured["temperature"] == 0.3
-    assert captured["top_p"] == 0.95
-    assert captured["frequency_penalty"] == 0.2
-    assert captured["presence_penalty"] == 0.1
-    assert captured["max_tokens"] == 700
+    assert captured["model_kwargs"]["temperature"] == 0.3
+    assert captured["model_kwargs"]["top_p"] == 0.95
+    assert captured["model_kwargs"]["frequency_penalty"] == 0.2
+    assert captured["model_kwargs"]["presence_penalty"] == 0.1
+    assert captured["model_kwargs"]["max_tokens"] == 700
