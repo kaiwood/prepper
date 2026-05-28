@@ -15,6 +15,21 @@ def _make_descriptor(id: str, name: str | None = None, **overrides) -> PromptDes
     return PromptDescriptor(id=id, name=name or id, **defaults)
 
 
+def test_chat_rejects_oversized_message():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post("/api/chat", json={"message": "x" * 8001})
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "input_too_long",
+        "field": "message",
+        "max_length": 8000,
+        "actual_length": 8001,
+    }
+
+
 def test_chat_uses_default_system_prompt(monkeypatch):
     app = create_app()
     client = app.test_client()

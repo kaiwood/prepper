@@ -1,3 +1,5 @@
+import { INPUT_LIMITS, validateMaxLength } from "./inputLimits.mjs";
+
 export const DEFAULT_HR_CONTEXT_MODE = "llm";
 
 export function validateHrSetupForm(form) {
@@ -20,6 +22,42 @@ export function validateHrSetupForm(form) {
   if (!resumeText) {
     errors.resumeText = "Resume text is required.";
   }
+
+  validateMaxLength(
+    errors,
+    "company",
+    "Company URL",
+    companyUrl,
+    INPUT_LIMITS.companyUrl,
+  );
+  validateMaxLength(
+    errors,
+    "company",
+    "Company text",
+    companyText,
+    INPUT_LIMITS.companyText,
+  );
+  validateMaxLength(
+    errors,
+    "roleDescription",
+    "Role description",
+    roleDescription,
+    INPUT_LIMITS.roleDescription,
+  );
+  validateMaxLength(
+    errors,
+    "resumeText",
+    "Resume text",
+    resumeText,
+    INPUT_LIMITS.resumeText,
+  );
+  validateMaxLength(
+    errors,
+    "profileText",
+    "Profile text",
+    normalizeText(form?.profileText),
+    INPUT_LIMITS.profileText,
+  );
 
   return errors;
 }

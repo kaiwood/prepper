@@ -12,6 +12,7 @@ import {
   TRANSLATIONS,
   type LanguageCode,
 } from "../lib/translations";
+import { INPUT_LIMITS, formatApiError } from "../lib/inputLimits.mjs";
 import { hasSuspiciousPromptInjectionPattern } from "../lib/promptInjection.mjs";
 import {
   ADVANCED_SETTING_CONFIG,
@@ -123,6 +124,7 @@ type HrSetupValidationErrors = {
   company?: string;
   roleDescription?: string;
   resumeText?: string;
+  profileText?: string;
 };
 
 type HrContextSummaries = {
@@ -563,7 +565,7 @@ export default function Home() {
       const data: HrContextResponse = await res.json();
 
       if (!res.ok) {
-        setHrContextError(data.error ?? ui.errorFallback);
+        setHrContextError(formatApiError(data, ui.errorFallback));
         return;
       }
 
@@ -611,7 +613,7 @@ export default function Home() {
       const data: HrInterviewResponse = await res.json();
 
       if (!res.ok) {
-        setHrInterviewError(data.error ?? ui.errorFallback);
+        setHrInterviewError(formatApiError(data, ui.errorFallback));
         return;
       }
 
@@ -663,7 +665,7 @@ export default function Home() {
       const data: HrInterviewResponse = await res.json();
 
       if (!res.ok) {
-        setHrInterviewError(data.error ?? ui.errorFallback);
+        setHrInterviewError(formatApiError(data, ui.errorFallback));
         return;
       }
 
@@ -733,7 +735,7 @@ export default function Home() {
       const data: ChatResponse = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? ui.errorFallback);
+        setError(formatApiError(data, ui.errorFallback));
       } else {
         setConversation((prev) => [
           ...prev,
@@ -805,7 +807,7 @@ export default function Home() {
       const data: ChatResponse = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? ui.errorFallback);
+        setError(formatApiError(data, ui.errorFallback));
       } else {
         setConversation([{ role: "assistant", content: data.reply ?? "" }]);
         if (data.interview_enabled) {
@@ -875,7 +877,7 @@ export default function Home() {
       const data: CandidateAnswerResponse = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? ui.errorFallback);
+        setError(formatApiError(data, ui.errorFallback));
         return;
       }
 
@@ -965,6 +967,7 @@ export default function Home() {
                   updateHrSetupField("companyUrl", event.target.value)
                 }
                 disabled={hrContextLoading}
+                maxLength={INPUT_LIMITS.companyUrl}
                 placeholder="https://example.com/about"
                 className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
               />
@@ -987,6 +990,7 @@ export default function Home() {
                   updateHrSetupField("companyText", event.target.value)
                 }
                 disabled={hrContextLoading}
+                maxLength={INPUT_LIMITS.companyText}
                 rows={5}
                 placeholder="Paste company overview, values, and interview-relevant facts."
                 className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
@@ -1010,6 +1014,7 @@ export default function Home() {
                   updateHrSetupField("roleDescription", event.target.value)
                 }
                 disabled={hrContextLoading}
+                maxLength={INPUT_LIMITS.roleDescription}
                 rows={6}
                 placeholder="Paste responsibilities, required skills, and success signals."
                 className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
@@ -1035,6 +1040,7 @@ export default function Home() {
                   updateHrSetupField("resumeText", event.target.value)
                 }
                 disabled={hrContextLoading}
+                maxLength={INPUT_LIMITS.resumeText}
                 rows={6}
                 placeholder="Paste candidate resume content."
                 className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
@@ -1060,10 +1066,16 @@ export default function Home() {
                   updateHrSetupField("profileText", event.target.value)
                 }
                 disabled={hrContextLoading}
+                maxLength={INPUT_LIMITS.profileText}
                 rows={4}
                 placeholder="Paste public profile or LinkedIn summary notes."
                 className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
               />
+              {hrSetupErrors.profileText && (
+                <p className="text-sm text-red-600">
+                  {hrSetupErrors.profileText}
+                </p>
+              )}
             </section>
 
             <button
@@ -1277,6 +1289,7 @@ export default function Home() {
                 resetConversationText="Reset HR interview"
                 sendText="Send answer"
                 thinkingText="Thinking..."
+                maxLength={INPUT_LIMITS.chatMessage}
               />
 
               {(hrInterviewSources.length > 0 || hrInterviewToolResults.length > 0 || hrInterviewToolCallEvents.length > 0) && (
@@ -1647,6 +1660,7 @@ export default function Home() {
             injectionWarningText={
               showInjectionWarning ? ui.injectionWarning : null
             }
+            maxLength={INPUT_LIMITS.chatMessage}
           />
         </>
       )}

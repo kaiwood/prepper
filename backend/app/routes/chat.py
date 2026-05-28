@@ -13,6 +13,11 @@ from app.helpers.utils import (
     resolve_prompt_descriptor,
     resolve_roundtrip_limit,
 )
+from app.helpers.validation import (
+    InputLengthError,
+    input_length_error_payload,
+    validate_string_length,
+)
 from prepper_cli import (
     Conversation,
     get_chat_reply,
@@ -31,6 +36,15 @@ from prepper_cli.interview_prompts import (
 chat_bp = Blueprint("chat", __name__)
 
 _FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
+_CHAT_TEXT_LIMITS = {
+    "message": 8_000,
+    "current_question": 8_000,
+    "conversation_history.content": 8_000,
+    "system_prompt_name": 100,
+    "language": 32,
+    "difficulty": 32,
+    "interview_id": 128,
+}
 _INTERVIEW_SESSIONS: dict[str, dict[str, Any]] = {}
 
 
@@ -178,6 +192,11 @@ def presentation_candidate_answer():
     if not current_question:
         return jsonify({"error": "current_question is required"}), 400
 
+    try:
+        _validate_text_length(raw_current_question, "current_question")
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
+
     if system_prompt_name is not None and not isinstance(system_prompt_name, str):
         return jsonify({"error": "system_prompt_name must be a string"}), 400
 
@@ -186,6 +205,17 @@ def presentation_candidate_answer():
 
     if difficulty is not None and not isinstance(difficulty, str):
         return jsonify({"error": "difficulty must be a string"}), 400
+
+    try:
+        for field_name, value in {
+            "system_prompt_name": system_prompt_name,
+            "language": language,
+            "difficulty": difficulty,
+        }.items():
+            if isinstance(value, str):
+                _validate_text_length(value, field_name)
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
 
     try:
         descriptor = resolve_prompt_descriptor(system_prompt_name)
@@ -239,7 +269,10 @@ def chat():
     data = request.get_json(silent=True) or {}
     debug_mode = debug_enabled()
 
-    message = data.get("message", "").strip()
+    raw_message = data.get("message", "")
+    if not isinstance(raw_message, str):
+        return jsonify({"error": "message must be a string"}), 400
+    message = raw_message.strip()
     conversation_history = data.get("conversation_history")
     system_prompt_name = data.get("system_prompt_name")
     language = data.get("language")
@@ -261,6 +294,20 @@ def chat():
 
     if not message:
         return jsonify({"error": "message is required"}), 400
+
+    try:
+        _validate_text_length(raw_message, "message")
+        for field_name, value in {
+            "system_prompt_name": system_prompt_name,
+            "language": language,
+            "difficulty": difficulty,
+            "interview_id": interview_id,
+        }.items():
+            if isinstance(value, str):
+                _validate_text_length(value, field_name)
+        _validate_conversation_history_lengths(conversation_history)
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
 
     conversation = None
     if conversation_history is not None:
@@ -471,6 +518,17 @@ def chat_start():
         return jsonify({"error": "difficulty must be a string"}), 400
 
     try:
+        for field_name, value in {
+            "system_prompt_name": system_prompt_name,
+            "language": language,
+            "difficulty": difficulty,
+        }.items():
+            if isinstance(value, str):
+                _validate_text_length(value, field_name)
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
+
+    try:
         descriptor = resolve_prompt_descriptor(system_prompt_name)
     except ValueError as exc:
         if system_prompt_name is not None:
@@ -588,3 +646,24 @@ def chat_start():
         return jsonify(response_payload)
 
     return jsonify({"reply": parsed["reply"]})
+
+
+def _validate_text_length(value: str, field_name: str) -> None:
+    max_length = _CHAT_TEXT_LIMITS.get(field_name)
+    if max_length is not None:
+        validate_string_length(value, field=field_name, max_length=max_length)
+
+
+def _validate_conversation_history_lengths(conversation_history: Any) -> None:
+    if not isinstance(conversation_history, list):
+        return
+    for index, item in enumerate(conversation_history):
+        if not isinstance(item, dict):
+            continue
+        content = item.get("content")
+        if isinstance(content, str):
+            validate_string_length(
+                content,
+                field=f"conversation_history[{index}].content",
+                max_length=_CHAT_TEXT_LIMITS["conversation_history.content"],
+            )

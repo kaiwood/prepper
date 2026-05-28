@@ -28,6 +28,7 @@ type MessageFormProps = {
   sendText: string;
   thinkingText: string;
   injectionWarningText?: string | null;
+  maxLength?: number;
 };
 
 export default function MessageForm({
@@ -56,6 +57,7 @@ export default function MessageForm({
   sendText,
   thinkingText,
   injectionWarningText = null,
+  maxLength,
 }: MessageFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -101,6 +103,7 @@ export default function MessageForm({
         placeholder={hasStarted ? placeholderStarted : placeholderNotStarted}
         value={message}
         disabled={!hasStarted || loading || disableMessaging}
+        maxLength={maxLength}
         onChange={(e) => onMessageChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {

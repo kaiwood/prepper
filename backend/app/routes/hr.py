@@ -13,6 +13,11 @@ from flask_cors import cross_origin
 
 from app import limiter
 from app.helpers.utils import resolve_difficulty, resolve_model_settings, resolve_roundtrip_limit
+from app.helpers.validation import (
+    InputLengthError,
+    input_length_error_payload,
+    validate_string_length,
+)
 from prepper_cli import (
     Conversation,
     get_interview_opener,
@@ -52,6 +57,20 @@ _HR_CONTEXTS: dict[str, HrContext] = {}
 _HR_INTERVIEW_SESSIONS: dict[str, dict[str, Any]] = {}
 _HR_INTERVIEW_STYLE = "hr_candidate_fit"
 _HR_FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
+_HR_TEXT_LIMITS = {
+    "company_text": 40_000,
+    "company_url": 2_048,
+    "role_description": 40_000,
+    "resume_text": 40_000,
+    "profile_text": 40_000,
+    "message": 8_000,
+    "context_id": 128,
+    "interview_id": 128,
+    "mode": 32,
+    "model": 200,
+    "fixture_id": 128,
+    "difficulty": 32,
+}
 _HR_TOOL_EVENT_LOG_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     "logs",
@@ -103,6 +122,8 @@ def build_hr_context():
             source_uris=source_uris,
             tool_event_recorder=tool_event_recorder,
         )
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
     except HrContextValidationError as exc:
         return jsonify({"error": str(exc)}), 400
     except ValueError as exc:
@@ -164,9 +185,12 @@ def start_hr_interview():
         question_limit = resolve_roundtrip_limit(
             data.get("max_question_roundtrips"), descriptor
         )
-        difficulty = resolve_difficulty(data.get("difficulty"), descriptor)
+        difficulty = resolve_difficulty(_optional_string(data, "difficulty"), descriptor)
+        model = _optional_string(data, "model")
         model_settings = resolve_model_settings(data, descriptor)
         pass_threshold = resolve_pass_threshold(descriptor, difficulty)
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -177,7 +201,7 @@ def start_hr_interview():
             query="opening HR candidate fit interview",
             mode=mode,
             recorder=tool_event_recorder,
-            model=_optional_string(data, "model"),
+            model=model,
         )
         tool_call_events = tool_event_recorder.to_public_dicts()
     except ValueError as exc:
@@ -277,6 +301,8 @@ def continue_hr_interview():
         interview_id = _required_string(data, "interview_id")
         message = _required_string(data, "message")
         context = _require_stored_context(context_id)
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -409,6 +435,8 @@ def hr_assistant():
             model=_optional_string(data, "model"),
             tool_event_recorder=tool_event_recorder,
         )
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
     except ValueError as exc:
         if _is_public_validation_error(str(exc)):
             return jsonify({"error": str(exc)}), 400
@@ -815,6 +843,9 @@ def _optional_string(data: dict[str, Any], field_name: str) -> str | None:
     value = data[field_name]
     if not isinstance(value, str):
         raise ValueError(f"{field_name} must be a string")
+    max_length = _HR_TEXT_LIMITS.get(field_name)
+    if max_length is not None:
+        validate_string_length(value, field=field_name, max_length=max_length)
     return value.strip()
 
 

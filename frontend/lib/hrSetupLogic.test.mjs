@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { INPUT_LIMITS } from "./inputLimits.mjs";
 import {
   buildHrContextPayload,
   hasHrSetupValidationErrors,
@@ -31,6 +32,24 @@ test("validates required HR setup fields", () => {
   assert.equal(errors.company, "Enter a company URL or paste company text.");
   assert.equal(errors.roleDescription, "Role description is required.");
   assert.equal(errors.resumeText, "Resume text is required.");
+});
+
+test("validates HR setup max lengths", () => {
+  const errors = validateHrSetupForm({
+    ...validForm,
+    companyUrl: "",
+    companyText: "x".repeat(INPUT_LIMITS.companyText + 1),
+    profileText: "x".repeat(INPUT_LIMITS.profileText + 1),
+  });
+
+  assert.equal(
+    errors.company,
+    `Company text must be ${INPUT_LIMITS.companyText} characters or fewer.`,
+  );
+  assert.equal(
+    errors.profileText,
+    `Profile text must be ${INPUT_LIMITS.profileText} characters or fewer.`,
+  );
 });
 
 test("rejects company URL and text together", () => {

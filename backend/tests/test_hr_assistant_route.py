@@ -19,6 +19,24 @@ def _build_context(client):
     return response.get_json()["context_id"]
 
 
+def test_hr_context_rejects_oversized_pasted_text():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/hr/context",
+        json=_context_payload(resume_text="x" * 40001),
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "input_too_long",
+        "field": "resume_text",
+        "max_length": 40000,
+        "actual_length": 40001,
+    }
+
+
 def test_hr_assistant_guides_setup_without_context_id():
     app = create_app()
     client = app.test_client()
