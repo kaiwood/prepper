@@ -29,9 +29,9 @@ export default function HrSetupPanel({
       </div>
 
       <form className="mt-6 flex flex-col gap-5" onSubmit={state.handleBuildHrContext}>
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50/70 p-4 shadow-sm">
           <div
-            className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1"
+            className="inline-flex w-fit rounded-lg border border-gray-200 bg-white p-1"
             role="tablist"
             aria-label={ui.hrCompanyLabel}
           >
@@ -126,9 +126,9 @@ export default function HrSetupPanel({
           )}
         </section>
 
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50/70 p-4 shadow-sm">
           <div
-            className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1"
+            className="inline-flex w-fit rounded-lg border border-gray-200 bg-white p-1"
             role="tablist"
             aria-label={ui.hrRoleLabel}
           >
@@ -223,9 +223,9 @@ export default function HrSetupPanel({
           )}
         </section>
 
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50/70 p-4 shadow-sm">
           <div
-            className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1"
+            className="inline-flex w-fit rounded-lg border border-gray-200 bg-white p-1"
             role="tablist"
             aria-label={ui.hrResumeTextLabel}
           >
@@ -323,9 +323,9 @@ export default function HrSetupPanel({
           )}
         </section>
 
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50/70 p-4 shadow-sm">
           <div
-            className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1"
+            className="inline-flex w-fit rounded-lg border border-gray-200 bg-white p-1"
             role="tablist"
             aria-label={ui.hrProfileTextLabel}
           >
