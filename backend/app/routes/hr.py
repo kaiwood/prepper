@@ -18,6 +18,12 @@ from app.helpers.validation import (
     input_length_error_payload,
     validate_string_length,
 )
+from app.helpers.hr_validation import (
+    HR_TEXT_LIMITS,
+    optional_string,
+    optional_string_mapping,
+    required_string,
+)
 from app.helpers.state_cleanup import (
     cleanup_state_metadata,
     cleanup_state_store,
@@ -82,25 +88,6 @@ _HR_CONTEXT_METADATA: dict[str, dict[str, Any]] = {}
 _HR_INTERVIEW_SESSIONS: dict[str, dict[str, Any]] = {}
 _HR_INTERVIEW_STYLE = "hr_candidate_fit"
 _HR_FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
-_HR_TEXT_LIMITS = {
-    "company_text": 40_000,
-    "company_url": 2_048,
-    "role_description": 40_000,
-    "role_url": 2_048,
-    "resume_text": 40_000,
-    "profile_text": 40_000,
-    "profile_url": 2_048,
-    "oauth_token": 8_000,
-    "message": 8_000,
-    "context_id": 128,
-    "interview_id": 128,
-    "mode": 32,
-    "language": 32,
-    "model": 200,
-    "fixture_id": 128,
-    "difficulty": 32,
-    "filename": 255,
-}
 _RESUME_PDF_MULTIPART_OVERHEAD_BYTES = 64 * 1024
 _HR_TOOL_EVENT_LOG_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
@@ -232,18 +219,18 @@ def build_hr_context():
         return jsonify({"error": "JSON object body is required"}), 400
 
     try:
-        mode = _optional_string(data, "mode") or "mock"
-        company_text = _optional_string(data, "company_text")
-        company_url = _optional_string(data, "company_url")
-        role_description = _optional_string(data, "role_description")
-        role_url = _optional_string(data, "role_url")
-        resume_text = _optional_string(data, "resume_text") or ""
-        profile_text = _optional_string(data, "profile_text") or ""
+        mode = optional_string(data, "mode") or "mock"
+        company_text = optional_string(data, "company_text")
+        company_url = optional_string(data, "company_url")
+        role_description = optional_string(data, "role_description")
+        role_url = optional_string(data, "role_url")
+        resume_text = optional_string(data, "resume_text") or ""
+        profile_text = optional_string(data, "profile_text") or ""
         if not resume_text and not profile_text:
             raise ValueError("resume_text or profile_text is required")
-        model = _optional_string(data, "model")
-        fixture_id = _optional_string(data, "fixture_id")
-        source_uris = _optional_string_mapping(data, "source_uris")
+        model = optional_string(data, "model")
+        fixture_id = optional_string(data, "fixture_id")
+        source_uris = optional_string_mapping(data, "source_uris")
         include_debug_context = _include_debug_context(data)
         tool_event_recorder = _build_tool_event_recorder("hr_context")
 
@@ -366,7 +353,7 @@ def fetch_company_website():
         return jsonify({"error": "JSON body is required"}), 400
 
     try:
-        company_url = _required_string(data, "company_url")
+        company_url = required_string(data, "company_url")
         result = run_fetch_company_website_tool(mode="llm", url=company_url)
     except InputLengthError as exc:
         return jsonify(input_length_error_payload(exc)), 400
@@ -413,8 +400,8 @@ def fetch_role_description():
         return jsonify({"error": "JSON body is required"}), 400
 
     try:
-        role_url = _required_string(data, "role_url")
-        model = _optional_string(data, "model")
+        role_url = required_string(data, "role_url")
+        model = optional_string(data, "model")
         result = run_fetch_role_description_tool(mode="llm", url=role_url, model=model)
     except InputLengthError as exc:
         return jsonify(input_length_error_payload(exc)), 400
@@ -460,21 +447,21 @@ def fetch_social_profile():
         return jsonify({"error": "JSON body is required"}), 400
 
     try:
-        profile_url = _required_string(data, "profile_url")
-        oauth_token = _required_string(data, "oauth_token")
-        model = _optional_string(data, "model")
+        profile_url = required_string(data, "profile_url")
+        oauth_token = required_string(data, "oauth_token")
+        model = optional_string(data, "model")
         validate_string_length(
             profile_url,
             field="profile_url",
-            max_length=_HR_TEXT_LIMITS["profile_url"],
+            max_length=HR_TEXT_LIMITS["profile_url"],
         )
         validate_string_length(
             oauth_token,
             field="oauth_token",
-            max_length=_HR_TEXT_LIMITS["oauth_token"],
+            max_length=HR_TEXT_LIMITS["oauth_token"],
         )
         if model is not None:
-            validate_string_length(model, field="model", max_length=_HR_TEXT_LIMITS["model"])
+            validate_string_length(model, field="model", max_length=HR_TEXT_LIMITS["model"])
         result = run_fetch_social_profile_tool(
             profile_url=profile_url,
             oauth_token=oauth_token,
@@ -532,7 +519,7 @@ def extract_resume_profile():
             validate_string_length(
                 filename,
                 field="filename",
-                max_length=_HR_TEXT_LIMITS["filename"],
+                max_length=HR_TEXT_LIMITS["filename"],
             )
         except InputLengthError as exc:
             return jsonify(input_length_error_payload(exc)), 400
@@ -547,7 +534,7 @@ def extract_resume_profile():
     try:
         model = request.form.get("model") or None
         if model is not None:
-            validate_string_length(model, field="model", max_length=_HR_TEXT_LIMITS["model"])
+            validate_string_length(model, field="model", max_length=HR_TEXT_LIMITS["model"])
         result = run_extract_resume_pdf_profile_tool(
             pdf_bytes=pdf_bytes,
             filename=filename or None,
@@ -586,18 +573,18 @@ def start_hr_interview():
         return jsonify({"error": "JSON object body is required"}), 400
 
     try:
-        context_id = _required_string(data, "context_id")
+        context_id = required_string(data, "context_id")
         context = _require_stored_context(context_id)
         include_debug_context = _include_debug_context(data)
-        mode = _optional_string(data, "mode") or "llm"
-        language = _optional_string(data, "language")
+        mode = optional_string(data, "mode") or "llm"
+        language = optional_string(data, "language")
         _validate_hr_mode(mode)
         descriptor = load_prompt_descriptor(_HR_INTERVIEW_STYLE)
         question_limit = resolve_roundtrip_limit(
             data.get("max_question_roundtrips"), descriptor
         )
-        difficulty = resolve_difficulty(_optional_string(data, "difficulty"), descriptor)
-        model = _optional_string(data, "model")
+        difficulty = resolve_difficulty(optional_string(data, "difficulty"), descriptor)
+        model = optional_string(data, "model")
         model_settings = resolve_model_settings(data, descriptor)
         pass_threshold = resolve_pass_threshold(descriptor, difficulty)
     except InputLengthError as exc:
@@ -644,7 +631,7 @@ def start_hr_interview():
                 presence_penalty=model_settings["presence_penalty"],
                 max_tokens=model_settings["max_tokens"],
                 language=language,
-                model=_optional_string(data, "model"),
+                model=optional_string(data, "model"),
             )
             parsed = parse_reply_metadata(raw_reply)
             metadata_warning = not parsed["metadata_valid"]
@@ -674,7 +661,7 @@ def start_hr_interview():
         "question_count": question_count,
         "pass_threshold": pass_threshold,
         "model_settings": model_settings,
-        "model": _optional_string(data, "model"),
+        "model": optional_string(data, "model"),
         "interview_complete": interview_complete,
         "closing_reply": parsed["reply"] if interview_complete else _HR_FALLBACK_CLOSING_REPLY,
         "final_result": None,
@@ -713,9 +700,9 @@ def continue_hr_interview():
         return jsonify({"error": "JSON object body is required"}), 400
 
     try:
-        context_id = _required_string(data, "context_id")
-        interview_id = _required_string(data, "interview_id")
-        message = _required_string(data, "message")
+        context_id = required_string(data, "context_id")
+        interview_id = required_string(data, "interview_id")
+        message = required_string(data, "message")
         context = _require_stored_context(context_id)
         include_debug_context = _include_debug_context(data)
     except InputLengthError as exc:
@@ -831,18 +818,18 @@ def hr_assistant():
         return jsonify({"error": "JSON object body is required"}), 400
 
     try:
-        message = _required_string(data, "message")
-        mode = _optional_string(data, "mode") or "mock"
-        context_id = _optional_string(data, "context_id")
+        message = required_string(data, "message")
+        mode = optional_string(data, "mode") or "mock"
+        context_id = optional_string(data, "context_id")
         include_debug_context = _include_debug_context(data)
         context = _require_stored_context(context_id) if context_id else None
         setup_fields = {
-            "company_text": _optional_string(data, "company_text"),
-            "company_url": _optional_string(data, "company_url"),
-            "role_description": _optional_string(data, "role_description"),
-            "role_url": _optional_string(data, "role_url"),
-            "resume_text": _optional_string(data, "resume_text"),
-            "profile_text": _optional_string(data, "profile_text"),
+            "company_text": optional_string(data, "company_text"),
+            "company_url": optional_string(data, "company_url"),
+            "role_description": optional_string(data, "role_description"),
+            "role_url": optional_string(data, "role_url"),
+            "resume_text": optional_string(data, "resume_text"),
+            "profile_text": optional_string(data, "profile_text"),
         }
         _validate_hr_mode(mode)
         tool_event_recorder = _build_tool_event_recorder("hr_assistant")
@@ -851,7 +838,7 @@ def hr_assistant():
             mode=mode,
             context=context,
             setup_fields=setup_fields,
-            model=_optional_string(data, "model"),
+            model=optional_string(data, "model"),
             tool_event_recorder=tool_event_recorder,
         )
     except InputLengthError as exc:
@@ -1515,35 +1502,4 @@ def _public_tool_error_message(tool_name: str) -> str:
     return f"{tool_name} failed; review server logs or rerun the workflow locally."
 
 
-def _optional_string(data: dict[str, Any], field_name: str) -> str | None:
-    if field_name not in data or data[field_name] is None:
-        return None
-    value = data[field_name]
-    if not isinstance(value, str):
-        raise ValueError(f"{field_name} must be a string")
-    max_length = _HR_TEXT_LIMITS.get(field_name)
-    if max_length is not None:
-        validate_string_length(value, field=field_name, max_length=max_length)
-    return value.strip()
 
-
-def _required_string(data: dict[str, Any], field_name: str) -> str:
-    value = _optional_string(data, field_name)
-    if not value:
-        raise ValueError(f"{field_name} is required")
-    return value
-
-
-def _optional_string_mapping(data: dict[str, Any], field_name: str) -> dict[str, str] | None:
-    if field_name not in data or data[field_name] is None:
-        return None
-    value = data[field_name]
-    if not isinstance(value, dict):
-        raise ValueError(f"{field_name} must be an object")
-    result = {}
-    for item_key, item_value in value.items():
-        if not isinstance(item_key, str) or not isinstance(item_value, str):
-            raise ValueError(f"{field_name} must contain only string keys and values")
-        if item_value.strip():
-            result[item_key] = item_value.strip()
-    return result
