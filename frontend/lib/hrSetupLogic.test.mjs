@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { INPUT_LIMITS } from "./inputLimits.mjs";
 import {
+  EMPTY_HR_SETUP_FORM,
   buildHrContextPayload,
   buildHrSetupFormFromApi,
   hasHrResolvedCompanyText,
@@ -20,6 +21,17 @@ const validForm = {
   resumeText: "# Resume\nSQL and customer analytics.",
   profileText: "Responsible AI interests.",
 };
+
+test("empty HR setup form has no prefilled data", () => {
+  assert.deepEqual(EMPTY_HR_SETUP_FORM, {
+    companyUrl: "",
+    companyText: "",
+    roleDescription: "",
+    roleUrl: "",
+    resumeText: "",
+    profileText: "",
+  });
+});
 
 test("validates required HR setup fields", () => {
   assert.deepEqual(validateHrSetupForm(validForm), {});

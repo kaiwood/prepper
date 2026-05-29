@@ -2,6 +2,15 @@ import { INPUT_LIMITS } from "./inputLimits.mjs";
 
 export const DEFAULT_HR_CONTEXT_MODE = "llm";
 
+export const EMPTY_HR_SETUP_FORM = Object.freeze({
+  companyUrl: "",
+  companyText: "",
+  roleDescription: "",
+  roleUrl: "",
+  resumeText: "",
+  profileText: "",
+});
+
 const DEFAULT_VALIDATION_MESSAGES = {
   companyEither: "Enter either a company URL or company text, not both.",
   companyRequired: "Enter a company URL or paste company text.",

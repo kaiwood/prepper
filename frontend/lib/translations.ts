@@ -204,6 +204,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrAdminSubtitle:
       "Build a candidate evaluation context from company, role, resume, and optional profile information.",
     hrCompanyUrlLabel: "Company URL",
+    hrCompanyUrlPlaceholder: "Enter a public company URL.",
     hrCompanyUrlHint: "Use either a public company URL or paste company text below.",
     hrFetchCompany: "Fetch company",
     hrFetchingCompany: "Fetching...",
@@ -214,6 +215,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrRoleDescriptionPlaceholder:
       "Paste responsibilities, required skills, and success signals.",
     hrRoleUrlLabel: "Job-ad URL",
+    hrRoleUrlPlaceholder: "Enter a public job-ad URL.",
     hrRoleUrlHint: "Use either a public job-ad URL or paste the role description.",
     hrFetchRole: "Fetch role",
     hrFetchingRole: "Fetching...",
@@ -224,7 +226,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrExtractResumePdf: "Extract PDF text",
     hrExtractingResumePdf: "Extracting...",
     hrProfileUrlLabel: "LinkedIn/Xing URL",
-    hrProfileUrlPlaceholder: "https://www.linkedin.com/in/name or https://www.xing.com/profile/name",
+    hrProfileUrlPlaceholder: "Enter a public LinkedIn or Xing profile URL.",
     hrProfileTokenLabel: "OAuth token",
     hrProfileTokenPlaceholder: "Paste a short-lived provider OAuth token.",
     hrFetchProfile: "Fetch profile",
@@ -348,6 +350,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrAdminSubtitle:
       "Erstelle einen Kontext zur Kandidatenbewertung aus Unternehmen, Rolle, Lebenslauf und optionalen Profilinformationen.",
     hrCompanyUrlLabel: "Unternehmens-URL",
+    hrCompanyUrlPlaceholder: "Öffentliche Unternehmens-URL eingeben.",
     hrCompanyUrlHint: "Nutze entweder eine öffentliche Unternehmens-URL oder füge unten Unternehmenstext ein.",
     hrFetchCompany: "Unternehmen abrufen",
     hrFetchingCompany: "Wird abgerufen...",
@@ -358,6 +361,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrRoleDescriptionPlaceholder:
       "Füge Aufgaben, erforderliche Fähigkeiten und Erfolgssignale ein.",
     hrRoleUrlLabel: "Stellenanzeigen-URL",
+    hrRoleUrlPlaceholder: "Öffentliche Stellenanzeigen-URL eingeben.",
     hrRoleUrlHint: "Nutze entweder eine öffentliche Stellenanzeigen-URL oder füge die Rollenbeschreibung ein.",
     hrFetchRole: "Rolle abrufen",
     hrFetchingRole: "Wird abgerufen...",
@@ -368,7 +372,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrExtractResumePdf: "PDF-Text extrahieren",
     hrExtractingResumePdf: "Extrahiere...",
     hrProfileUrlLabel: "LinkedIn/Xing-URL",
-    hrProfileUrlPlaceholder: "https://www.linkedin.com/in/name oder https://www.xing.com/profile/name",
+    hrProfileUrlPlaceholder: "Öffentliche LinkedIn- oder Xing-Profil-URL eingeben.",
     hrProfileTokenLabel: "OAuth-Token",
     hrProfileTokenPlaceholder: "Kurzlebigen OAuth-Token des Anbieters einfügen.",
     hrFetchProfile: "Profil abrufen",
@@ -490,6 +494,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrAdminSubtitle:
       "Créez un contexte d'évaluation du candidat à partir de l'entreprise, du rôle, du CV et d'informations de profil optionnelles.",
     hrCompanyUrlLabel: "URL de l'entreprise",
+    hrCompanyUrlPlaceholder: "Saisissez une URL publique de l'entreprise.",
     hrCompanyUrlHint: "Utilisez soit une URL publique de l'entreprise, soit le texte de l'entreprise ci-dessous.",
     hrFetchCompany: "Récupérer l'entreprise",
     hrFetchingCompany: "Récupération...",
@@ -500,6 +505,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrRoleDescriptionPlaceholder:
       "Collez les responsabilités, les compétences requises et les signaux de réussite.",
     hrRoleUrlLabel: "URL de l'offre",
+    hrRoleUrlPlaceholder: "Saisissez une URL publique d'offre d'emploi.",
     hrRoleUrlHint: "Utilisez soit une URL publique d'offre d'emploi, soit la description du rôle.",
     hrFetchRole: "Récupérer le rôle",
     hrFetchingRole: "Récupération...",
@@ -510,7 +516,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrExtractResumePdf: "Extraire le texte PDF",
     hrExtractingResumePdf: "Extraction...",
     hrProfileUrlLabel: "URL LinkedIn/Xing",
-    hrProfileUrlPlaceholder: "https://www.linkedin.com/in/nom ou https://www.xing.com/profile/nom",
+    hrProfileUrlPlaceholder: "Saisissez une URL publique de profil LinkedIn ou Xing.",
     hrProfileTokenLabel: "Jeton OAuth",
     hrProfileTokenPlaceholder: "Collez un jeton OAuth fournisseur de courte durée.",
     hrFetchProfile: "Récupérer le profil",

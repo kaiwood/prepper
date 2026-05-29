@@ -4,6 +4,7 @@ import type { LanguageCode } from "../lib/translations";
 import { INPUT_LIMITS, formatApiError } from "../lib/inputLimits.mjs";
 import { buildApiUrl } from "../lib/appLogic.mjs";
 import {
+  EMPTY_HR_SETUP_FORM,
   buildHrContextPayload,
   buildHrSetupFormFromApi,
   hasHrResolvedCompanyText,
@@ -54,12 +55,7 @@ export function useHrWorkflow({
   enabled = true,
 }: UseHrWorkflowOptions) {
   const [hrSetupForm, setHrSetupForm] = useState<HrSetupFormState>({
-    companyUrl: "",
-    companyText: "",
-    roleDescription: "",
-    roleUrl: "",
-    resumeText: "",
-    profileText: "",
+    ...EMPTY_HR_SETUP_FORM,
   });
   const [hrCompanyInputMode, setHrCompanyInputMode] =
     useState<HrCompanyInputMode>("companyText");
@@ -455,14 +451,7 @@ export function useHrWorkflow({
   }
 
   function clearLocalHrData() {
-    setHrSetupForm({
-      companyUrl: "",
-      companyText: "",
-      roleDescription: "",
-      roleUrl: "",
-      resumeText: "",
-      profileText: "",
-    });
+    setHrSetupForm({ ...EMPTY_HR_SETUP_FORM });
     setHrCompanyInputMode("companyText");
     setHrRoleInputMode("roleDescription");
     setHrResumeInputMode("resumeText");
