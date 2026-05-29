@@ -75,6 +75,10 @@ type TranslationStrings = {
   hrRoleUrlHint: string;
   hrResumeTextLabel: string;
   hrResumeTextPlaceholder: string;
+  hrResumePdfLabel: string;
+  hrResumePdfHint: string;
+  hrExtractResumePdf: string;
+  hrExtractingResumePdf: string;
   hrProfileTextLabel: string;
   hrProfileTextPlaceholder: string;
   hrBuildContext: string;
@@ -118,6 +122,7 @@ type TranslationStrings = {
   hrValidationRoleRequired: string;
   hrValidationRoleEither: string;
   hrValidationResumeRequired: string;
+  hrValidationResumePdfRequired: string;
   hrValidationCompanyUrlLabel: string;
   hrValidationCompanyTextLabel: string;
   hrValidationRoleDescriptionLabel: string;
@@ -202,6 +207,10 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrRoleUrlHint: "Use either a public job-ad URL or paste the role description.",
     hrResumeTextLabel: "Resume text",
     hrResumeTextPlaceholder: "Paste candidate resume content.",
+    hrResumePdfLabel: "Resume PDF",
+    hrResumePdfHint: "Upload a text-based PDF to extract candidate profile data. Files are processed in memory only.",
+    hrExtractResumePdf: "Extract PDF profile",
+    hrExtractingResumePdf: "Extracting...",
     hrProfileTextLabel: "Profile text optional",
     hrProfileTextPlaceholder: "Paste public profile or LinkedIn summary notes.",
     hrBuildContext: "Build context",
@@ -246,6 +255,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrValidationRoleRequired: "Enter either a job-ad URL or role description.",
     hrValidationRoleEither: "Enter either a job-ad URL or role description, not both.",
     hrValidationResumeRequired: "Resume text is required.",
+    hrValidationResumePdfRequired: "Extract a resume PDF profile before building context.",
     hrValidationCompanyUrlLabel: "Company URL",
     hrValidationCompanyTextLabel: "Company text",
     hrValidationRoleDescriptionLabel: "Role description",
@@ -331,6 +341,10 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrRoleUrlHint: "Nutze entweder eine öffentliche Stellenanzeigen-URL oder füge die Rollenbeschreibung ein.",
     hrResumeTextLabel: "Lebenslauftext",
     hrResumeTextPlaceholder: "Füge den Lebenslauf der Kandidatin oder des Kandidaten ein.",
+    hrResumePdfLabel: "Lebenslauf-PDF",
+    hrResumePdfHint: "Lade eine textbasierte PDF hoch, um Profildaten zu extrahieren. Dateien werden nur im Arbeitsspeicher verarbeitet.",
+    hrExtractResumePdf: "PDF-Profil extrahieren",
+    hrExtractingResumePdf: "Extrahiere...",
     hrProfileTextLabel: "Profiltext optional",
     hrProfileTextPlaceholder: "Füge öffentliches Profil oder LinkedIn-Zusammenfassung ein.",
     hrBuildContext: "Kontext erstellen",
@@ -375,6 +389,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrValidationRoleRequired: "Gib entweder eine Stellenanzeigen-URL oder eine Rollenbeschreibung ein.",
     hrValidationRoleEither: "Gib entweder eine Stellenanzeigen-URL oder eine Rollenbeschreibung ein, nicht beides.",
     hrValidationResumeRequired: "Lebenslauftext ist erforderlich.",
+    hrValidationResumePdfRequired: "Extrahiere vor dem Kontextaufbau ein Lebenslauf-PDF-Profil.",
     hrValidationCompanyUrlLabel: "Unternehmens-URL",
     hrValidationCompanyTextLabel: "Unternehmenstext",
     hrValidationRoleDescriptionLabel: "Rollenbeschreibung",
@@ -458,6 +473,10 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrRoleUrlHint: "Utilisez soit une URL publique d'offre d'emploi, soit la description du rôle.",
     hrResumeTextLabel: "Texte du CV",
     hrResumeTextPlaceholder: "Collez le contenu du CV du candidat.",
+    hrResumePdfLabel: "PDF du CV",
+    hrResumePdfHint: "Importez un PDF textuel pour extraire les données de profil candidat. Les fichiers sont traités uniquement en mémoire.",
+    hrExtractResumePdf: "Extraire le profil PDF",
+    hrExtractingResumePdf: "Extraction...",
     hrProfileTextLabel: "Texte de profil optionnel",
     hrProfileTextPlaceholder: "Collez un profil public ou des notes de résumé LinkedIn.",
     hrBuildContext: "Créer le contexte",
@@ -502,6 +521,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrValidationRoleRequired: "Saisissez soit une URL d'offre d'emploi, soit une description du rôle.",
     hrValidationRoleEither: "Saisissez soit une URL d'offre d'emploi, soit une description du rôle, pas les deux.",
     hrValidationResumeRequired: "Le texte du CV est obligatoire.",
+    hrValidationResumePdfRequired: "Extrayez un profil depuis le PDF du CV avant de créer le contexte.",
     hrValidationCompanyUrlLabel: "URL de l'entreprise",
     hrValidationCompanyTextLabel: "Texte de l'entreprise",
     hrValidationRoleDescriptionLabel: "Description du rôle",

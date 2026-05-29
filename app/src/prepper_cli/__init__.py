@@ -66,6 +66,11 @@ from .hr_interview_simulation import (
     simulate_hr_interview,
 )
 from .hr_prompt_preview import render_hr_prompt_preview
+from .resume_pdf import (
+    DEFAULT_RESUME_PDF_MAX_BYTES,
+    extract_resume_text_from_pdf_bytes,
+    run_extract_resume_pdf_profile_tool,
+)
 from .hr_retrieval import (
     DEFAULT_MOCK_RETRIEVAL_LIMIT,
     HrRetrievalMatch,
@@ -192,6 +197,9 @@ __all__ = [
     "HrInterviewSimulationError",
     "simulate_hr_interview",
     "render_hr_prompt_preview",
+    "DEFAULT_RESUME_PDF_MAX_BYTES",
+    "extract_resume_text_from_pdf_bytes",
+    "run_extract_resume_pdf_profile_tool",
     "DEFAULT_MOCK_RETRIEVAL_LIMIT",
     "HrRetrievalMatch",
     "HrRetrievalResult",

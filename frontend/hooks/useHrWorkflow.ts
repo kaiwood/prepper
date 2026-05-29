@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import type { ConversationMessage } from "../components/Conversation";
 import type { LanguageCode } from "../lib/translations";
 import { formatApiError } from "../lib/inputLimits.mjs";
@@ -15,6 +15,7 @@ import {
 } from "../lib/hrInterviewLogic.mjs";
 import type {
   CandidateAnswerResponse,
+  HrCandidateProfile,
   HrCompanyInputMode,
   HrContextResponse,
   HrDemoSetupResponse,
@@ -22,6 +23,8 @@ import type {
   HrInterviewSource,
   HrLatestSetupResponse,
   HrInterviewStatus,
+  HrResumeExtractResponse,
+  HrResumeInputMode,
   HrRoleInputMode,
   HrSetupFormState,
   HrSetupValidationErrors,
@@ -57,9 +60,12 @@ export function useHrWorkflow({
     useState<HrCompanyInputMode>("companyText");
   const [hrRoleInputMode, setHrRoleInputMode] =
     useState<HrRoleInputMode>("roleDescription");
+  const [hrResumeInputMode, setHrResumeInputMode] =
+    useState<HrResumeInputMode>("resumeText");
   const [hrSetupErrors, setHrSetupErrors] =
     useState<HrSetupValidationErrors>({});
   const [hrDemoSetupLoading, setHrDemoSetupLoading] = useState(false);
+  const [hrResumeExtractLoading, setHrResumeExtractLoading] = useState(false);
   const [hrContextResult, setHrContextResult] =
     useState<HrContextResponse | null>(null);
   const [hrContextId, setHrContextId] = useState<string | null>(null);
@@ -95,6 +101,7 @@ export function useHrWorkflow({
     roleRequired: ui.hrValidationRoleRequired,
     roleEither: ui.hrValidationRoleEither,
     resumeRequired: ui.hrValidationResumeRequired,
+    resumePdfRequired: ui.hrValidationResumePdfRequired,
     companyUrlLabel: ui.hrValidationCompanyUrlLabel,
     companyTextLabel: ui.hrValidationCompanyTextLabel,
     roleDescriptionLabel: ui.hrValidationRoleDescriptionLabel,
@@ -166,6 +173,7 @@ export function useHrWorkflow({
       return validateHrSetupForm(hrSetupForm, hrSetupValidationMessages, {
         companyInputMode: mode,
         roleInputMode: hrRoleInputMode,
+        resumeInputMode: hrResumeInputMode,
       });
     });
   };
@@ -179,6 +187,21 @@ export function useHrWorkflow({
       return validateHrSetupForm(hrSetupForm, hrSetupValidationMessages, {
         companyInputMode: hrCompanyInputMode,
         roleInputMode: mode,
+        resumeInputMode: hrResumeInputMode,
+      });
+    });
+  };
+
+  const updateHrResumeInputMode = (mode: HrResumeInputMode) => {
+    setHrResumeInputMode(mode);
+    setHrSetupErrors((prev) => {
+      if (Object.keys(prev).length === 0) {
+        return prev;
+      }
+      return validateHrSetupForm(hrSetupForm, hrSetupValidationMessages, {
+        companyInputMode: hrCompanyInputMode,
+        roleInputMode: hrRoleInputMode,
+        resumeInputMode: mode,
       });
     });
   };
@@ -198,10 +221,53 @@ export function useHrWorkflow({
         {
           companyInputMode: hrCompanyInputMode,
           roleInputMode: hrRoleInputMode,
+          resumeInputMode: hrResumeInputMode,
         },
       );
     });
   };
+
+  async function handleExtractResumePdf(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || hrResumeExtractLoading || hrContextLoading) {
+      return;
+    }
+
+    setHrResumeExtractLoading(true);
+    setHrContextError(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(
+        buildApiUrl(apiBaseUrl, "/api/hr/resume/extract"),
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+      const data: HrResumeExtractResponse = await res.json();
+
+      if (!res.ok) {
+        setHrContextError(formatApiError(data, ui.errorFallback));
+        return;
+      }
+
+      const profile = data.tool_result?.output?.profile;
+      const profileText = formatHrCandidateProfile(profile);
+      if (!profileText) {
+        setHrContextError(ui.errorFallback);
+        return;
+      }
+      updateHrSetupField("profileText", profileText);
+    } catch {
+      setHrContextError(ui.errorBackendUnavailable);
+    } finally {
+      setHrResumeExtractLoading(false);
+    }
+  }
 
   async function handleLoadHrDemoSetup() {
     if (hrDemoSetupLoading || hrContextLoading) {
@@ -283,6 +349,7 @@ export function useHrWorkflow({
       {
         companyInputMode: hrCompanyInputMode,
         roleInputMode: hrRoleInputMode,
+        resumeInputMode: hrResumeInputMode,
       },
     ) as HrSetupValidationErrors;
     setHrSetupErrors(validationErrors);
@@ -305,6 +372,7 @@ export function useHrWorkflow({
           buildHrContextPayload(hrSetupForm, {
             companyInputMode: hrCompanyInputMode,
             roleInputMode: hrRoleInputMode,
+            resumeInputMode: hrResumeInputMode,
           }),
         ),
       });
@@ -472,6 +540,7 @@ export function useHrWorkflow({
 
   return {
     handleBuildHrContext,
+    handleExtractResumePdf,
     handleGenerateHrCandidateAnswer,
     handleLoadHrDemoSetup,
     handleStartHrInterview,
@@ -495,6 +564,8 @@ export function useHrWorkflow({
     hrInterviewToolResults,
     hrMessage,
     hrResultPassed,
+    hrResumeExtractLoading,
+    hrResumeInputMode,
     hrRoleInputMode,
     latestHrInterviewerQuestion,
     hrSetupErrors,
@@ -502,9 +573,38 @@ export function useHrWorkflow({
     resetHrInterview,
     setHrMessage,
     updateHrCompanyInputMode,
+    updateHrResumeInputMode,
     updateHrRoleInputMode,
     updateHrSetupField,
   };
+}
+
+function formatHrCandidateProfile(profile: HrCandidateProfile | undefined): string {
+  if (!profile || typeof profile !== "object") {
+    return "";
+  }
+  const sections = [
+    ["Skills", profile.skills],
+    ["Experience", profile.experience],
+    ["Seniority signals", profile.seniority_signals],
+    ["Risks", profile.risks],
+    ["Interview focus areas", profile.interview_focus_areas],
+  ] as const;
+  return sections
+    .map(([title, values]) => {
+      if (!Array.isArray(values) || values.length === 0) {
+        return "";
+      }
+      const lines = values
+        .filter(
+          (value): value is string =>
+            typeof value === "string" && value.trim().length > 0,
+        )
+        .map((value) => `- ${value.trim()}`);
+      return lines.length > 0 ? `## ${title}\n${lines.join("\n")}` : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function getCompanyInputModeFromSetup(setup: {

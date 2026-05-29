@@ -12,6 +12,7 @@ const DEFAULT_VALIDATION_MESSAGES = {
   companyTextLabel: "Company text",
   roleDescriptionLabel: "Role description",
   roleUrlLabel: "Role URL",
+  resumePdfRequired: "Extract a resume PDF profile or paste resume text.",
   resumeTextLabel: "Resume text",
   profileTextLabel: "Profile text",
   tooLong: (label, maxLength) =>
@@ -33,7 +34,9 @@ export function validateHrSetupForm(
   const roleUrl = normalizeText(form?.roleUrl);
   const activeRoleDescription = roleInputMode === "roleDescription" ? roleDescription : "";
   const activeRoleUrl = roleInputMode === "roleUrl" ? roleUrl : "";
+  const resumeInputMode = normalizeResumeInputMode(options.resumeInputMode);
   const resumeText = normalizeText(form?.resumeText);
+  const profileText = normalizeText(form?.profileText);
   const errors = {};
 
   if (companyInputMode) {
@@ -56,7 +59,11 @@ export function validateHrSetupForm(
     errors.roleDescription = messages.roleRequired;
   }
 
-  if (!resumeText) {
+  if (resumeInputMode === "resumePdf") {
+    if (!profileText) {
+      errors.resumeText = messages.resumePdfRequired ?? messages.resumeRequired;
+    }
+  } else if (!resumeText) {
     errors.resumeText = messages.resumeRequired;
   }
 
@@ -104,7 +111,7 @@ export function validateHrSetupForm(
     errors,
     "profileText",
     messages.profileTextLabel,
-    normalizeText(form?.profileText),
+    profileText,
     INPUT_LIMITS.profileText,
     messages,
   );
@@ -131,10 +138,14 @@ export function buildHrContextPayload(form, options = {}) {
   const roleInputMode = normalizeRoleInputMode(options.roleInputMode);
   const roleDescription = normalizeText(form?.roleDescription);
   const roleUrl = normalizeText(form?.roleUrl);
+  const resumeInputMode = normalizeResumeInputMode(options.resumeInputMode);
+  const resumeText = normalizeText(form?.resumeText);
   const payload = {
     mode: options.mode ?? DEFAULT_HR_CONTEXT_MODE,
-    resume_text: normalizeText(form?.resumeText),
   };
+  if (!resumeInputMode || resumeInputMode === "resumeText" || resumeText) {
+    payload.resume_text = resumeText;
+  }
   if ((!roleInputMode || roleInputMode === "roleUrl") && roleUrl) {
     payload.role_url = roleUrl;
   }
@@ -175,6 +186,10 @@ function normalizeCompanyInputMode(value) {
 
 function normalizeRoleInputMode(value) {
   return value === "roleDescription" || value === "roleUrl" ? value : null;
+}
+
+function normalizeResumeInputMode(value) {
+  return value === "resumeText" || value === "resumePdf" ? value : null;
 }
 
 function normalizeText(value) {

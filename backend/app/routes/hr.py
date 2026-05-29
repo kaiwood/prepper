@@ -62,6 +62,10 @@ from prepper_cli.hr_tools import (
     hr_tool_result_to_dict,
     run_retrieve_company_context_tool,
 )
+from prepper_cli.resume_pdf import (
+    DEFAULT_RESUME_PDF_MAX_BYTES,
+    run_extract_resume_pdf_profile_tool,
+)
 from prepper_cli.interview_prompts import build_interview_opener_system_prompt
 
 hr_bp = Blueprint("hr", __name__)
@@ -86,7 +90,9 @@ _HR_TEXT_LIMITS = {
     "model": 200,
     "fixture_id": 128,
     "difficulty": 32,
+    "filename": 255,
 }
+_RESUME_PDF_MULTIPART_OVERHEAD_BYTES = 64 * 1024
 _HR_TOOL_EVENT_LOG_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     "logs",
@@ -181,8 +187,10 @@ def build_hr_context():
         company_url = _optional_string(data, "company_url")
         role_description = _optional_string(data, "role_description")
         role_url = _optional_string(data, "role_url")
-        resume_text = _required_string(data, "resume_text")
+        resume_text = _optional_string(data, "resume_text") or ""
         profile_text = _optional_string(data, "profile_text") or ""
+        if not resume_text and not profile_text:
+            raise ValueError("resume_text or profile_text is required")
         model = _optional_string(data, "model")
         fixture_id = _optional_string(data, "fixture_id")
         source_uris = _optional_string_mapping(data, "source_uris")
@@ -258,6 +266,77 @@ def hr_interview_options():
 )
 def hr_assistant_options():
     return "", 204
+
+
+@hr_bp.route("/api/hr/resume/extract", methods=["OPTIONS"])
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def hr_resume_extract_options():
+    return "", 204
+
+
+@hr_bp.post("/api/hr/resume/extract")
+@limiter.limit("10 per minute")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def extract_resume_profile():
+    content_length = request.content_length
+    if (
+        content_length is not None
+        and content_length
+        > DEFAULT_RESUME_PDF_MAX_BYTES + _RESUME_PDF_MULTIPART_OVERHEAD_BYTES
+    ):
+        return jsonify({"error": "Resume PDF exceeds 5 MB limit"}), 400
+
+    uploaded_file = request.files.get("file")
+    if uploaded_file is None:
+        return jsonify({"error": "Resume PDF file is required"}), 400
+
+    filename = (uploaded_file.filename or "").strip()
+    if filename:
+        try:
+            validate_string_length(
+                filename,
+                field="filename",
+                max_length=_HR_TEXT_LIMITS["filename"],
+            )
+        except InputLengthError as exc:
+            return jsonify(input_length_error_payload(exc)), 400
+    content_type = (uploaded_file.mimetype or "").lower()
+    if not filename.lower().endswith(".pdf") and content_type != "application/pdf":
+        return jsonify({"error": "Resume upload must be a PDF file"}), 400
+
+    pdf_bytes = uploaded_file.read(DEFAULT_RESUME_PDF_MAX_BYTES + 1)
+    if len(pdf_bytes) > DEFAULT_RESUME_PDF_MAX_BYTES:
+        return jsonify({"error": "Resume PDF exceeds 5 MB limit"}), 400
+
+    try:
+        model = request.form.get("model") or None
+        if model is not None:
+            validate_string_length(model, field="model", max_length=_HR_TEXT_LIMITS["model"])
+        result = run_extract_resume_pdf_profile_tool(
+            pdf_bytes=pdf_bytes,
+            filename=filename or None,
+            mode="llm",
+            model=model,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:  # pragma: no cover - defensive API safety net
+        _log_hr_route_failure("hr_resume_extract", exc)
+        return jsonify(_public_hr_error("Resume PDF extraction failed")), 502
+
+    return jsonify(
+        {
+            "tool_result": _public_resume_profile_tool_result(
+                hr_tool_result_to_dict(result)
+            ),
+        }
+    )
 
 
 @hr_bp.post("/api/hr/interview/start")
@@ -999,6 +1078,16 @@ def _sanitize_public_context_dict(context_payload: dict[str, Any]) -> dict[str, 
             if isinstance(tool_result, dict)
         ],
     }
+
+
+def _public_resume_profile_tool_result(tool_result: dict[str, Any]) -> dict[str, Any]:
+    public_result = _sanitize_public_tool_result(tool_result)
+    output = tool_result.get("output")
+    if isinstance(output, dict) and isinstance(output.get("profile"), dict):
+        public_output = public_result.setdefault("output", {})
+        if isinstance(public_output, dict):
+            public_output["profile"] = deepcopy(output["profile"])
+    return public_result
 
 
 def _sanitize_public_tool_result(tool_result: dict[str, Any]) -> dict[str, Any]:

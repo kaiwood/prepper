@@ -223,25 +223,99 @@ export default function HrSetupPanel({
           )}
         </section>
 
-        <section className="flex flex-col gap-2">
-          <label
-            htmlFor="hr-resume-text"
-            className="text-sm font-medium text-gray-700"
+        <section className="flex flex-col gap-3">
+          <div
+            className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1"
+            role="tablist"
+            aria-label={ui.hrResumeTextLabel}
           >
-            {ui.hrResumeTextLabel}
-          </label>
-          <textarea
-            id="hr-resume-text"
-            value={state.hrSetupForm.resumeText}
-            onChange={(event) =>
-              state.updateHrSetupField("resumeText", event.target.value)
-            }
-            disabled={state.hrContextLoading}
-            maxLength={INPUT_LIMITS.resumeText}
-            rows={6}
-            placeholder={ui.hrResumeTextPlaceholder}
-            className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-          />
+            <button
+              type="button"
+              role="tab"
+              aria-selected={state.hrResumeInputMode === "resumeText"}
+              aria-controls="hr-resume-text-panel"
+              disabled={state.hrContextLoading}
+              onClick={() => state.updateHrResumeInputMode("resumeText")}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
+                state.hrResumeInputMode === "resumeText"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              {ui.hrResumeTextLabel}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={state.hrResumeInputMode === "resumePdf"}
+              aria-controls="hr-resume-pdf-panel"
+              disabled={state.hrContextLoading}
+              onClick={() => state.updateHrResumeInputMode("resumePdf")}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
+                state.hrResumeInputMode === "resumePdf"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              {ui.hrResumePdfLabel}
+            </button>
+          </div>
+
+          {state.hrResumeInputMode === "resumeText" ? (
+            <div
+              id="hr-resume-text-panel"
+              role="tabpanel"
+              className="flex flex-col gap-2"
+            >
+              <label
+                htmlFor="hr-resume-text"
+                className="text-sm font-medium text-gray-700"
+              >
+                {ui.hrResumeTextLabel}
+              </label>
+              <textarea
+                id="hr-resume-text"
+                value={state.hrSetupForm.resumeText}
+                onChange={(event) =>
+                  state.updateHrSetupField("resumeText", event.target.value)
+                }
+                disabled={state.hrContextLoading}
+                maxLength={INPUT_LIMITS.resumeText}
+                rows={6}
+                placeholder={ui.hrResumeTextPlaceholder}
+                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              />
+            </div>
+          ) : (
+            <div
+              id="hr-resume-pdf-panel"
+              role="tabpanel"
+              className="flex flex-col gap-2"
+            >
+              <span className="text-sm font-medium text-gray-700">
+                {ui.hrResumePdfLabel}
+              </span>
+              <label
+                className={`inline-flex w-fit items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  state.hrContextLoading || state.hrResumeExtractLoading
+                    ? "cursor-not-allowed border-gray-200 text-gray-400"
+                    : "cursor-pointer border-blue-200 text-blue-700 hover:bg-blue-50"
+                }`}
+              >
+                {state.hrResumeExtractLoading
+                  ? ui.hrExtractingResumePdf
+                  : ui.hrExtractResumePdf}
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  disabled={state.hrContextLoading || state.hrResumeExtractLoading}
+                  onChange={state.handleExtractResumePdf}
+                  className="sr-only"
+                />
+              </label>
+              <p className="text-sm text-gray-500">{ui.hrResumePdfHint}</p>
+            </div>
+          )}
           {state.hrSetupErrors.resumeText && (
             <p className="text-sm text-red-600">
               {state.hrSetupErrors.resumeText}

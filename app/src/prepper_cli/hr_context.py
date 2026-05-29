@@ -134,7 +134,7 @@ def build_hr_context_from_inputs(
     *,
     mode: str,
     role_description: str | None,
-    resume_text: str,
+    resume_text: str | None,
     company_text: str | None = None,
     company_url: str | None = None,
     role_url: str | None = None,
@@ -163,8 +163,10 @@ def build_hr_context_from_inputs(
         raise HrContextValidationError(
             "Exactly one of role_description or role_url is required"
         )
-    normalized_resume = _required_input_text(resume_text, "resume_text")
+    normalized_resume = (resume_text or "").strip()
     normalized_profile = (profile_text or "").strip()
+    if not normalized_resume and not normalized_profile:
+        raise HrContextValidationError("resume_text or profile_text is required")
 
     tool_results: list[HrToolResult] = []
     errors: list[HrContextBuildIssue] = []
@@ -383,12 +385,23 @@ def build_hr_context_from_inputs(
                 ),
             )
 
-    resume_document = _build_input_document(
-        source_id="resume",
-        title_fallback="Candidate resume",
-        markdown=normalized_resume,
-    )
-    candidate_inputs = [resume_document]
+    candidate_inputs: list[HrContextInputDocument] = []
+    resume_document: HrContextInputDocument | None = None
+    resume_source: HrContextSource | None = None
+    if normalized_resume:
+        resume_document = _build_input_document(
+            source_id="resume",
+            title_fallback="Candidate resume",
+            markdown=normalized_resume,
+        )
+        candidate_inputs.append(resume_document)
+        resume_source = _build_source(
+            id="resume",
+            kind="resume",
+            title=resume_document.title,
+            uri=_source_uri(source_uris, "resume", "input://resume_text"),
+            content=normalized_resume,
+        )
     profile_source: HrContextSource | None = None
     if normalized_profile:
         profile_document = _build_input_document(
@@ -404,14 +417,6 @@ def build_hr_context_from_inputs(
             uri=_source_uri(source_uris, "profile", "input://profile_text"),
             content=normalized_profile,
         )
-
-    resume_source = _build_source(
-        id="resume",
-        kind="resume",
-        title=resume_document.title,
-        uri=_source_uri(source_uris, "resume", "input://resume_text"),
-        content=normalized_resume,
-    )
 
     from .hr_tools import (
         EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
@@ -497,7 +502,9 @@ def build_hr_context_from_inputs(
             interview_focus_areas=("Review the resume manually before interviewing",),
         )
 
-    sources = [company_source, role_source, resume_source]
+    sources = [company_source, role_source]
+    if resume_source is not None:
+        sources.append(resume_source)
     if profile_source is not None:
         sources.append(profile_source)
 

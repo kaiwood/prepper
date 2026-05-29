@@ -75,6 +75,7 @@ export type CandidateAnswerResponse = {
 
 export type HrCompanyInputMode = "companyText" | "companyUrl";
 export type HrRoleInputMode = "roleDescription" | "roleUrl";
+export type HrResumeInputMode = "resumeText" | "resumePdf";
 
 export type HrSetupFormState = {
   companyUrl: string;
@@ -113,6 +114,14 @@ export type HrRetrievalSnippet = {
   text?: string;
 };
 
+export type HrCandidateProfile = {
+  skills?: string[];
+  experience?: string[];
+  seniority_signals?: string[];
+  risks?: string[];
+  interview_focus_areas?: string[];
+};
+
 export type HrToolResult = {
   tool_name?: string;
   status?: string;
@@ -121,8 +130,14 @@ export type HrToolResult = {
     query?: string;
     result_count?: number;
     snippets?: HrRetrievalSnippet[];
+    profile?: HrCandidateProfile;
     [key: string]: unknown;
   };
+};
+
+export type HrResumeExtractResponse = {
+  tool_result?: HrToolResult;
+  error?: string;
 };
 
 export type HrToolCallEvent = {

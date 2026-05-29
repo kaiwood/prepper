@@ -104,6 +104,34 @@ test("validates only the active company tab", () => {
   );
 });
 
+test("validates only the active resume tab", () => {
+  assert.deepEqual(
+    validateHrSetupForm(
+      {
+        ...validForm,
+        resumeText: "",
+        profileText: "## Skills\n- SQL",
+      },
+      undefined,
+      { resumeInputMode: "resumePdf" },
+    ),
+    {},
+  );
+
+  assert.equal(
+    validateHrSetupForm(
+      {
+        ...validForm,
+        resumeText: "",
+        profileText: "",
+      },
+      undefined,
+      { resumeInputMode: "resumePdf" },
+    ).resumeText,
+    "Extract a resume PDF profile or paste resume text.",
+  );
+});
+
 test("validates only the active role tab", () => {
   assert.deepEqual(
     validateHrSetupForm(
@@ -193,6 +221,25 @@ test("builds HR context payload from company URL", () => {
     resume_text: "# Resume\nSQL and customer analytics.",
     profile_text: "Responsible AI interests.",
   });
+});
+
+test("builds HR context payload from extracted resume PDF profile", () => {
+  assert.deepEqual(
+    buildHrContextPayload(
+      {
+        ...validForm,
+        resumeText: "",
+        profileText: "## Skills\n- SQL",
+      },
+      { resumeInputMode: "resumePdf" },
+    ),
+    {
+      mode: "llm",
+      company_url: "https://example.com/about",
+      role_description: "# Role\nAnalyze workforce data.",
+      profile_text: "## Skills\n- SQL",
+    },
+  );
 });
 
 test("builds HR context payload from pasted company text", () => {

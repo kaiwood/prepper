@@ -81,6 +81,23 @@ def payload_company_text():
     return _payload()["company_text"]
 
 
+def test_hr_context_endpoint_accepts_extracted_profile_without_resume_text(monkeypatch, tmp_path):
+    monkeypatch.setenv("PREPPER_SQLITE_PATH", str(tmp_path / "prepper.sqlite3"))
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/hr/context",
+        json=_payload(resume_text="", profile_text="## Skills\n- SQL\n\n## Experience\n- Analyst"),
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["context_id"].startswith("hrctx_input_")
+    assert data["tool_results"][0]["tool_name"] == "extract_candidate_profile"
+
+
 def test_latest_hr_setup_rehydrates_saved_context(monkeypatch, tmp_path):
     monkeypatch.setenv("PREPPER_SQLITE_PATH", str(tmp_path / "prepper.sqlite3"))
     app = create_app()
