@@ -1,18 +1,15 @@
 import { INPUT_LIMITS } from "../../lib/inputLimits.mjs";
 import type { HrWorkflowState } from "../../hooks/useHrWorkflow";
 import type { TranslationStrings } from "../../types/app";
-import HrInterviewPanel from "./HrInterviewPanel";
 
 type HrSetupPanelProps = {
   state: HrWorkflowState;
   ui: TranslationStrings;
-  presentationModeEnabled: boolean;
 };
 
 export default function HrSetupPanel({
   state,
   ui,
-  presentationModeEnabled,
 }: HrSetupPanelProps) {
   return (
     <section className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-6">
@@ -267,12 +264,6 @@ export default function HrSetupPanel({
           )}
         </section>
       )}
-
-      <HrInterviewPanel
-        state={state}
-        ui={ui}
-        presentationModeEnabled={presentationModeEnabled}
-      />
     </section>
   );
 }

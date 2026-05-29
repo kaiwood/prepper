@@ -13,6 +13,10 @@ import {
   resolveDifficultySelection,
   resolveQuestionRoundtripLimit,
 } from "../lib/appLogic.mjs";
+import {
+  buildHrInterviewStartPayload,
+  buildHrInterviewTurnPayload,
+} from "../lib/hrInterviewLogic.mjs";
 import type { LanguageCode } from "../lib/translations";
 import type {
   AdvancedSettings,
@@ -21,6 +25,9 @@ import type {
   CandidateAnswerResponse,
   ChatResponse,
   DifficultyValue,
+  HrInterviewResponse,
+  HrLatestSetupResponse,
+  InterviewRating,
   InterviewStatus,
   PromptMetadata,
   PromptsResponse,
@@ -33,6 +40,34 @@ type UseUserInterviewOptions = {
   language: LanguageCode;
   ui: TranslationStrings;
 };
+
+const HR_CANDIDATE_FIT_PROMPT = "hr_candidate_fit";
+
+function normalizeHrFinalResult(
+  finalResult: HrInterviewResponse["final_result"],
+): InterviewRating | undefined {
+  if (
+    !finalResult ||
+    typeof finalResult.overall_score !== "number" ||
+    typeof finalResult.pass_threshold !== "number" ||
+    typeof finalResult.passed !== "boolean"
+  ) {
+    return undefined;
+  }
+
+  return {
+    overall_score: finalResult.overall_score,
+    pass_threshold: finalResult.pass_threshold,
+    passed: finalResult.passed,
+    criterion_scores: Array.isArray(finalResult.criterion_scores)
+      ? finalResult.criterion_scores
+      : [],
+    strengths: Array.isArray(finalResult.strengths) ? finalResult.strengths : [],
+    improvements: Array.isArray(finalResult.improvements)
+      ? finalResult.improvements
+      : [],
+  };
+}
 
 export function useUserInterview({
   apiBaseUrl,
@@ -57,6 +92,7 @@ export function useUserInterview({
   const [interviewStatus, setInterviewStatus] =
     useState<InterviewStatus | null>(null);
   const [interviewId, setInterviewId] = useState<string | null>(null);
+  const [hrContextId, setHrContextId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
   const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>(
@@ -67,6 +103,7 @@ export function useUserInterview({
   const selectedPromptMetadata = availablePrompts.find(
     (prompt) => prompt.id === selectedPrompt,
   );
+  const isHrCandidateFitPrompt = selectedPrompt === HR_CANDIDATE_FIT_PROMPT;
   const interviewRatingEnabled = Boolean(
     selectedPromptMetadata?.interview_rating_enabled,
   );
@@ -108,6 +145,43 @@ export function useUserInterview({
 
   const handlePromptChange = (promptId: string) => {
     applyPromptDefaults(promptId, availablePrompts, hasStarted);
+  };
+
+  const updateChatInterviewMetadata = (data: ChatResponse) => {
+    if (typeof data.interview_id === "string" && data.interview_id) {
+      setInterviewId(data.interview_id);
+    }
+    setInterviewStatus({
+      enabled: true,
+      interview_complete: Boolean(data.interview_complete),
+      counted_question_roundtrips: data.counted_question_roundtrips ?? 0,
+      question_roundtrips_limit: data.question_roundtrips_limit ?? 0,
+      pass_threshold: data.pass_threshold ?? 0,
+      current_turn_type: data.current_turn_type ?? "other",
+      final_result: data.final_result,
+      metadata_warning: data.metadata_warning,
+      difficulty: data.difficulty,
+    });
+  };
+
+  const updateHrInterviewMetadata = (data: HrInterviewResponse) => {
+    if (typeof data.interview_id === "string" && data.interview_id) {
+      setInterviewId(data.interview_id);
+    }
+    if (typeof data.context_id === "string" && data.context_id) {
+      setHrContextId(data.context_id);
+    }
+    setInterviewStatus({
+      enabled: true,
+      interview_complete: Boolean(data.interview_complete),
+      counted_question_roundtrips: data.counted_question_roundtrips ?? 0,
+      question_roundtrips_limit: data.question_roundtrips_limit ?? 0,
+      pass_threshold: data.pass_threshold ?? 0,
+      current_turn_type: data.current_turn_type ?? "other",
+      final_result: normalizeHrFinalResult(data.final_result),
+      metadata_warning: data.metadata_warning,
+      difficulty: data.difficulty,
+    });
   };
 
   const updateAdvancedSetting = (
@@ -203,6 +277,10 @@ export function useUserInterview({
       setError(ui.errorFallback);
       return;
     }
+    if (isHrCandidateFitPrompt && !hrContextId) {
+      setError(ui.hrContextRequiredForInterview);
+      return;
+    }
 
     const prompt = message.trim();
     const history = [...conversation];
@@ -213,6 +291,33 @@ export function useUserInterview({
     setError(null);
 
     try {
+      if (isHrCandidateFitPrompt) {
+        const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/interview"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            buildHrInterviewTurnPayload({
+              contextId: hrContextId ?? undefined,
+              interviewId: interviewId ?? undefined,
+              message: prompt,
+            }),
+          ),
+        });
+        const data: HrInterviewResponse = await res.json();
+
+        if (!res.ok) {
+          setError(formatApiError(data, ui.errorFallback));
+          return;
+        }
+
+        setConversation((prev) => [
+          ...prev,
+          { role: "assistant", content: data.reply ?? "" },
+        ]);
+        updateHrInterviewMetadata(data);
+        return;
+      }
+
       const payload: {
         message: string;
         conversation_history?: ConversationMessage[];
@@ -255,20 +360,7 @@ export function useUserInterview({
           { role: "assistant", content: data.reply ?? "" },
         ]);
         if (data.interview_enabled) {
-          if (typeof data.interview_id === "string" && data.interview_id) {
-            setInterviewId(data.interview_id);
-          }
-          setInterviewStatus({
-            enabled: true,
-            interview_complete: Boolean(data.interview_complete),
-            counted_question_roundtrips: data.counted_question_roundtrips ?? 0,
-            question_roundtrips_limit: data.question_roundtrips_limit ?? 0,
-            pass_threshold: data.pass_threshold ?? 0,
-            current_turn_type: data.current_turn_type ?? "other",
-            final_result: data.final_result,
-            metadata_warning: data.metadata_warning,
-            difficulty: data.difficulty,
-          });
+          updateChatInterviewMetadata(data);
         } else {
           setInterviewId(null);
           setInterviewStatus(null);
@@ -290,8 +382,63 @@ export function useUserInterview({
     setError(null);
     setInterviewStatus(null);
     setInterviewId(null);
+    setHrContextId(null);
 
     try {
+      if (isHrCandidateFitPrompt) {
+        const latestRes = await fetch(
+          buildApiUrl(apiBaseUrl, "/api/hr/setup/latest"),
+        );
+        const latestData: HrLatestSetupResponse = await latestRes.json();
+
+        if (!latestRes.ok) {
+          setError(formatApiError(latestData, ui.errorFallback));
+          return;
+        }
+
+        const contextId =
+          typeof latestData.context_result?.context_id === "string" &&
+          latestData.context_result.context_id
+            ? latestData.context_result.context_id
+            : null;
+        if (!contextId) {
+          setError(ui.hrContextRequiredForInterview);
+          return;
+        }
+
+        const res = await fetch(
+          buildApiUrl(apiBaseUrl, "/api/hr/interview/start"),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(
+              buildHrInterviewStartPayload({
+                contextId,
+                questionRoundtripLimit,
+                difficulty: difficultyEnabled ? selectedDifficulty : undefined,
+                language,
+                advancedSettings,
+              }),
+            ),
+          },
+        );
+        const data: HrInterviewResponse = await res.json();
+
+        if (!res.ok) {
+          setError(formatApiError(data, ui.errorFallback));
+          return;
+        }
+        if (typeof data.interview_id !== "string" || !data.interview_id) {
+          setError(ui.errorFallback);
+          return;
+        }
+
+        setHrContextId(contextId);
+        setConversation([{ role: "assistant", content: data.reply ?? "" }]);
+        updateHrInterviewMetadata(data);
+        return;
+      }
+
       const payload: {
         system_prompt_name?: string;
         language: LanguageCode;
@@ -324,22 +471,7 @@ export function useUserInterview({
       } else {
         setConversation([{ role: "assistant", content: data.reply ?? "" }]);
         if (data.interview_enabled) {
-          setInterviewId(
-            typeof data.interview_id === "string" && data.interview_id
-              ? data.interview_id
-              : null,
-          );
-          setInterviewStatus({
-            enabled: true,
-            interview_complete: Boolean(data.interview_complete),
-            counted_question_roundtrips: data.counted_question_roundtrips ?? 0,
-            question_roundtrips_limit: data.question_roundtrips_limit ?? 0,
-            pass_threshold: data.pass_threshold ?? 0,
-            current_turn_type: data.current_turn_type ?? "other",
-            final_result: data.final_result,
-            metadata_warning: data.metadata_warning,
-            difficulty: data.difficulty,
-          });
+          updateChatInterviewMetadata(data);
         } else {
           setInterviewId(null);
           setInterviewStatus(null);
@@ -408,6 +540,7 @@ export function useUserInterview({
     setError(null);
     setInterviewStatus(null);
     setInterviewId(null);
+    setHrContextId(null);
     setAdvancedSettings(buildAdvancedSettings(selectedPromptMetadata));
     setSelectedDifficulty(
       selectedPromptMetadata?.difficulty_enabled

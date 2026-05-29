@@ -49,11 +49,7 @@ export default function Home() {
       />
 
       {selectedArea === "admin" ? (
-        <HrSetupPanel
-          state={hrWorkflow}
-          ui={ui}
-          presentationModeEnabled={PRESENTATION_MODE_ENABLED}
-        />
+        <HrSetupPanel state={hrWorkflow} ui={ui} />
       ) : (
         <UserInterviewPanel
           state={userInterview}

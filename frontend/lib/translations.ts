@@ -81,6 +81,7 @@ type TranslationStrings = {
   hrStatusLabel: string;
   hrContextIdLabel: string;
   hrNoContextId: string;
+  hrContextRequiredForInterview: string;
   hrCompanyLabel: string;
   hrRoleLabel: string;
   hrCandidateLabel: string;
@@ -203,6 +204,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrStatusLabel: "Status",
     hrContextIdLabel: "Context ID",
     hrNoContextId: "No context ID was returned. Review tool errors before continuing.",
+    hrContextRequiredForInterview: "Build HR context in Admin before starting the candidate-fit interview.",
     hrCompanyLabel: "Company",
     hrRoleLabel: "Role",
     hrCandidateLabel: "Candidate",
@@ -327,6 +329,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrStatusLabel: "Status",
     hrContextIdLabel: "Kontext-ID",
     hrNoContextId: "Es wurde keine Kontext-ID zurückgegeben. Prüfe Tool-Fehler, bevor du fortfährst.",
+    hrContextRequiredForInterview: "Erstelle zuerst im Admin-Bereich den HR-Kontext, bevor du das Candidate-Fit-Interview startest.",
     hrCompanyLabel: "Unternehmen",
     hrRoleLabel: "Rolle",
     hrCandidateLabel: "Kandidat",
@@ -449,6 +452,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrStatusLabel: "Statut",
     hrContextIdLabel: "ID du contexte",
     hrNoContextId: "Aucun ID de contexte n'a été renvoyé. Vérifiez les erreurs d'outil avant de continuer.",
+    hrContextRequiredForInterview: "Créez d'abord le contexte RH dans Admin avant de démarrer l'entretien d'adéquation candidat.",
     hrCompanyLabel: "Entreprise",
     hrRoleLabel: "Rôle",
     hrCandidateLabel: "Candidat",
