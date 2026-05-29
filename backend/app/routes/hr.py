@@ -397,6 +397,7 @@ def fetch_company_website():
         {
             "company_text": company_text,
             "source": output.get("source") if isinstance(output.get("source"), dict) else None,
+            "tool_result": _sanitize_public_tool_result(payload),
         }
     )
 
@@ -443,6 +444,7 @@ def fetch_role_description():
         {
             "role_description": role_description,
             "source": output.get("source") if isinstance(output.get("source"), dict) else None,
+            "tool_result": _sanitize_public_tool_result(payload),
         }
     )
 
@@ -501,6 +503,7 @@ def fetch_social_profile():
         {
             "profile_text": profile_text,
             "source": output.get("source") if isinstance(output.get("source"), dict) else None,
+            "tool_result": _sanitize_public_tool_result(payload),
         }
     )
 

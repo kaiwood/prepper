@@ -40,7 +40,11 @@ def test_hr_company_fetch_endpoint_returns_text(monkeypatch):
     data = response.get_json()
     assert data["company_text"].startswith("# Example Co")
     assert data["source"]["uri"] == "https://example.com/about"
+    assert data["tool_result"]["tool_name"] == "fetch_company_website"
+    assert data["tool_result"]["status"] == "success"
+    assert data["tool_result"]["output"]["summary"] == "Analytics platform."
     assert "chunks" not in data
+    assert "chunks" not in data["tool_result"]["output"]
 
     latest_response = client.get("/api/hr/setup/latest")
     assert latest_response.status_code == 200
@@ -79,7 +83,10 @@ def test_hr_role_fetch_endpoint_returns_description(monkeypatch):
     data = response.get_json()
     assert data["role_description"].startswith("# Data Analyst")
     assert data["source"]["uri"] == "https://example.com/jobs/analyst"
+    assert data["tool_result"]["tool_name"] == "fetch_role_description"
+    assert data["tool_result"]["status"] == "success"
     assert "document" not in data
+    assert "document" not in data["tool_result"]["output"]
 
     latest_response = client.get("/api/hr/setup/latest")
     assert latest_response.status_code == 200
@@ -135,8 +142,11 @@ def test_hr_profile_fetch_endpoint_returns_summary(monkeypatch):
     data = response.get_json()
     assert data["profile_text"].startswith("## Profile")
     assert data["source"]["provider"] == "linkedin"
+    assert data["tool_result"]["tool_name"] == "fetch_social_profile"
+    assert data["tool_result"]["status"] == "success"
     assert "secret-token" not in str(data)
     assert "api_payload" not in data
+    assert "api_payload" not in data["tool_result"]["output"]
 
     latest_response = client.get("/api/hr/setup/latest")
     assert latest_response.status_code == 200

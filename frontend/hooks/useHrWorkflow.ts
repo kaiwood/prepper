@@ -75,6 +75,9 @@ export function useHrWorkflow({
   const [hrProfileOauthToken, setHrProfileOauthToken] = useState("");
   const [hrContextResult, setHrContextResult] =
     useState<HrContextResponse | null>(null);
+  const [hrSetupToolResults, setHrSetupToolResults] = useState<
+    HrToolResult[]
+  >([]);
   const [hrContextId, setHrContextId] = useState<string | null>(null);
   const [hrContextLoading, setHrContextLoading] = useState(false);
   const [hrClearLoading, setHrClearLoading] = useState(false);
@@ -287,6 +290,7 @@ export function useHrWorkflow({
         return;
       }
       updateHrSetupField("companyText", data.company_text);
+      setHrSetupToolResults((prev) => upsertHrToolResult(prev, data.tool_result));
       setHrCompanyInputMode("companyText");
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
@@ -331,6 +335,7 @@ export function useHrWorkflow({
         return;
       }
       updateHrSetupField("roleDescription", data.role_description);
+      setHrSetupToolResults((prev) => upsertHrToolResult(prev, data.tool_result));
       setHrRoleInputMode("roleDescription");
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
@@ -373,6 +378,9 @@ export function useHrWorkflow({
         return;
       }
       updateHrSetupField("resumeText", resumeText);
+      setHrSetupToolResults((prev) =>
+        upsertHrToolResult(prev, aliasHrToolResult(data.tool_result, "extract_resume_pdf_profile")),
+      );
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
     } finally {
@@ -428,6 +436,7 @@ export function useHrWorkflow({
         return;
       }
       updateHrSetupField("profileText", data.profile_text);
+      setHrSetupToolResults((prev) => upsertHrToolResult(prev, data.tool_result));
       setHrProfileInputMode("profileText");
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
@@ -460,6 +469,7 @@ export function useHrWorkflow({
     setHrProfileUrl("");
     setHrProfileOauthToken("");
     setHrContextResult(null);
+    setHrSetupToolResults([]);
     setHrContextId(null);
     setHrContextError(null);
     resetHrInterview();
@@ -749,6 +759,7 @@ export function useHrWorkflow({
     hrContextId,
     hrContextLoading,
     hrContextResult,
+    hrSetupToolResults,
     hrCandidateAnswerLoading,
     hrConversation,
     hrFinalResult,
@@ -783,6 +794,29 @@ export function useHrWorkflow({
     updateHrRoleInputMode,
     updateHrSetupField,
   };
+}
+
+function upsertHrToolResult(
+  results: HrToolResult[],
+  toolResult?: HrToolResult,
+): HrToolResult[] {
+  if (!toolResult?.tool_name) {
+    return results;
+  }
+  return [
+    ...results.filter((item) => item.tool_name !== toolResult.tool_name),
+    toolResult,
+  ];
+}
+
+function aliasHrToolResult(
+  toolResult: HrToolResult | undefined,
+  toolName: string,
+): HrToolResult | undefined {
+  if (!toolResult) {
+    return undefined;
+  }
+  return { ...toolResult, tool_name: toolName };
 }
 
 function getCompanyInputModeFromSetup(setup: {

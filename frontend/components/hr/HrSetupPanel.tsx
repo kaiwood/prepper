@@ -551,9 +551,12 @@ export default function HrSetupPanel({
                   const event = state.hrContextResult?.tool_call_events?.find(
                     (item) => item.tool_name === metadata.name,
                   );
+                  const setupTool = state.hrSetupToolResults.find(
+                    (item) => item.tool_name === metadata.name,
+                  );
                   return (
                     <li key={`${metadata.name ?? "tool"}-${index}`}>
-                      {summarizeHrToolCatalogItem(metadata, tool, event, ui.hrToolNotUsed)}
+                      {summarizeHrToolCatalogItem(metadata, tool ?? setupTool, event, ui.hrToolNotUsed)}
                     </li>
                   );
                 })}
