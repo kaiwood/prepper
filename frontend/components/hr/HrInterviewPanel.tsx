@@ -8,9 +8,14 @@ import type { TranslationStrings } from "../../types/app";
 type HrInterviewPanelProps = {
   state: HrWorkflowState;
   ui: TranslationStrings;
+  presentationModeEnabled: boolean;
 };
 
-export default function HrInterviewPanel({ state, ui }: HrInterviewPanelProps) {
+export default function HrInterviewPanel({
+  state,
+  ui,
+  presentationModeEnabled,
+}: HrInterviewPanelProps) {
   if (!state.hrContextId) {
     return null;
   }
@@ -104,10 +109,14 @@ export default function HrInterviewPanel({ state, ui }: HrInterviewPanelProps) {
         onStart={state.handleStartHrInterview}
         onClear={state.resetHrInterview}
         loading={state.hrInterviewLoading}
+        candidateAnswerLoading={state.hrCandidateAnswerLoading}
         canClear={state.hrConversation.length > 0}
         canStart={!state.hrHasStarted}
+        canGenerateCandidateAnswer={Boolean(state.latestHrInterviewerQuestion)}
         hasStarted={state.hrHasStarted}
         disableMessaging={state.hrInterviewCompleted}
+        presentationModeEnabled={presentationModeEnabled}
+        onGenerateCandidateAnswer={state.handleGenerateHrCandidateAnswer}
         error={state.hrInterviewError}
         placeholderStarted={
           state.hrInterviewCompleted
@@ -118,6 +127,8 @@ export default function HrInterviewPanel({ state, ui }: HrInterviewPanelProps) {
         startInterviewText={ui.hrStartInterview}
         startingText={ui.hrStartingInterview}
         resetConversationText={ui.hrResetInterview}
+        generateCandidateAnswerText={ui.generateCandidateAnswer}
+        generatingCandidateAnswerText={ui.generatingCandidateAnswer}
         sendText={ui.hrSendAnswer}
         thinkingText={ui.thinking}
         maxLength={INPUT_LIMITS.chatMessage}

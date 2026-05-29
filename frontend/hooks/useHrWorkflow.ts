@@ -14,6 +14,7 @@ import {
   buildHrInterviewTurnPayload,
 } from "../lib/hrInterviewLogic.mjs";
 import type {
+  CandidateAnswerResponse,
   HrContextResponse,
   HrDemoSetupResponse,
   HrInterviewResponse,
@@ -29,6 +30,7 @@ import type {
 
 type UseHrWorkflowOptions = {
   apiBaseUrl: string;
+  presentationModeEnabled: boolean;
   language: LanguageCode;
   ui: TranslationStrings;
   enabled?: boolean;
@@ -36,6 +38,7 @@ type UseHrWorkflowOptions = {
 
 export function useHrWorkflow({
   apiBaseUrl,
+  presentationModeEnabled,
   language,
   ui,
   enabled = true,
@@ -63,6 +66,8 @@ export function useHrWorkflow({
   const [hrInterviewStatus, setHrInterviewStatus] =
     useState<HrInterviewStatus | null>(null);
   const [hrInterviewLoading, setHrInterviewLoading] = useState(false);
+  const [hrCandidateAnswerLoading, setHrCandidateAnswerLoading] =
+    useState(false);
   const [hrInterviewError, setHrInterviewError] = useState<string | null>(null);
   const [hrInterviewSources, setHrInterviewSources] = useState<
     HrInterviewSource[]
@@ -90,6 +95,10 @@ export function useHrWorkflow({
     tooLong: ui.hrValidationTooLong,
   };
   const hrHasStarted = hrConversation.length > 0;
+  const latestHrInterviewerQuestion = [...hrConversation]
+    .reverse()
+    .find((item) => item.role === "assistant")
+    ?.content.trim();
 
   useEffect(() => {
     let cancelled = false;
@@ -189,6 +198,7 @@ export function useHrWorkflow({
     setHrConversation([]);
     setHrInterviewId(null);
     setHrInterviewStatus(null);
+    setHrCandidateAnswerLoading(false);
     setHrInterviewError(null);
     setHrInterviewSources([]);
     setHrInterviewToolResults([]);
@@ -365,8 +375,52 @@ export function useHrWorkflow({
     }
   }
 
+  async function handleGenerateHrCandidateAnswer() {
+    if (
+      !presentationModeEnabled ||
+      !hrHasStarted ||
+      hrInterviewLoading ||
+      hrCandidateAnswerLoading ||
+      hrInterviewCompleted ||
+      !latestHrInterviewerQuestion
+    ) {
+      return;
+    }
+
+    setHrCandidateAnswerLoading(true);
+    setHrInterviewError(null);
+
+    try {
+      const res = await fetch(
+        buildApiUrl(apiBaseUrl, "/api/presentation/candidate-answer"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            current_question: latestHrInterviewerQuestion,
+            system_prompt_name: "hr_candidate_fit",
+            language,
+          }),
+        },
+      );
+      const data: CandidateAnswerResponse = await res.json();
+
+      if (!res.ok) {
+        setHrInterviewError(formatApiError(data, ui.errorFallback));
+        return;
+      }
+
+      setHrMessage(data.answer ?? "");
+    } catch {
+      setHrInterviewError(ui.errorBackendUnavailable);
+    } finally {
+      setHrCandidateAnswerLoading(false);
+    }
+  }
+
   return {
     handleBuildHrContext,
+    handleGenerateHrCandidateAnswer,
     handleLoadHrDemoSetup,
     handleStartHrInterview,
     handleSubmitHrInterview,
@@ -375,6 +429,7 @@ export function useHrWorkflow({
     hrContextLoading,
     hrContextResult,
     hrDemoSetupLoading,
+    hrCandidateAnswerLoading,
     hrConversation,
     hrFinalResult,
     hrHasStarted,
@@ -387,6 +442,7 @@ export function useHrWorkflow({
     hrInterviewToolResults,
     hrMessage,
     hrResultPassed,
+    latestHrInterviewerQuestion,
     hrSetupErrors,
     hrSetupForm,
     resetHrInterview,

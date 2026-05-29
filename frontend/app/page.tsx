@@ -32,6 +32,7 @@ export default function Home() {
   });
   const hrWorkflow = useHrWorkflow({
     apiBaseUrl: API_BASE_URL,
+    presentationModeEnabled: PRESENTATION_MODE_ENABLED,
     language,
     ui,
     enabled: selectedArea === "admin",
@@ -48,7 +49,11 @@ export default function Home() {
       />
 
       {selectedArea === "admin" ? (
-        <HrSetupPanel state={hrWorkflow} ui={ui} />
+        <HrSetupPanel
+          state={hrWorkflow}
+          ui={ui}
+          presentationModeEnabled={PRESENTATION_MODE_ENABLED}
+        />
       ) : (
         <UserInterviewPanel
           state={userInterview}

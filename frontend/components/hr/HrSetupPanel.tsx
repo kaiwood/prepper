@@ -6,9 +6,14 @@ import HrInterviewPanel from "./HrInterviewPanel";
 type HrSetupPanelProps = {
   state: HrWorkflowState;
   ui: TranslationStrings;
+  presentationModeEnabled: boolean;
 };
 
-export default function HrSetupPanel({ state, ui }: HrSetupPanelProps) {
+export default function HrSetupPanel({
+  state,
+  ui,
+  presentationModeEnabled,
+}: HrSetupPanelProps) {
   return (
     <section className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -263,7 +268,11 @@ export default function HrSetupPanel({ state, ui }: HrSetupPanelProps) {
         </section>
       )}
 
-      <HrInterviewPanel state={state} ui={ui} />
+      <HrInterviewPanel
+        state={state}
+        ui={ui}
+        presentationModeEnabled={presentationModeEnabled}
+      />
     </section>
   );
 }
