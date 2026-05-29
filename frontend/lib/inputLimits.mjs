@@ -8,6 +8,8 @@ export const INPUT_LIMITS = {
   roleUrl: 2048,
   resumeText: 40000,
   profileText: 40000,
+  profileUrl: 2048,
+  oauthToken: 8000,
 };
 
 export function formatApiError(data, fallback = "Something went wrong.") {

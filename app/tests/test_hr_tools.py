@@ -16,6 +16,7 @@ from prepper_cli.hr_tools import (
     EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
     FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+    FETCH_SOCIAL_PROFILE_TOOL_NAME,
     RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
     HrToolError,
     candidate_profile_tool_result_to_profile,
@@ -25,6 +26,7 @@ from prepper_cli.hr_tools import (
     run_extract_candidate_profile_tool,
     run_fetch_company_website_tool,
     run_fetch_role_description_tool,
+    run_fetch_social_profile_tool,
     run_retrieve_company_context_tool,
 )
 
@@ -312,6 +314,48 @@ def test_extract_candidate_profile_llm_reports_invalid_json(monkeypatch):
             resume_text="# Resume\nSQL analyst",
             profile_text="# Profile\nFour years experience",
         )
+
+
+def test_fetch_social_profile_fetches_and_summarizes(monkeypatch):
+    fake_llm = FakeCandidateProfileLlm(
+        '{"profile_text":"## Profile\\n- Senior analytics leader at ExampleCo"}'
+    )
+
+    def fake_api_json(*, provider, profile_identifier, oauth_token, timeout_seconds):
+        assert provider == "linkedin"
+        assert profile_identifier == "jane-doe"
+        assert oauth_token == "token-123"
+        return {"localizedFirstName": "Jane", "headline": "Senior analytics leader"}
+
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._fetch_social_profile_api_json",
+        fake_api_json,
+    )
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._build_social_profile_llm",
+        lambda model: fake_llm,
+    )
+
+    result = run_fetch_social_profile_tool(
+        profile_url="https://www.linkedin.com/in/jane-doe/",
+        oauth_token="token-123",
+    )
+    payload = hr_tool_result_to_dict(result)
+
+    assert payload["tool_name"] == FETCH_SOCIAL_PROFILE_TOOL_NAME
+    assert payload["output"]["profile_text"].startswith("## Profile")
+    assert payload["output"]["source"]["provider"] == "linkedin"
+    assert "api_payload" not in payload["output"]
+    assert fake_llm.messages[0][0] == "system"
+
+
+def test_fetch_social_profile_rejects_unsupported_url():
+    with pytest.raises(HrToolError, match="LinkedIn or Xing"):
+        run_fetch_social_profile_tool(
+            profile_url="https://example.com/person/jane",
+            oauth_token="token-123",
+        )
+
 
 
 def test_fetch_role_description_llm_fetches_and_extracts(monkeypatch):

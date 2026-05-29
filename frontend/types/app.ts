@@ -76,6 +76,7 @@ export type CandidateAnswerResponse = {
 export type HrCompanyInputMode = "companyText" | "companyUrl";
 export type HrRoleInputMode = "roleDescription" | "roleUrl";
 export type HrResumeInputMode = "resumeText" | "resumePdf";
+export type HrProfileInputMode = "profileText" | "profileUrl";
 
 export type HrSetupFormState = {
   companyUrl: string;
@@ -137,6 +138,12 @@ export type HrToolResult = {
 
 export type HrResumeExtractResponse = {
   tool_result?: HrToolResult;
+  error?: string;
+};
+
+export type HrProfileFetchResponse = {
+  profile_text?: string;
+  source?: HrContextSource | null;
   error?: string;
 };
 

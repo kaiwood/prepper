@@ -323,25 +323,117 @@ export default function HrSetupPanel({
           )}
         </section>
 
-        <section className="flex flex-col gap-2">
-          <label
-            htmlFor="hr-profile-text"
-            className="text-sm font-medium text-gray-700"
+        <section className="flex flex-col gap-3">
+          <div
+            className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1"
+            role="tablist"
+            aria-label={ui.hrProfileTextLabel}
           >
-            {ui.hrProfileTextLabel}
-          </label>
-          <textarea
-            id="hr-profile-text"
-            value={state.hrSetupForm.profileText}
-            onChange={(event) =>
-              state.updateHrSetupField("profileText", event.target.value)
-            }
-            disabled={state.hrContextLoading}
-            maxLength={INPUT_LIMITS.profileText}
-            rows={4}
-            placeholder={ui.hrProfileTextPlaceholder}
-            className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-          />
+            <button
+              type="button"
+              role="tab"
+              aria-selected={state.hrProfileInputMode === "profileText"}
+              aria-controls="hr-profile-text-panel"
+              disabled={state.hrContextLoading}
+              onClick={() => state.updateHrProfileInputMode("profileText")}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
+                state.hrProfileInputMode === "profileText"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              {ui.hrProfileTextLabel}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={state.hrProfileInputMode === "profileUrl"}
+              aria-controls="hr-profile-url-panel"
+              disabled={state.hrContextLoading}
+              onClick={() => state.updateHrProfileInputMode("profileUrl")}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
+                state.hrProfileInputMode === "profileUrl"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              {ui.hrProfileUrlLabel}
+            </button>
+          </div>
+
+          {state.hrProfileInputMode === "profileText" ? (
+            <div
+              id="hr-profile-text-panel"
+              role="tabpanel"
+              className="flex flex-col gap-2"
+            >
+              <label
+                htmlFor="hr-profile-text"
+                className="text-sm font-medium text-gray-700"
+              >
+                {ui.hrProfileTextLabel}
+              </label>
+              <textarea
+                id="hr-profile-text"
+                value={state.hrSetupForm.profileText}
+                onChange={(event) =>
+                  state.updateHrSetupField("profileText", event.target.value)
+                }
+                disabled={state.hrContextLoading}
+                maxLength={INPUT_LIMITS.profileText}
+                rows={4}
+                placeholder={ui.hrProfileTextPlaceholder}
+                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              />
+            </div>
+          ) : (
+            <div
+              id="hr-profile-url-panel"
+              role="tabpanel"
+              className="flex flex-col gap-2"
+            >
+              <label
+                htmlFor="hr-profile-url"
+                className="text-sm font-medium text-gray-700"
+              >
+                {ui.hrProfileUrlLabel}
+              </label>
+              <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                <input
+                  id="hr-profile-url"
+                  type="url"
+                  value={state.hrProfileUrl}
+                  onChange={(event) => state.setHrProfileUrl(event.target.value)}
+                  disabled={state.hrContextLoading || state.hrProfileFetchLoading}
+                  maxLength={INPUT_LIMITS.profileUrl}
+                  placeholder={ui.hrProfileUrlPlaceholder}
+                  className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                />
+                <input
+                  type="password"
+                  value={state.hrProfileOauthToken}
+                  onChange={(event) => state.setHrProfileOauthToken(event.target.value)}
+                  disabled={state.hrContextLoading || state.hrProfileFetchLoading}
+                  maxLength={INPUT_LIMITS.oauthToken}
+                  placeholder={ui.hrProfileTokenPlaceholder}
+                  aria-label={ui.hrProfileTokenLabel}
+                  autoComplete="off"
+                  className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                />
+                <button
+                  type="button"
+                  onClick={state.handleFetchSocialProfile}
+                  disabled={state.hrContextLoading || state.hrProfileFetchLoading}
+                  className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-400"
+                >
+                  {state.hrProfileFetchLoading ? ui.hrFetchingProfile : ui.hrFetchProfile}
+                </button>
+              </div>
+              <p className="text-sm text-gray-500">
+                {ui.hrProfileFetchHint}
+              </p>
+            </div>
+          )}
           {state.hrSetupErrors.profileText && (
             <p className="text-sm text-red-600">
               {state.hrSetupErrors.profileText}

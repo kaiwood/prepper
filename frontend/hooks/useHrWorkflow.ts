@@ -1,7 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import type { ConversationMessage } from "../components/Conversation";
 import type { LanguageCode } from "../lib/translations";
-import { formatApiError } from "../lib/inputLimits.mjs";
+import { INPUT_LIMITS, formatApiError } from "../lib/inputLimits.mjs";
 import { buildApiUrl } from "../lib/appLogic.mjs";
 import {
   buildHrContextPayload,
@@ -23,6 +23,8 @@ import type {
   HrInterviewSource,
   HrLatestSetupResponse,
   HrInterviewStatus,
+  HrProfileFetchResponse,
+  HrProfileInputMode,
   HrResumeExtractResponse,
   HrResumeInputMode,
   HrRoleInputMode,
@@ -62,10 +64,15 @@ export function useHrWorkflow({
     useState<HrRoleInputMode>("roleDescription");
   const [hrResumeInputMode, setHrResumeInputMode] =
     useState<HrResumeInputMode>("resumeText");
+  const [hrProfileInputMode, setHrProfileInputMode] =
+    useState<HrProfileInputMode>("profileText");
   const [hrSetupErrors, setHrSetupErrors] =
     useState<HrSetupValidationErrors>({});
   const [hrDemoSetupLoading, setHrDemoSetupLoading] = useState(false);
   const [hrResumeExtractLoading, setHrResumeExtractLoading] = useState(false);
+  const [hrProfileFetchLoading, setHrProfileFetchLoading] = useState(false);
+  const [hrProfileUrl, setHrProfileUrl] = useState("");
+  const [hrProfileOauthToken, setHrProfileOauthToken] = useState("");
   const [hrContextResult, setHrContextResult] =
     useState<HrContextResponse | null>(null);
   const [hrContextId, setHrContextId] = useState<string | null>(null);
@@ -206,6 +213,10 @@ export function useHrWorkflow({
     });
   };
 
+  const updateHrProfileInputMode = (mode: HrProfileInputMode) => {
+    setHrProfileInputMode(mode);
+  };
+
   const updateHrSetupField = (
     field: keyof HrSetupFormState,
     value: string,
@@ -266,6 +277,62 @@ export function useHrWorkflow({
       setHrContextError(ui.errorBackendUnavailable);
     } finally {
       setHrResumeExtractLoading(false);
+    }
+  }
+
+  async function handleFetchSocialProfile() {
+    if (hrProfileFetchLoading || hrContextLoading) {
+      return;
+    }
+
+    const profileUrl = hrProfileUrl.trim();
+    const oauthToken = hrProfileOauthToken.trim();
+    if (!profileUrl) {
+      setHrContextError(`${ui.hrProfileUrlLabel} is required.`);
+      return;
+    }
+    if (!oauthToken) {
+      setHrContextError(`${ui.hrProfileTokenLabel} is required.`);
+      return;
+    }
+    if (profileUrl.length > INPUT_LIMITS.profileUrl) {
+      setHrContextError(`${ui.hrProfileUrlLabel} is too long.`);
+      return;
+    }
+    if (oauthToken.length > INPUT_LIMITS.oauthToken) {
+      setHrContextError(`${ui.hrProfileTokenLabel} is too long.`);
+      return;
+    }
+
+    setHrProfileFetchLoading(true);
+    setHrContextError(null);
+
+    try {
+      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/profile/fetch"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile_url: profileUrl,
+          oauth_token: oauthToken,
+        }),
+      });
+      const data: HrProfileFetchResponse = await res.json();
+
+      if (!res.ok) {
+        setHrContextError(formatApiError(data, ui.errorFallback));
+        return;
+      }
+
+      if (!data.profile_text?.trim()) {
+        setHrContextError(ui.errorFallback);
+        return;
+      }
+      updateHrSetupField("profileText", data.profile_text);
+    } catch {
+      setHrContextError(ui.errorBackendUnavailable);
+    } finally {
+      setHrProfileOauthToken("");
+      setHrProfileFetchLoading(false);
     }
   }
 
@@ -541,6 +608,7 @@ export function useHrWorkflow({
   return {
     handleBuildHrContext,
     handleExtractResumePdf,
+    handleFetchSocialProfile,
     handleGenerateHrCandidateAnswer,
     handleLoadHrDemoSetup,
     handleStartHrInterview,
@@ -564,6 +632,10 @@ export function useHrWorkflow({
     hrInterviewToolResults,
     hrMessage,
     hrResultPassed,
+    hrProfileFetchLoading,
+    hrProfileInputMode,
+    hrProfileOauthToken,
+    hrProfileUrl,
     hrResumeExtractLoading,
     hrResumeInputMode,
     hrRoleInputMode,
@@ -572,7 +644,10 @@ export function useHrWorkflow({
     hrSetupForm,
     resetHrInterview,
     setHrMessage,
+    setHrProfileOauthToken,
+    setHrProfileUrl,
     updateHrCompanyInputMode,
+    updateHrProfileInputMode,
     updateHrResumeInputMode,
     updateHrRoleInputMode,
     updateHrSetupField,

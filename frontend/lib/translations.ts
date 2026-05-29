@@ -79,6 +79,13 @@ type TranslationStrings = {
   hrResumePdfHint: string;
   hrExtractResumePdf: string;
   hrExtractingResumePdf: string;
+  hrProfileUrlLabel: string;
+  hrProfileUrlPlaceholder: string;
+  hrProfileTokenLabel: string;
+  hrProfileTokenPlaceholder: string;
+  hrFetchProfile: string;
+  hrFetchingProfile: string;
+  hrProfileFetchHint: string;
   hrProfileTextLabel: string;
   hrProfileTextPlaceholder: string;
   hrBuildContext: string;
@@ -211,6 +218,13 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrResumePdfHint: "Upload a text-based PDF to extract candidate profile data. Files are processed in memory only.",
     hrExtractResumePdf: "Extract PDF profile",
     hrExtractingResumePdf: "Extracting...",
+    hrProfileUrlLabel: "LinkedIn/Xing URL",
+    hrProfileUrlPlaceholder: "https://www.linkedin.com/in/name or https://www.xing.com/profile/name",
+    hrProfileTokenLabel: "OAuth token",
+    hrProfileTokenPlaceholder: "Paste a short-lived provider OAuth token.",
+    hrFetchProfile: "Fetch profile",
+    hrFetchingProfile: "Fetching...",
+    hrProfileFetchHint: "Uses the token for this request only. It is not saved.",
     hrProfileTextLabel: "Profile text optional",
     hrProfileTextPlaceholder: "Paste public profile or LinkedIn summary notes.",
     hrBuildContext: "Build context",
@@ -345,6 +359,13 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrResumePdfHint: "Lade eine textbasierte PDF hoch, um Profildaten zu extrahieren. Dateien werden nur im Arbeitsspeicher verarbeitet.",
     hrExtractResumePdf: "PDF-Profil extrahieren",
     hrExtractingResumePdf: "Extrahiere...",
+    hrProfileUrlLabel: "LinkedIn/Xing-URL",
+    hrProfileUrlPlaceholder: "https://www.linkedin.com/in/name oder https://www.xing.com/profile/name",
+    hrProfileTokenLabel: "OAuth-Token",
+    hrProfileTokenPlaceholder: "Kurzlebigen OAuth-Token des Anbieters einfügen.",
+    hrFetchProfile: "Profil abrufen",
+    hrFetchingProfile: "Wird abgerufen...",
+    hrProfileFetchHint: "Der Token wird nur für diese Anfrage verwendet und nicht gespeichert.",
     hrProfileTextLabel: "Profiltext optional",
     hrProfileTextPlaceholder: "Füge öffentliches Profil oder LinkedIn-Zusammenfassung ein.",
     hrBuildContext: "Kontext erstellen",
@@ -477,6 +498,13 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrResumePdfHint: "Importez un PDF textuel pour extraire les données de profil candidat. Les fichiers sont traités uniquement en mémoire.",
     hrExtractResumePdf: "Extraire le profil PDF",
     hrExtractingResumePdf: "Extraction...",
+    hrProfileUrlLabel: "URL LinkedIn/Xing",
+    hrProfileUrlPlaceholder: "https://www.linkedin.com/in/nom ou https://www.xing.com/profile/nom",
+    hrProfileTokenLabel: "Jeton OAuth",
+    hrProfileTokenPlaceholder: "Collez un jeton OAuth fournisseur de courte durée.",
+    hrFetchProfile: "Récupérer le profil",
+    hrFetchingProfile: "Récupération...",
+    hrProfileFetchHint: "Le jeton est utilisé uniquement pour cette requête et n'est pas enregistré.",
     hrProfileTextLabel: "Texte de profil optionnel",
     hrProfileTextPlaceholder: "Collez un profil public ou des notes de résumé LinkedIn.",
     hrBuildContext: "Créer le contexte",

@@ -94,6 +94,7 @@ from .hr_tools import (
     EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
     FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+    FETCH_SOCIAL_PROFILE_TOOL_NAME,
     RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
     HrToolError,
     candidate_profile_tool_result_to_profile,
@@ -103,6 +104,7 @@ from .hr_tools import (
     run_extract_candidate_profile_tool,
     run_fetch_company_website_tool,
     run_fetch_role_description_tool,
+    run_fetch_social_profile_tool,
     run_retrieve_company_context_tool,
 )
 from .hr_workflow import (

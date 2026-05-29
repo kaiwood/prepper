@@ -60,6 +60,7 @@ from prepper_cli.structured_logging import (
 )
 from prepper_cli.hr_tools import (
     hr_tool_result_to_dict,
+    run_fetch_social_profile_tool,
     run_retrieve_company_context_tool,
 )
 from prepper_cli.resume_pdf import (
@@ -82,6 +83,8 @@ _HR_TEXT_LIMITS = {
     "role_url": 2_048,
     "resume_text": 40_000,
     "profile_text": 40_000,
+    "profile_url": 2_048,
+    "oauth_token": 8_000,
     "message": 8_000,
     "context_id": 128,
     "interview_id": 128,
@@ -275,6 +278,67 @@ def hr_assistant_options():
 )
 def hr_resume_extract_options():
     return "", 204
+
+
+@hr_bp.route("/api/hr/profile/fetch", methods=["OPTIONS"])
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def hr_profile_fetch_options():
+    return "", 204
+
+
+@hr_bp.post("/api/hr/profile/fetch")
+@limiter.limit("10 per minute")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def fetch_social_profile():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body is required"}), 400
+
+    try:
+        profile_url = _required_string(data, "profile_url")
+        oauth_token = _required_string(data, "oauth_token")
+        model = _optional_string(data, "model")
+        validate_string_length(
+            profile_url,
+            field="profile_url",
+            max_length=_HR_TEXT_LIMITS["profile_url"],
+        )
+        validate_string_length(
+            oauth_token,
+            field="oauth_token",
+            max_length=_HR_TEXT_LIMITS["oauth_token"],
+        )
+        if model is not None:
+            validate_string_length(model, field="model", max_length=_HR_TEXT_LIMITS["model"])
+        result = run_fetch_social_profile_tool(
+            profile_url=profile_url,
+            oauth_token=oauth_token,
+            model=model,
+        )
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:  # pragma: no cover - defensive API safety net
+        _log_hr_route_failure("hr_profile_fetch", exc)
+        return jsonify(_public_hr_error("Social profile fetch failed")), 502
+
+    payload = hr_tool_result_to_dict(result)
+    output = payload.get("output") if isinstance(payload, dict) else None
+    if not isinstance(output, dict) or not isinstance(output.get("profile_text"), str):
+        return jsonify(_public_hr_error("Social profile fetch failed")), 502
+    return jsonify(
+        {
+            "profile_text": output["profile_text"],
+            "source": output.get("source") if isinstance(output.get("source"), dict) else None,
+        }
+    )
 
 
 @hr_bp.post("/api/hr/resume/extract")
