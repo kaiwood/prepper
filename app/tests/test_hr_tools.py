@@ -15,13 +15,16 @@ from prepper_cli.hr_fixtures import validate_hr_fixture
 from prepper_cli.hr_tools import (
     EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
+    FETCH_ROLE_DESCRIPTION_TOOL_NAME,
     RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
     HrToolError,
     candidate_profile_tool_result_to_profile,
     company_website_tool_result_to_context_entries,
     hr_tool_result_to_dict,
+    role_description_tool_result_to_context_entries,
     run_extract_candidate_profile_tool,
     run_fetch_company_website_tool,
+    run_fetch_role_description_tool,
     run_retrieve_company_context_tool,
 )
 
@@ -101,6 +104,21 @@ def test_fetch_company_website_mock_returns_fixture_content():
     assert [chunk["id"] for chunk in payload["output"]["chunks"]] == [
         "company_website_chunk_001",
     ]
+
+
+def test_fetch_role_description_mock_returns_fixture_role():
+    fixture = validate_hr_fixture("demo_hr")
+
+    result = run_fetch_role_description_tool(mode="mock", fixture=fixture)
+    payload = hr_tool_result_to_dict(result)
+
+    assert payload["tool_name"] == FETCH_ROLE_DESCRIPTION_TOOL_NAME
+    assert payload["status"] == "success"
+    assert payload["output"]["mode"] == "mock"
+    assert payload["output"]["source"]["uri"] == "fixture://role.md"
+    assert payload["output"]["source"]["kind"] == "role"
+    assert "Customer Success Data Analyst" in payload["output"]["role_description"]
+
 
 
 def test_extract_candidate_profile_mock_returns_structured_profile():
@@ -294,6 +312,69 @@ def test_extract_candidate_profile_llm_reports_invalid_json(monkeypatch):
             resume_text="# Resume\nSQL analyst",
             profile_text="# Profile\nFour years experience",
         )
+
+
+def test_fetch_role_description_llm_fetches_and_extracts(monkeypatch):
+    html = b"""
+    <html><head><title>Analyst job</title></head><body>
+      <h1>Data Analyst</h1><p>Analyze customer success data.</p>
+    </body></html>
+    """
+
+    def fake_open(request, *, timeout_seconds, allow_private_url_fetch):
+        assert request.full_url == "https://example.com/jobs/analyst"
+        assert "job ad fetcher" in request.headers["User-agent"]
+        return FakeResponse(html, url="https://example.com/jobs/analyst")
+
+    fake_llm = FakeCandidateProfileLlm(
+        '{"role_description":"# Data Analyst\\n\\nAnalyze customer success data."}'
+    )
+    monkeypatch.setattr("prepper_cli.hr_tools._open_company_website_request", fake_open)
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._build_role_description_llm",
+        lambda model: fake_llm,
+    )
+
+    result = run_fetch_role_description_tool(
+        mode="llm", url="https://example.com/jobs/analyst"
+    )
+    payload = hr_tool_result_to_dict(result)
+
+    assert payload["tool_name"] == FETCH_ROLE_DESCRIPTION_TOOL_NAME
+    assert payload["output"]["role_description"].startswith("# Data Analyst")
+    assert payload["output"]["source"]["uri"] == "https://example.com/jobs/analyst"
+    assert fake_llm.messages[0][0] == "system"
+
+
+
+def test_fetch_role_description_llm_reports_invalid_json(monkeypatch):
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._open_company_website_request",
+        lambda _request, **_kwargs: FakeResponse(b"<html><body>Job text</body></html>"),
+    )
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._build_role_description_llm",
+        lambda model: FakeCandidateProfileLlm("not json"),
+    )
+
+    with pytest.raises(HrToolError, match="invalid JSON"):
+        run_fetch_role_description_tool(
+            mode="llm", url="https://example.com/jobs/analyst"
+        )
+
+
+
+def test_role_description_tool_result_converts_to_context_entries():
+    fixture = validate_hr_fixture("demo_hr")
+    result = run_fetch_role_description_tool(mode="mock", fixture=fixture)
+
+    source, document, chunks = role_description_tool_result_to_context_entries(result)
+
+    assert source.kind == "role"
+    assert source.uri == "fixture://role.md"
+    assert document.source_id == "role_job_ad"
+    assert chunks[0].source_id == "role_job_ad"
+
 
 
 def test_fetch_company_website_live_extracts_readable_html(monkeypatch):

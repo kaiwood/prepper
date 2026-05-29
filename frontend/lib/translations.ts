@@ -71,6 +71,8 @@ type TranslationStrings = {
   hrCompanyTextPlaceholder: string;
   hrRoleDescriptionLabel: string;
   hrRoleDescriptionPlaceholder: string;
+  hrRoleUrlLabel: string;
+  hrRoleUrlHint: string;
   hrResumeTextLabel: string;
   hrResumeTextPlaceholder: string;
   hrProfileTextLabel: string;
@@ -114,10 +116,12 @@ type TranslationStrings = {
   hrValidationCompanyRequired: string;
   hrValidationCompanyEither: string;
   hrValidationRoleRequired: string;
+  hrValidationRoleEither: string;
   hrValidationResumeRequired: string;
   hrValidationCompanyUrlLabel: string;
   hrValidationCompanyTextLabel: string;
   hrValidationRoleDescriptionLabel: string;
+  hrValidationRoleUrlLabel: string;
   hrValidationResumeTextLabel: string;
   hrValidationProfileTextLabel: string;
   hrValidationTooLong: (label: string, maxLength: number) => string;
@@ -128,7 +132,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     appTitle: "Prepper",
     appSubtitle: "Interview preparation, powered by AI.",
     navUser: "User",
-    navAdmin: "Admin",
+    navAdmin: "Company",
     promptLabel: "Interview type",
     promptLoading: "Loading prompts...",
     promptUnavailable: "Prompt list unavailable",
@@ -181,7 +185,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
       "Interview completed. Reset the conversation to start a new run.",
     injectionWarning:
       "This message contains patterns often used in prompt-injection attempts. It will still be sent, but treat results with caution.",
-    hrAdminTitle: "Admin HR setup",
+    hrAdminTitle: "Company HR setup",
     hrAdminSubtitle:
       "Build a candidate evaluation context from company, role, resume, and optional profile information.",
     hrLoadDemo: "Load demo data",
@@ -194,6 +198,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrRoleDescriptionLabel: "Role description",
     hrRoleDescriptionPlaceholder:
       "Paste responsibilities, required skills, and success signals.",
+    hrRoleUrlLabel: "Job-ad URL",
+    hrRoleUrlHint: "Use either a public job-ad URL or paste the role description.",
     hrResumeTextLabel: "Resume text",
     hrResumeTextPlaceholder: "Paste candidate resume content.",
     hrProfileTextLabel: "Profile text optional",
@@ -204,7 +210,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrStatusLabel: "Status",
     hrContextIdLabel: "Context ID",
     hrNoContextId: "No context ID was returned. Review tool errors before continuing.",
-    hrContextRequiredForInterview: "Build HR context in Admin before starting the candidate-fit interview.",
+    hrContextRequiredForInterview: "Build HR context in Company before starting the candidate-fit interview.",
     hrCompanyLabel: "Company",
     hrRoleLabel: "Role",
     hrCandidateLabel: "Candidate",
@@ -237,11 +243,13 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrActiveToolResultsLabel: "Active tool results",
     hrValidationCompanyRequired: "Enter a company URL or paste company text.",
     hrValidationCompanyEither: "Enter either a company URL or company text, not both.",
-    hrValidationRoleRequired: "Role description is required.",
+    hrValidationRoleRequired: "Enter either a job-ad URL or role description.",
+    hrValidationRoleEither: "Enter either a job-ad URL or role description, not both.",
     hrValidationResumeRequired: "Resume text is required.",
     hrValidationCompanyUrlLabel: "Company URL",
     hrValidationCompanyTextLabel: "Company text",
     hrValidationRoleDescriptionLabel: "Role description",
+    hrValidationRoleUrlLabel: "Job-ad URL",
     hrValidationResumeTextLabel: "Resume text",
     hrValidationProfileTextLabel: "Profile text",
     hrValidationTooLong: (label, maxLength) =>
@@ -251,7 +259,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     appTitle: "Prepper",
     appSubtitle: "Interviewvorbereitung mit KI-Unterstützung.",
     navUser: "Nutzer",
-    navAdmin: "Admin",
+    navAdmin: "Unternehmen",
     promptLabel: "Interviewtyp",
     promptLoading: "Prompts werden geladen...",
     promptUnavailable: "Prompt-Liste nicht verfügbar",
@@ -306,7 +314,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
       "Interview ist abgeschlossen. Setze das Gespräch zurück, um neu zu starten.",
     injectionWarning:
       "Diese Nachricht enthält Muster, die oft bei Prompt-Injection-Versuchen genutzt werden. Sie wird trotzdem gesendet, aber bewerte die Antwort mit Vorsicht.",
-    hrAdminTitle: "Admin-HR-Einrichtung",
+    hrAdminTitle: "Unternehmens-HR-Einrichtung",
     hrAdminSubtitle:
       "Erstelle einen Kontext zur Kandidatenbewertung aus Unternehmen, Rolle, Lebenslauf und optionalen Profilinformationen.",
     hrLoadDemo: "Demo-Daten laden",
@@ -319,6 +327,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrRoleDescriptionLabel: "Rollenbeschreibung",
     hrRoleDescriptionPlaceholder:
       "Füge Aufgaben, erforderliche Fähigkeiten und Erfolgssignale ein.",
+    hrRoleUrlLabel: "Stellenanzeigen-URL",
+    hrRoleUrlHint: "Nutze entweder eine öffentliche Stellenanzeigen-URL oder füge die Rollenbeschreibung ein.",
     hrResumeTextLabel: "Lebenslauftext",
     hrResumeTextPlaceholder: "Füge den Lebenslauf der Kandidatin oder des Kandidaten ein.",
     hrProfileTextLabel: "Profiltext optional",
@@ -329,7 +339,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrStatusLabel: "Status",
     hrContextIdLabel: "Kontext-ID",
     hrNoContextId: "Es wurde keine Kontext-ID zurückgegeben. Prüfe Tool-Fehler, bevor du fortfährst.",
-    hrContextRequiredForInterview: "Erstelle zuerst im Admin-Bereich den HR-Kontext, bevor du das Candidate-Fit-Interview startest.",
+    hrContextRequiredForInterview: "Erstelle zuerst im Unternehmensbereich den HR-Kontext, bevor du das Candidate-Fit-Interview startest.",
     hrCompanyLabel: "Unternehmen",
     hrRoleLabel: "Rolle",
     hrCandidateLabel: "Kandidat",
@@ -362,11 +372,13 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrActiveToolResultsLabel: "Aktive Tool-Ergebnisse",
     hrValidationCompanyRequired: "Gib eine Unternehmens-URL ein oder füge Unternehmenstext ein.",
     hrValidationCompanyEither: "Gib entweder eine Unternehmens-URL oder Unternehmenstext ein, nicht beides.",
-    hrValidationRoleRequired: "Rollenbeschreibung ist erforderlich.",
+    hrValidationRoleRequired: "Gib entweder eine Stellenanzeigen-URL oder eine Rollenbeschreibung ein.",
+    hrValidationRoleEither: "Gib entweder eine Stellenanzeigen-URL oder eine Rollenbeschreibung ein, nicht beides.",
     hrValidationResumeRequired: "Lebenslauftext ist erforderlich.",
     hrValidationCompanyUrlLabel: "Unternehmens-URL",
     hrValidationCompanyTextLabel: "Unternehmenstext",
     hrValidationRoleDescriptionLabel: "Rollenbeschreibung",
+    hrValidationRoleUrlLabel: "Stellenanzeigen-URL",
     hrValidationResumeTextLabel: "Lebenslauftext",
     hrValidationProfileTextLabel: "Profiltext",
     hrValidationTooLong: (label, maxLength) =>
@@ -376,7 +388,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     appTitle: "Prepper",
     appSubtitle: "Préparation aux entretiens techniques, avec IA.",
     navUser: "Utilisateur",
-    navAdmin: "Admin",
+    navAdmin: "Entreprise",
     promptLabel: "Type d'entretien",
     promptLoading: "Chargement des prompts...",
     promptUnavailable: "Liste des prompts indisponible",
@@ -429,7 +441,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
       "Entretien terminé. Réinitialisez la conversation pour démarrer un nouveau.",
     injectionWarning:
       "Ce message contient des motifs souvent utilisés pour des tentatives d'injection. Il sera envoyé, mais analysez la réponse avec prudence.",
-    hrAdminTitle: "Configuration RH admin",
+    hrAdminTitle: "Configuration RH de l’entreprise",
     hrAdminSubtitle:
       "Créez un contexte d'évaluation du candidat à partir de l'entreprise, du rôle, du CV et d'informations de profil optionnelles.",
     hrLoadDemo: "Charger les données de démo",
@@ -442,6 +454,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrRoleDescriptionLabel: "Description du rôle",
     hrRoleDescriptionPlaceholder:
       "Collez les responsabilités, les compétences requises et les signaux de réussite.",
+    hrRoleUrlLabel: "URL de l'offre",
+    hrRoleUrlHint: "Utilisez soit une URL publique d'offre d'emploi, soit la description du rôle.",
     hrResumeTextLabel: "Texte du CV",
     hrResumeTextPlaceholder: "Collez le contenu du CV du candidat.",
     hrProfileTextLabel: "Texte de profil optionnel",
@@ -452,7 +466,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrStatusLabel: "Statut",
     hrContextIdLabel: "ID du contexte",
     hrNoContextId: "Aucun ID de contexte n'a été renvoyé. Vérifiez les erreurs d'outil avant de continuer.",
-    hrContextRequiredForInterview: "Créez d'abord le contexte RH dans Admin avant de démarrer l'entretien d'adéquation candidat.",
+    hrContextRequiredForInterview: "Créez d'abord le contexte RH dans l'espace Entreprise avant de démarrer l'entretien d'adéquation candidat.",
     hrCompanyLabel: "Entreprise",
     hrRoleLabel: "Rôle",
     hrCandidateLabel: "Candidat",
@@ -485,11 +499,13 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrActiveToolResultsLabel: "Résultats d'outils actifs",
     hrValidationCompanyRequired: "Saisissez une URL d'entreprise ou collez le texte de l'entreprise.",
     hrValidationCompanyEither: "Saisissez soit une URL d'entreprise, soit le texte de l'entreprise, pas les deux.",
-    hrValidationRoleRequired: "La description du rôle est obligatoire.",
+    hrValidationRoleRequired: "Saisissez soit une URL d'offre d'emploi, soit une description du rôle.",
+    hrValidationRoleEither: "Saisissez soit une URL d'offre d'emploi, soit une description du rôle, pas les deux.",
     hrValidationResumeRequired: "Le texte du CV est obligatoire.",
     hrValidationCompanyUrlLabel: "URL de l'entreprise",
     hrValidationCompanyTextLabel: "Texte de l'entreprise",
     hrValidationRoleDescriptionLabel: "Description du rôle",
+    hrValidationRoleUrlLabel: "URL de l'offre",
     hrValidationResumeTextLabel: "Texte du CV",
     hrValidationProfileTextLabel: "Texte de profil",
     hrValidationTooLong: (label, maxLength) =>

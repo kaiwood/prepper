@@ -53,17 +53,19 @@ def save_admin_hr_setup(
                 company_url,
                 company_text,
                 role_description,
+                role_url,
                 resume_text,
                 profile_text,
                 context_id,
                 response_json,
                 context_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 normalized_setup["company_url"],
                 normalized_setup["company_text"],
                 normalized_setup["role_description"],
+                normalized_setup["role_url"],
                 normalized_setup["resume_text"],
                 normalized_setup["profile_text"],
                 context_id,
@@ -120,6 +122,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             company_url TEXT NOT NULL DEFAULT '',
             company_text TEXT NOT NULL DEFAULT '',
             role_description TEXT NOT NULL DEFAULT '',
+            role_url TEXT NOT NULL DEFAULT '',
             resume_text TEXT NOT NULL DEFAULT '',
             profile_text TEXT NOT NULL DEFAULT '',
             context_id TEXT,
@@ -128,10 +131,19 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    _ensure_column(conn, "admin_hr_setups", "role_url", "TEXT NOT NULL DEFAULT ''")
     conn.execute(
         "INSERT OR IGNORE INTO admin_hr_schema (version) VALUES (?)",
         (_SCHEMA_VERSION,),
     )
+
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    existing = {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
 
 
 def _normalize_setup_fields(setup_fields: dict[str, str | None]) -> dict[str, str]:
@@ -139,6 +151,7 @@ def _normalize_setup_fields(setup_fields: dict[str, str | None]) -> dict[str, st
         "company_url": _normalize_string(setup_fields.get("company_url")),
         "company_text": _normalize_string(setup_fields.get("company_text")),
         "role_description": _normalize_string(setup_fields.get("role_description")),
+        "role_url": _normalize_string(setup_fields.get("role_url")),
         "resume_text": _normalize_string(setup_fields.get("resume_text")),
         "profile_text": _normalize_string(setup_fields.get("profile_text")),
     }
@@ -157,6 +170,7 @@ def _row_to_record(row: sqlite3.Row) -> AdminHrSetupRecord:
             "company_url": str(row["company_url"]),
             "company_text": str(row["company_text"]),
             "role_description": str(row["role_description"]),
+            "role_url": str(row["role_url"]),
             "resume_text": str(row["resume_text"]),
             "profile_text": str(row["profile_text"]),
         },

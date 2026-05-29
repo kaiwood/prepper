@@ -74,11 +74,13 @@ export type CandidateAnswerResponse = {
 };
 
 export type HrCompanyInputMode = "companyText" | "companyUrl";
+export type HrRoleInputMode = "roleDescription" | "roleUrl";
 
 export type HrSetupFormState = {
   companyUrl: string;
   companyText: string;
   roleDescription: string;
+  roleUrl: string;
   resumeText: string;
   profileText: string;
 };
@@ -142,6 +144,7 @@ export type HrSetupApiFields = {
   company_url?: string;
   company_text?: string;
   role_description?: string;
+  role_url?: string;
   resume_text?: string;
   profile_text?: string;
 };

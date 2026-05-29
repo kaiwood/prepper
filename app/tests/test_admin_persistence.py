@@ -37,6 +37,7 @@ def test_save_and_load_latest_admin_hr_setup(tmp_path):
         "company_url": "https://example.com",
         "company_text": "",
         "role_description": "New role",
+        "role_url": "",
         "resume_text": "New resume",
         "profile_text": "",
     }

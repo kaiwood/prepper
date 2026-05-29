@@ -75,6 +75,7 @@ _HR_TEXT_LIMITS = {
     "company_text": 40_000,
     "company_url": 2_048,
     "role_description": 40_000,
+    "role_url": 2_048,
     "resume_text": 40_000,
     "profile_text": 40_000,
     "message": 8_000,
@@ -121,6 +122,7 @@ def demo_hr_setup():
                 "company_url": "",
                 "company_text": fixture.company_markdown,
                 "role_description": fixture.role_markdown,
+                "role_url": "",
                 "resume_text": fixture.resume_markdown,
                 "profile_text": fixture.profile_markdown,
             }
@@ -177,7 +179,8 @@ def build_hr_context():
         mode = _optional_string(data, "mode") or "mock"
         company_text = _optional_string(data, "company_text")
         company_url = _optional_string(data, "company_url")
-        role_description = _required_string(data, "role_description")
+        role_description = _optional_string(data, "role_description")
+        role_url = _optional_string(data, "role_url")
         resume_text = _required_string(data, "resume_text")
         profile_text = _optional_string(data, "profile_text") or ""
         model = _optional_string(data, "model")
@@ -191,6 +194,7 @@ def build_hr_context():
             company_text=company_text,
             company_url=company_url,
             role_description=role_description,
+            role_url=role_url,
             resume_text=resume_text,
             profile_text=profile_text,
             model=model,
@@ -523,6 +527,7 @@ def hr_assistant():
             "company_text": _optional_string(data, "company_text"),
             "company_url": _optional_string(data, "company_url"),
             "role_description": _optional_string(data, "role_description"),
+            "role_url": _optional_string(data, "role_url"),
             "resume_text": _optional_string(data, "resume_text"),
             "profile_text": _optional_string(data, "profile_text"),
         }
@@ -565,6 +570,7 @@ def _save_admin_hr_setup(
             "company_url": _string_or_none(data.get("company_url")),
             "company_text": _string_or_none(data.get("company_text")),
             "role_description": _string_or_none(data.get("role_description")),
+            "role_url": _string_or_none(data.get("role_url")),
             "resume_text": _string_or_none(data.get("resume_text")),
             "profile_text": _string_or_none(data.get("profile_text")),
         },

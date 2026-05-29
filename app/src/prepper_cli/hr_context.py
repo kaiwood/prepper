@@ -133,10 +133,11 @@ def build_hr_context_from_fixture(fixture: HrFixture, *, mode: str = "mock") -> 
 def build_hr_context_from_inputs(
     *,
     mode: str,
-    role_description: str,
+    role_description: str | None,
     resume_text: str,
     company_text: str | None = None,
     company_url: str | None = None,
+    role_url: str | None = None,
     profile_text: str | None = None,
     model: str | None = None,
     fixture_id: str | None = None,
@@ -156,7 +157,12 @@ def build_hr_context_from_inputs(
             "Exactly one of company_text or company_url is required"
         )
 
-    normalized_role = _required_input_text(role_description, "role_description")
+    normalized_role = _optional_non_empty_text(role_description)
+    normalized_role_url = _optional_non_empty_text(role_url)
+    if bool(normalized_role) == bool(normalized_role_url):
+        raise HrContextValidationError(
+            "Exactly one of role_description or role_url is required"
+        )
     normalized_resume = _required_input_text(resume_text, "resume_text")
     normalized_profile = (profile_text or "").strip()
 
@@ -267,11 +273,116 @@ def build_hr_context_from_inputs(
                 ),
             )
 
-    role_document = _build_input_document(
-        source_id="role",
-        title_fallback="Role description",
-        markdown=normalized_role,
-    )
+    if normalized_role_url is None:
+        role_document = _build_input_document(
+            source_id="role",
+            title_fallback="Role description",
+            markdown=normalized_role or "",
+        )
+        role_source = _build_source(
+            id="role",
+            kind="role",
+            title=role_document.title,
+            uri=_source_uri(source_uris, "role", "input://role_description"),
+            content=normalized_role or "",
+        )
+    else:
+        if mode != "llm":
+            raise HrContextValidationError("role_url requires llm mode")
+        from .hr_tools import (
+            FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+            UnsafeCompanyWebsiteUrlError,
+            role_description_tool_result_to_context_entries,
+            run_fetch_role_description_tool,
+            validate_company_website_url_safety,
+        )
+
+        try:
+            try:
+                validate_company_website_url_safety(
+                    normalized_role_url,
+                    allow_private_url_fetch=allow_private_url_fetch,
+                    url_label="Job ad URL",
+                )
+            except UnsafeCompanyWebsiteUrlError as exc:
+                raise HrContextValidationError(str(exc)) from exc
+
+            if tool_event_recorder is not None:
+                from .hr_langchain_tools import create_fetch_role_description_tool
+
+                role_tool_result = _invoke_context_langchain_tool(
+                    tool=create_fetch_role_description_tool(
+                        recorder=tool_event_recorder,
+                        model=model,
+                        allow_private_url_fetch=allow_private_url_fetch,
+                    ),
+                    args={"url": normalized_role_url},
+                    model=model,
+                    instruction="Fetch a job ad and extract role description context for an HR candidate-fit interview.",
+                )
+            else:
+                started_at = time.monotonic()
+                try:
+                    role_tool_result = run_fetch_role_description_tool(
+                        mode="llm",
+                        url=normalized_role_url,
+                        model=model,
+                        allow_private_url_fetch=allow_private_url_fetch,
+                    )
+                except Exception as exc:
+                    from .hr_langchain_tools import record_hr_tool_result
+
+                    record_hr_tool_result(
+                        recorder=tool_event_recorder,
+                        tool_name=FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+                        started_at=started_at,
+                        input_payload={"url": normalized_role_url},
+                        error=exc,
+                    )
+                    raise
+                from .hr_langchain_tools import record_hr_tool_result
+
+                record_hr_tool_result(
+                    recorder=tool_event_recorder,
+                    tool_name=FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+                    started_at=started_at,
+                    input_payload={"url": normalized_role_url},
+                    result=role_tool_result,
+                )
+            tool_results.append(role_tool_result)
+            role_source, role_document, _role_chunks = (
+                role_description_tool_result_to_context_entries(role_tool_result)
+            )
+            normalized_role = role_document.markdown
+        except UnsafeCompanyWebsiteUrlError as exc:
+            raise HrContextValidationError(str(exc)) from exc
+        except HrContextValidationError:
+            raise
+        except Exception as exc:
+            message = str(exc)
+            errors.append(
+                HrContextBuildIssue(
+                    tool_name=FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+                    message=message,
+                )
+            )
+            tool_results.append(
+                _build_failed_tool_result(
+                    tool_name=FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+                    mode="llm",
+                    message=message,
+                    extra={"url": normalized_role_url},
+                )
+            )
+            return HrContextBuildResult(
+                context=None,
+                tool_results=tuple(tool_results),
+                errors=tuple(errors),
+                tool_call_events=tuple(
+                    tool_event_recorder.to_public_dicts() if tool_event_recorder else []
+                ),
+            )
+
     resume_document = _build_input_document(
         source_id="resume",
         title_fallback="Candidate resume",
@@ -294,13 +405,6 @@ def build_hr_context_from_inputs(
             content=normalized_profile,
         )
 
-    role_source = _build_source(
-        id="role",
-        kind="role",
-        title=role_document.title,
-        uri=_source_uri(source_uris, "role", "input://role_description"),
-        content=normalized_role,
-    )
     resume_source = _build_source(
         id="resume",
         kind="resume",

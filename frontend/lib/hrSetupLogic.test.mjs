@@ -13,6 +13,7 @@ const validForm = {
   companyUrl: "https://example.com/about",
   companyText: "",
   roleDescription: "# Role\nAnalyze workforce data.",
+  roleUrl: "",
   resumeText: "# Resume\nSQL and customer analytics.",
   profileText: "Responsible AI interests.",
 };
@@ -25,13 +26,14 @@ test("validates required HR setup fields", () => {
     companyUrl: "",
     companyText: "",
     roleDescription: "",
+    roleUrl: "",
     resumeText: "",
     profileText: "",
   });
 
   assert.equal(hasHrSetupValidationErrors(errors), true);
   assert.equal(errors.company, "Enter a company URL or paste company text.");
-  assert.equal(errors.roleDescription, "Role description is required.");
+  assert.equal(errors.roleDescription, "Enter either a role URL or role description.");
   assert.equal(errors.resumeText, "Resume text is required.");
 });
 
@@ -102,6 +104,47 @@ test("validates only the active company tab", () => {
   );
 });
 
+test("validates only the active role tab", () => {
+  assert.deepEqual(
+    validateHrSetupForm(
+      {
+        ...validForm,
+        roleUrl: "https://example.com/jobs/analyst",
+      },
+      undefined,
+      { roleInputMode: "roleDescription" },
+    ),
+    {},
+  );
+
+  assert.deepEqual(
+    validateHrSetupForm(
+      {
+        ...validForm,
+        roleDescription: "",
+        roleUrl: "https://example.com/jobs/analyst",
+      },
+      undefined,
+      { roleInputMode: "roleUrl" },
+    ),
+    {},
+  );
+
+  assert.equal(
+    validateHrSetupForm(
+      {
+        ...validForm,
+        roleDescription: "",
+        roleUrl: "",
+      },
+      undefined,
+      { roleInputMode: "roleUrl" },
+    ).roleDescription,
+    "Enter either a role URL or role description.",
+  );
+});
+
+
 test("builds HR setup form from API fields", () => {
   assert.deepEqual(
     buildHrSetupFormFromApi({
@@ -115,6 +158,7 @@ test("builds HR setup form from API fields", () => {
       companyUrl: "https://example.com/about",
       companyText: "",
       roleDescription: "Role summary",
+      roleUrl: "",
       resumeText: "Resume summary",
       profileText: "Profile summary",
     },
@@ -134,6 +178,7 @@ test("builds HR setup form from demo API fields", () => {
       companyUrl: "",
       companyText: "# Company\nDemo company",
       roleDescription: "# Role\nDemo role",
+      roleUrl: "",
       resumeText: "# Resume\nDemo resume",
       profileText: "# Profile\nDemo profile",
     },
@@ -157,6 +202,7 @@ test("builds HR context payload from pasted company text", () => {
         companyUrl: " ",
         companyText: " # Company\nEvidence-led decisions. ",
         roleDescription: " Role summary ",
+        roleUrl: " ",
         resumeText: " Resume summary ",
         profileText: " ",
       },
@@ -170,6 +216,58 @@ test("builds HR context payload from pasted company text", () => {
     },
   );
 });
+
+test("builds HR context payload from role URL", () => {
+  assert.deepEqual(
+    buildHrContextPayload({
+      ...validForm,
+      roleDescription: " ",
+      roleUrl: " https://example.com/jobs/analyst ",
+    }),
+    {
+      mode: "llm",
+      company_url: "https://example.com/about",
+      role_url: "https://example.com/jobs/analyst",
+      resume_text: "# Resume\nSQL and customer analytics.",
+      profile_text: "Responsible AI interests.",
+    },
+  );
+});
+
+
+test("builds HR context payload from the active role tab only", () => {
+  const formWithBothRoleInputs = {
+    ...validForm,
+    roleUrl: " https://example.com/jobs/analyst ",
+  };
+
+  assert.deepEqual(
+    buildHrContextPayload(formWithBothRoleInputs, {
+      roleInputMode: "roleDescription",
+    }),
+    {
+      mode: "llm",
+      company_url: "https://example.com/about",
+      role_description: "# Role\nAnalyze workforce data.",
+      resume_text: "# Resume\nSQL and customer analytics.",
+      profile_text: "Responsible AI interests.",
+    },
+  );
+
+  assert.deepEqual(
+    buildHrContextPayload(formWithBothRoleInputs, {
+      roleInputMode: "roleUrl",
+    }),
+    {
+      mode: "llm",
+      company_url: "https://example.com/about",
+      role_url: "https://example.com/jobs/analyst",
+      resume_text: "# Resume\nSQL and customer analytics.",
+      profile_text: "Responsible AI interests.",
+    },
+  );
+});
+
 
 test("builds HR context payload from the active company tab only", () => {
   const formWithBothCompanyInputs = {

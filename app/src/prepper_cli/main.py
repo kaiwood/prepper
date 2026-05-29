@@ -28,10 +28,12 @@ from .hr_workflow import run_hr_workflow
 from .hr_tools import (
     EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
+    FETCH_ROLE_DESCRIPTION_TOOL_NAME,
     RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
     hr_tool_result_to_dict,
     run_extract_candidate_profile_tool,
     run_fetch_company_website_tool,
+    run_fetch_role_description_tool,
     run_retrieve_company_context_tool,
 )
 from .interview import resolve_pass_threshold, run_interview_turn
@@ -318,6 +320,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "tool_name",
         choices=[
             FETCH_COMPANY_WEBSITE_TOOL_NAME,
+            FETCH_ROLE_DESCRIPTION_TOOL_NAME,
             EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
             RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
         ],
@@ -329,7 +332,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     tool_run_parser.add_argument(
         "--url",
-        help="Company website URL for llm/live tool mode",
+        help="Company website or job-ad URL for llm/live tool mode",
     )
     tool_run_parser.add_argument(
         "--context",
@@ -775,6 +778,17 @@ def _format_hr_tool_summary(payload: dict) -> str:
                 f"Chunks: {len(output['chunks'])}",
             ]
         )
+    elif payload["tool_name"] == FETCH_ROLE_DESCRIPTION_TOOL_NAME:
+        source = output["source"]
+        metadata = output["fetch_metadata"]
+        lines.extend(
+            [
+                f"Source: {source['title']} ({source['uri']})",
+                f"Role chars: {metadata['role_char_count']}",
+                f"Bytes: {metadata['byte_count']}",
+                f"Chunks: {len(output['chunks'])}",
+            ]
+        )
     elif payload["tool_name"] == EXTRACT_CANDIDATE_PROFILE_TOOL_NAME:
         profile = output["profile"]
         metadata = output["input_metadata"]
@@ -986,6 +1000,14 @@ def _run_hr_command(args: argparse.Namespace) -> int:
                     mode=args.mode,
                     fixture=fixture,
                     url=args.url,
+                    allow_private_url_fetch=args.allow_private_url_fetch,
+                )
+            elif args.tool_name == FETCH_ROLE_DESCRIPTION_TOOL_NAME:
+                result = run_fetch_role_description_tool(
+                    mode=args.mode,
+                    fixture=fixture,
+                    url=args.url,
+                    model=args.model,
                     allow_private_url_fetch=args.allow_private_url_fetch,
                 )
             elif args.tool_name == EXTRACT_CANDIDATE_PROFILE_TOOL_NAME:

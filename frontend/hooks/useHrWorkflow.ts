@@ -22,6 +22,7 @@ import type {
   HrInterviewSource,
   HrLatestSetupResponse,
   HrInterviewStatus,
+  HrRoleInputMode,
   HrSetupFormState,
   HrSetupValidationErrors,
   HrToolCallEvent,
@@ -48,11 +49,14 @@ export function useHrWorkflow({
     companyUrl: "",
     companyText: "",
     roleDescription: "",
+    roleUrl: "",
     resumeText: "",
     profileText: "",
   });
   const [hrCompanyInputMode, setHrCompanyInputMode] =
     useState<HrCompanyInputMode>("companyText");
+  const [hrRoleInputMode, setHrRoleInputMode] =
+    useState<HrRoleInputMode>("roleDescription");
   const [hrSetupErrors, setHrSetupErrors] =
     useState<HrSetupValidationErrors>({});
   const [hrDemoSetupLoading, setHrDemoSetupLoading] = useState(false);
@@ -89,10 +93,12 @@ export function useHrWorkflow({
     companyEither: ui.hrValidationCompanyEither,
     companyRequired: ui.hrValidationCompanyRequired,
     roleRequired: ui.hrValidationRoleRequired,
+    roleEither: ui.hrValidationRoleEither,
     resumeRequired: ui.hrValidationResumeRequired,
     companyUrlLabel: ui.hrValidationCompanyUrlLabel,
     companyTextLabel: ui.hrValidationCompanyTextLabel,
     roleDescriptionLabel: ui.hrValidationRoleDescriptionLabel,
+    roleUrlLabel: ui.hrValidationRoleUrlLabel,
     resumeTextLabel: ui.hrValidationResumeTextLabel,
     profileTextLabel: ui.hrValidationProfileTextLabel,
     tooLong: ui.hrValidationTooLong,
@@ -120,6 +126,7 @@ export function useHrWorkflow({
         if (data.setup) {
           setHrSetupForm(buildHrSetupFormFromApi(data.setup));
           setHrCompanyInputMode(getCompanyInputModeFromSetup(data.setup));
+          setHrRoleInputMode(getRoleInputModeFromSetup(data.setup));
           setHrSetupErrors({});
         }
         if (data.context_result) {
@@ -158,6 +165,20 @@ export function useHrWorkflow({
       }
       return validateHrSetupForm(hrSetupForm, hrSetupValidationMessages, {
         companyInputMode: mode,
+        roleInputMode: hrRoleInputMode,
+      });
+    });
+  };
+
+  const updateHrRoleInputMode = (mode: HrRoleInputMode) => {
+    setHrRoleInputMode(mode);
+    setHrSetupErrors((prev) => {
+      if (Object.keys(prev).length === 0) {
+        return prev;
+      }
+      return validateHrSetupForm(hrSetupForm, hrSetupValidationMessages, {
+        companyInputMode: hrCompanyInputMode,
+        roleInputMode: mode,
       });
     });
   };
@@ -174,7 +195,10 @@ export function useHrWorkflow({
       return validateHrSetupForm(
         { ...hrSetupForm, [field]: value },
         hrSetupValidationMessages,
-        { companyInputMode: hrCompanyInputMode },
+        {
+          companyInputMode: hrCompanyInputMode,
+          roleInputMode: hrRoleInputMode,
+        },
       );
     });
   };
@@ -203,6 +227,7 @@ export function useHrWorkflow({
 
       setHrSetupForm(buildHrSetupFormFromApi(data.setup));
       setHrCompanyInputMode(getCompanyInputModeFromSetup(data.setup));
+      setHrRoleInputMode(getRoleInputModeFromSetup(data.setup));
       setHrSetupErrors({});
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
@@ -255,7 +280,10 @@ export function useHrWorkflow({
     const validationErrors = validateHrSetupForm(
       hrSetupForm,
       hrSetupValidationMessages,
-      { companyInputMode: hrCompanyInputMode },
+      {
+        companyInputMode: hrCompanyInputMode,
+        roleInputMode: hrRoleInputMode,
+      },
     ) as HrSetupValidationErrors;
     setHrSetupErrors(validationErrors);
     if (hasHrSetupValidationErrors(validationErrors)) {
@@ -276,6 +304,7 @@ export function useHrWorkflow({
         body: JSON.stringify(
           buildHrContextPayload(hrSetupForm, {
             companyInputMode: hrCompanyInputMode,
+            roleInputMode: hrRoleInputMode,
           }),
         ),
       });
@@ -466,12 +495,14 @@ export function useHrWorkflow({
     hrInterviewToolResults,
     hrMessage,
     hrResultPassed,
+    hrRoleInputMode,
     latestHrInterviewerQuestion,
     hrSetupErrors,
     hrSetupForm,
     resetHrInterview,
     setHrMessage,
     updateHrCompanyInputMode,
+    updateHrRoleInputMode,
     updateHrSetupField,
   };
 }
@@ -487,6 +518,16 @@ function getCompanyInputModeFromSetup(setup: {
     return "companyUrl";
   }
   return "companyText";
+}
+
+function getRoleInputModeFromSetup(setup: {
+  role_description?: unknown;
+  role_url?: unknown;
+}): HrRoleInputMode {
+  if (typeof setup.role_url === "string" && setup.role_url.trim()) {
+    return "roleUrl";
+  }
+  return "roleDescription";
 }
 
 export type HrWorkflowState = ReturnType<typeof useHrWorkflow>;

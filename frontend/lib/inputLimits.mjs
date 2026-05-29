@@ -5,6 +5,7 @@ export const INPUT_LIMITS = {
   companyText: 40000,
   companyUrl: 2048,
   roleDescription: 40000,
+  roleUrl: 2048,
   resumeText: 40000,
   profileText: 40000,
 };

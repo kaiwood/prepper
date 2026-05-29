@@ -9,9 +9,11 @@ from .hr_tool_events import HrToolEventRecorder, summarize_tool_result_output
 from .hr_tools import (
     EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
     FETCH_COMPANY_WEBSITE_TOOL_NAME,
+    FETCH_ROLE_DESCRIPTION_TOOL_NAME,
     RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
     run_extract_candidate_profile_tool,
     run_fetch_company_website_tool,
+    run_fetch_role_description_tool,
     run_retrieve_company_context_tool,
 )
 
@@ -89,6 +91,53 @@ def create_fetch_company_website_tool(
         name=FETCH_COMPANY_WEBSITE_TOOL_NAME,
         description="Fetch readable public company website content from an http(s) URL.",
     )
+
+
+def create_fetch_role_description_tool(
+    *,
+    recorder: HrToolEventRecorder | None = None,
+    model: str | None = None,
+    allow_private_url_fetch: bool | None = None,
+):
+    try:
+        from langchain_core.tools import StructuredTool
+    except ImportError as exc:  # pragma: no cover - depends on env install
+        raise RuntimeError("langchain-core is required for HR LangChain tools") from exc
+
+    def fetch_role_description(url: str) -> dict[str, Any]:
+        """Fetch a public job-ad URL and extract clean role description text."""
+        started_at = time.monotonic()
+        try:
+            result = run_fetch_role_description_tool(
+                mode="llm",
+                url=url,
+                model=model,
+                allow_private_url_fetch=allow_private_url_fetch,
+            )
+        except Exception as exc:
+            record_hr_tool_result(
+                recorder=recorder,
+                tool_name=FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+                started_at=started_at,
+                input_payload={"url": url},
+                error=exc,
+            )
+            raise
+        record_hr_tool_result(
+            recorder=recorder,
+            tool_name=FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+            started_at=started_at,
+            input_payload={"url": url},
+            result=result,
+        )
+        return {"tool_name": result.tool_name, "status": result.status, "output": result.output}
+
+    return StructuredTool.from_function(
+        func=fetch_role_description,
+        name=FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+        description="Fetch a public job-ad URL and extract clean role description markdown.",
+    )
+
 
 
 def create_extract_candidate_profile_tool(

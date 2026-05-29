@@ -70,6 +70,7 @@ def test_hr_context_endpoint_builds_and_stores_context_from_text(monkeypatch, tm
         "company_url": "",
         "company_text": payload_company_text(),
         "role_description": _payload()["role_description"],
+        "role_url": "",
         "resume_text": _payload()["resume_text"],
         "profile_text": _payload()["profile_text"],
     }
@@ -125,6 +126,7 @@ def test_demo_hr_setup_returns_fixture_fields():
     assert setup["company_url"] == ""
     assert setup["company_text"].startswith("# Northstar Analytics")
     assert setup["role_description"].startswith("# Role: Customer Success Data Analyst")
+    assert setup["role_url"] == ""
     assert setup["resume_text"].startswith("# Candidate Resume: Jordan Lee")
     assert setup["profile_text"].startswith("# Candidate Profile Summary")
 
@@ -162,6 +164,85 @@ def test_hr_context_endpoint_fetches_company_url(monkeypatch):
     assert "document" not in data["tool_results"][0]["output"]
     assert "chunks" not in data["tool_results"][0]["output"]
     assert data["tool_results"][0]["output"]["summary"] == "HR analytics platform."
+
+
+def test_hr_context_endpoint_fetches_role_url(monkeypatch):
+    from prepper_cli.hr_context import HrToolResult
+
+    def fake_role_tool(**kwargs):
+        assert kwargs["mode"] == "llm"
+        assert kwargs["url"] == "https://example.com/jobs/analyst"
+        return HrToolResult(
+            tool_name="fetch_role_description",
+            status="success",
+            output={
+                "mode": "llm",
+                "role_description": "# Analyst\n\nAnalyze customer success data.",
+                "source": {
+                    "id": "role_job_ad",
+                    "kind": "role",
+                    "title": "Analyst",
+                    "uri": "https://example.com/jobs/analyst",
+                    "content_sha256": "x",
+                },
+                "document": {
+                    "source_id": "role_job_ad",
+                    "title": "Analyst",
+                    "markdown": "# Analyst\n\nAnalyze customer success data.",
+                    "summary": "Analyze customer success data.",
+                },
+                "chunks": [],
+                "fetch_metadata": {
+                    "url": "https://example.com/jobs/analyst",
+                    "content_type": "text/html",
+                    "byte_count": 10,
+                    "truncated": False,
+                    "fetched_char_count": 10,
+                    "role_char_count": 41,
+                    "max_chars": 40000,
+                },
+            },
+        )
+
+    def fake_candidate_tool(**kwargs):
+        return HrToolResult(
+            tool_name="extract_candidate_profile",
+            status="success",
+            output={
+                "mode": kwargs["mode"],
+                "profile": {
+                    "skills": ["SQL"],
+                    "experience": ["Analyst"],
+                    "seniority_signals": [],
+                    "risks": [],
+                    "interview_focus_areas": ["Validate analytics depth"],
+                },
+                "input_metadata": {},
+                "sources": [],
+            },
+        )
+
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._resolve_company_website_host_ips",
+        lambda _hostname: (ipaddress.ip_address("93.184.216.34"),),
+    )
+    monkeypatch.setattr("prepper_cli.hr_langchain_tools.run_fetch_role_description_tool", fake_role_tool)
+    monkeypatch.setattr("prepper_cli.hr_langchain_tools.run_extract_candidate_profile_tool", fake_candidate_tool)
+    app = create_app()
+    client = app.test_client()
+
+    payload = _payload(role_description="", role_url="https://example.com/jobs/analyst", mode="llm")
+    response = client.post("/api/hr/context", json=payload)
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["sources"][1]["uri"] == "https://example.com/jobs/analyst"
+    assert [tool["tool_name"] for tool in data["tool_results"]] == [
+        "fetch_role_description",
+        "extract_candidate_profile",
+    ]
+
 
 
 def test_hr_context_endpoint_can_return_explicit_debug_context():

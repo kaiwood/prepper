@@ -126,25 +126,96 @@ export default function HrSetupPanel({
           )}
         </section>
 
-        <section className="flex flex-col gap-2">
-          <label
-            htmlFor="hr-role-description"
-            className="text-sm font-medium text-gray-700"
+        <section className="flex flex-col gap-3">
+          <div
+            className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1"
+            role="tablist"
+            aria-label={ui.hrRoleLabel}
           >
-            {ui.hrRoleDescriptionLabel}
-          </label>
-          <textarea
-            id="hr-role-description"
-            value={state.hrSetupForm.roleDescription}
-            onChange={(event) =>
-              state.updateHrSetupField("roleDescription", event.target.value)
-            }
-            disabled={state.hrContextLoading}
-            maxLength={INPUT_LIMITS.roleDescription}
-            rows={6}
-            placeholder={ui.hrRoleDescriptionPlaceholder}
-            className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-          />
+            <button
+              type="button"
+              role="tab"
+              aria-selected={state.hrRoleInputMode === "roleDescription"}
+              aria-controls="hr-role-description-panel"
+              disabled={state.hrContextLoading}
+              onClick={() => state.updateHrRoleInputMode("roleDescription")}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
+                state.hrRoleInputMode === "roleDescription"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              {ui.hrRoleDescriptionLabel}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={state.hrRoleInputMode === "roleUrl"}
+              aria-controls="hr-role-url-panel"
+              disabled={state.hrContextLoading}
+              onClick={() => state.updateHrRoleInputMode("roleUrl")}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
+                state.hrRoleInputMode === "roleUrl"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              {ui.hrRoleUrlLabel}
+            </button>
+          </div>
+
+          {state.hrRoleInputMode === "roleDescription" ? (
+            <div
+              id="hr-role-description-panel"
+              role="tabpanel"
+              className="flex flex-col gap-2"
+            >
+              <label
+                htmlFor="hr-role-description"
+                className="text-sm font-medium text-gray-700"
+              >
+                {ui.hrRoleDescriptionLabel}
+              </label>
+              <textarea
+                id="hr-role-description"
+                value={state.hrSetupForm.roleDescription}
+                onChange={(event) =>
+                  state.updateHrSetupField("roleDescription", event.target.value)
+                }
+                disabled={state.hrContextLoading}
+                maxLength={INPUT_LIMITS.roleDescription}
+                rows={6}
+                placeholder={ui.hrRoleDescriptionPlaceholder}
+                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              />
+            </div>
+          ) : (
+            <div
+              id="hr-role-url-panel"
+              role="tabpanel"
+              className="flex flex-col gap-2"
+            >
+              <label
+                htmlFor="hr-role-url"
+                className="text-sm font-medium text-gray-700"
+              >
+                {ui.hrRoleUrlLabel}
+              </label>
+              <input
+                id="hr-role-url"
+                type="url"
+                value={state.hrSetupForm.roleUrl}
+                onChange={(event) =>
+                  state.updateHrSetupField("roleUrl", event.target.value)
+                }
+                disabled={state.hrContextLoading}
+                maxLength={INPUT_LIMITS.roleUrl}
+                placeholder="https://example.com/jobs/role"
+                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              />
+              <p className="text-sm text-gray-500">{ui.hrRoleUrlHint}</p>
+            </div>
+          )}
           {state.hrSetupErrors.roleDescription && (
             <p className="text-sm text-red-600">
               {state.hrSetupErrors.roleDescription}
