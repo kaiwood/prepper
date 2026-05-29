@@ -182,10 +182,16 @@ export type HrLatestSetupResponse = {
   error?: string;
 };
 
+export type HrResolvedSetupFields = {
+  company_text?: string;
+  role_description?: string;
+};
+
 export type HrContextResponse = {
   schema_version?: string;
   status?: string;
   context_id?: string | null;
+  resolved_setup?: HrResolvedSetupFields | null;
   summaries?: HrContextSummaries | null;
   sources?: HrContextSource[];
   tool_results?: HrToolResult[];

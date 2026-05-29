@@ -49,6 +49,10 @@ def test_hr_context_endpoint_builds_and_stores_context_from_text(monkeypatch, tm
     assert data["context_id"].startswith("hrctx_input_")
     assert data["context"]["context_id"] == data["context_id"]
     assert data["context"]["fixture_id"] is None
+    assert data["resolved_setup"] == {
+        "company_text": payload_company_text(),
+        "role_description": _payload()["role_description"],
+    }
     assert "debug_context" not in data
     assert "company_inputs" not in data["context"]
     assert "role_description" not in data["context"]
@@ -75,6 +79,7 @@ def test_hr_context_endpoint_builds_and_stores_context_from_text(monkeypatch, tm
         "profile_text": _payload()["profile_text"],
     }
     assert latest["context_result"]["context_id"] == data["context_id"]
+    assert latest["context_result"]["resolved_setup"] == data["resolved_setup"]
 
 
 def payload_company_text():
@@ -181,6 +186,7 @@ def test_hr_context_endpoint_fetches_company_url(monkeypatch):
     assert "document" not in data["tool_results"][0]["output"]
     assert "chunks" not in data["tool_results"][0]["output"]
     assert data["tool_results"][0]["output"]["summary"] == "HR analytics platform."
+    assert data["resolved_setup"]["company_text"] == "HR analytics platform."
 
 
 def test_hr_context_endpoint_fetches_role_url(monkeypatch):
@@ -255,6 +261,7 @@ def test_hr_context_endpoint_fetches_role_url(monkeypatch):
     data = response.get_json()
     assert data["status"] == "success"
     assert data["sources"][1]["uri"] == "https://example.com/jobs/analyst"
+    assert data["resolved_setup"]["role_description"] == "# Analyst\n\nAnalyze customer success data."
     assert [tool["tool_name"] for tool in data["tool_results"]] == [
         "fetch_role_description",
         "extract_candidate_profile",

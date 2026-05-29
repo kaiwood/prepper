@@ -6,7 +6,10 @@ import { buildApiUrl } from "../lib/appLogic.mjs";
 import {
   buildHrContextPayload,
   buildHrSetupFormFromApi,
+  hasHrResolvedCompanyText,
+  hasHrResolvedRoleDescription,
   hasHrSetupValidationErrors,
+  mergeHrResolvedSetupFields,
   validateHrSetupForm,
 } from "../lib/hrSetupLogic.mjs";
 import {
@@ -138,9 +141,21 @@ export function useHrWorkflow({
           return;
         }
         if (data.setup) {
-          setHrSetupForm(buildHrSetupFormFromApi(data.setup));
-          setHrCompanyInputMode(getCompanyInputModeFromSetup(data.setup));
-          setHrRoleInputMode(getRoleInputModeFromSetup(data.setup));
+          const restoredForm = mergeHrResolvedSetupFields(
+            buildHrSetupFormFromApi(data.setup),
+            data.context_result,
+          );
+          setHrSetupForm(restoredForm);
+          setHrCompanyInputMode(
+            hasHrResolvedCompanyText(data.context_result)
+              ? "companyText"
+              : getCompanyInputModeFromSetup(data.setup),
+          );
+          setHrRoleInputMode(
+            hasHrResolvedRoleDescription(data.context_result)
+              ? "roleDescription"
+              : getRoleInputModeFromSetup(data.setup),
+          );
           setHrSetupErrors({});
         }
         if (data.context_result) {
@@ -273,6 +288,7 @@ export function useHrWorkflow({
         return;
       }
       updateHrSetupField("profileText", profileText);
+      setHrProfileInputMode("profileText");
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
     } finally {
@@ -328,6 +344,7 @@ export function useHrWorkflow({
         return;
       }
       updateHrSetupField("profileText", data.profile_text);
+      setHrProfileInputMode("profileText");
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
     } finally {
@@ -450,6 +467,13 @@ export function useHrWorkflow({
         return;
       }
 
+      setHrSetupForm((prev) => mergeHrResolvedSetupFields(prev, data));
+      if (hasHrResolvedCompanyText(data)) {
+        setHrCompanyInputMode("companyText");
+      }
+      if (hasHrResolvedRoleDescription(data)) {
+        setHrRoleInputMode("roleDescription");
+      }
       setHrContextResult(data);
       setHrContextId(
         typeof data.context_id === "string" && data.context_id

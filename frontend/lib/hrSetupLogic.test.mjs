@@ -5,7 +5,10 @@ import { INPUT_LIMITS } from "./inputLimits.mjs";
 import {
   buildHrContextPayload,
   buildHrSetupFormFromApi,
+  hasHrResolvedCompanyText,
+  hasHrResolvedRoleDescription,
   hasHrSetupValidationErrors,
+  mergeHrResolvedSetupFields,
   validateHrSetupForm,
 } from "./hrSetupLogic.mjs";
 
@@ -212,6 +215,30 @@ test("builds HR setup form from demo API fields", () => {
     },
   );
 });
+
+test("merges resolved setup fields into editable form fields", () => {
+  const form = {
+    ...validForm,
+    companyText: "",
+    roleDescription: "",
+    roleUrl: "https://example.com/jobs/analyst",
+  };
+  const response = {
+    resolved_setup: {
+      company_text: " # Company\nFetched company ",
+      role_description: " # Role\nFetched role ",
+    },
+  };
+
+  assert.deepEqual(mergeHrResolvedSetupFields(form, response), {
+    ...form,
+    companyText: "# Company\nFetched company",
+    roleDescription: "# Role\nFetched role",
+  });
+  assert.equal(hasHrResolvedCompanyText(response), true);
+  assert.equal(hasHrResolvedRoleDescription(response), true);
+});
+
 
 test("builds HR context payload from company URL", () => {
   assert.deepEqual(buildHrContextPayload(validForm), {

@@ -134,6 +134,31 @@ export function buildHrSetupFormFromApi(setup) {
   };
 }
 
+export function mergeHrResolvedSetupFields(form, contextResponse) {
+  const resolvedSetup = contextResponse?.resolved_setup;
+  if (!resolvedSetup || typeof resolvedSetup !== "object") {
+    return form;
+  }
+  const companyText = normalizeText(resolvedSetup.company_text);
+  const roleDescription = normalizeText(resolvedSetup.role_description);
+  if (!companyText && !roleDescription) {
+    return form;
+  }
+  return {
+    ...form,
+    ...(companyText ? { companyText } : {}),
+    ...(roleDescription ? { roleDescription } : {}),
+  };
+}
+
+export function hasHrResolvedCompanyText(contextResponse) {
+  return Boolean(normalizeText(contextResponse?.resolved_setup?.company_text));
+}
+
+export function hasHrResolvedRoleDescription(contextResponse) {
+  return Boolean(normalizeText(contextResponse?.resolved_setup?.role_description));
+}
+
 export function buildHrContextPayload(form, options = {}) {
   const roleInputMode = normalizeRoleInputMode(options.roleInputMode);
   const roleDescription = normalizeText(form?.roleDescription);

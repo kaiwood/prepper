@@ -1063,6 +1063,7 @@ def _build_response_payload(
         "status": result.status,
         "context_id": result.context.context_id if result.context else None,
         "context": context_payload,
+        "resolved_setup": _resolved_setup_fields(result.context),
         "summaries": context_payload["summaries"] if context_payload else None,
         "sources": context_payload["sources"] if context_payload else [],
         "tool_results": [
@@ -1079,6 +1080,16 @@ def _build_response_payload(
         ],
     }
     return _attach_debug_context(payload, result.context, include_debug_context)
+
+
+def _resolved_setup_fields(context: HrContext | None) -> dict[str, str] | None:
+    if context is None:
+        return None
+    company_text = context.company_inputs[0].markdown if context.company_inputs else ""
+    return {
+        "company_text": company_text,
+        "role_description": context.role_description.markdown,
+    }
 
 
 def _public_hr_error(message: str) -> dict[str, str]:
