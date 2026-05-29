@@ -16,6 +16,7 @@ def test_render_hr_prompt_preview_includes_prompt_metadata_and_fixture_context()
     assert "You are an HR interviewer" in preview
     assert "## Fixture Context" in preview
     assert "untrusted preview data" in preview
+    assert "guide broad experience probes" in preview
     assert "### Company (untrusted)" in preview
     assert "Northstar Analytics" in preview
     assert "### Role (untrusted)" in preview

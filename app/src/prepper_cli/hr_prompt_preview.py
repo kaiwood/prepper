@@ -35,6 +35,8 @@ def render_hr_prompt_preview(
         "",
         _UNTRUSTED_CONTEXT_NOTICE,
         "",
+        "Resume/profile facts should guide broad experience probes without quoting private details unless the candidate raises them.",
+        "",
         _format_context_block("Company", fixture.company_markdown),
         "",
         _format_context_block("Role", fixture.role_markdown),

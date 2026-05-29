@@ -217,10 +217,12 @@ def test_hr_interview_llm_uses_start_language(monkeypatch):
 
     def fake_opener(**kwargs):
         captured["opener_language"] = kwargs["language"]
+        captured["opener_system_prompt"] = kwargs["system_prompt"]
         return "Eröffnungsfrage?\n[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
 
     def fake_turn(**kwargs):
         captured["turn_language"] = kwargs["language"]
+        captured["turn_descriptor_content"] = kwargs["descriptor"].content
         return {
             "reply": "Nächste Frage?",
             "interview_complete": False,
@@ -247,6 +249,9 @@ def test_hr_interview_llm_uses_start_language(monkeypatch):
     assert start.status_code == 200
     start_data = start.get_json()
     assert captured["opener_language"] == "de"
+    assert "Resume/profile skills" in captured["opener_system_prompt"]
+    assert "SQL" in captured["opener_system_prompt"]
+    assert "broader experience questions" in captured["opener_system_prompt"]
 
     turn = client.post(
         "/api/hr/interview",
@@ -259,6 +264,8 @@ def test_hr_interview_llm_uses_start_language(monkeypatch):
 
     assert turn.status_code == 200
     assert captured["turn_language"] == "de"
+    assert "Resume/profile experience signals" in captured["turn_descriptor_content"]
+    assert "representative examples" in captured["turn_descriptor_content"]
 
 
 def test_hr_interview_rejects_non_string_language():

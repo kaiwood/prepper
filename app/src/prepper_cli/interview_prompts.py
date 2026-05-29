@@ -92,8 +92,8 @@ def build_active_stage_instruction(
         stage_focus = _select_stage_focus(
             (
                 "test role motivation and company interest with one specific role or company signal",
-                "probe a role-relevant work example with concrete ownership and evidence",
-                "check stakeholder communication, data judgment, or privacy awareness for HR contexts",
+                "probe a resume-informed role-relevant work example with concrete ownership and evidence",
+                "check stakeholder communication, data judgment, or privacy awareness using the candidate's background as context",
                 "connect the candidate's strengths to company needs, customer outcomes, or responsible data use",
                 "ask for reflection on fit, gaps, or what they would need to succeed in this role",
             ),
@@ -101,7 +101,8 @@ def build_active_stage_instruction(
         )
         weak_answer_guidance = (
             "If the latest answer is generic, ask for one specific company fact, role success signal, "
-            "stakeholder situation, privacy consideration, metric, or owned decision instead of accepting broad enthusiasm. "
+            "stakeholder situation, privacy consideration, metric, owned decision, or representative resume-derived example instead of accepting broad enthusiasm. "
+            "Use resume/profile facts to choose the topic, but phrase the question generally rather than quoting private details. "
         )
     elif family == "behavioral":
         stage_focus = _select_stage_focus(

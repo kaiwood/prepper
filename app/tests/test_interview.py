@@ -431,8 +431,10 @@ def test_build_active_interview_system_prompt_includes_hr_stage_guidance():
 
     assert "Base HR interviewer prompt." in prompt
     assert "The next scored question is 2/5." in prompt
-    assert "Stage focus: probe a role-relevant work example" in prompt
+    assert "Stage focus: probe a resume-informed role-relevant work example" in prompt
     assert "specific company fact" in prompt
+    assert "representative resume-derived example" in prompt
+    assert "Use resume/profile facts to choose the topic" in prompt
     assert "privacy consideration" in prompt
     assert "Ask exactly one candidate-facing question." in prompt
 
