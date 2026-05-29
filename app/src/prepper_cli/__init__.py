@@ -2,6 +2,7 @@
 
 from .admin_persistence import (
     AdminHrSetupRecord,
+    clear_admin_hr_setup,
     default_sqlite_path,
     load_latest_admin_hr_setup,
     save_admin_hr_setup,
@@ -145,6 +146,7 @@ from .system_prompts import (
 
 __all__ = [
     "AdminHrSetupRecord",
+    "clear_admin_hr_setup",
     "default_sqlite_path",
     "load_latest_admin_hr_setup",
     "save_admin_hr_setup",

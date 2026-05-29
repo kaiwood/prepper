@@ -38,6 +38,11 @@ export default function Home() {
     enabled: selectedArea === "admin",
   });
 
+  const handleClearAllData = () => {
+    userInterview.handleClearAll();
+    void hrWorkflow.handleClearAllData();
+  };
+
   return (
     <main className="min-h-screen flex flex-col items-center p-8 gap-6">
       <AreaLanguageNav
@@ -49,7 +54,11 @@ export default function Home() {
       />
 
       {selectedArea === "admin" ? (
-        <HrSetupPanel state={hrWorkflow} ui={ui} />
+        <HrSetupPanel
+          state={hrWorkflow}
+          ui={ui}
+          onClearAllData={handleClearAllData}
+        />
       ) : (
         <UserInterviewPanel
           state={userInterview}

@@ -5,11 +5,13 @@ import type { TranslationStrings } from "../../types/app";
 type HrSetupPanelProps = {
   state: HrWorkflowState;
   ui: TranslationStrings;
+  onClearAllData: () => void;
 };
 
 export default function HrSetupPanel({
   state,
   ui,
+  onClearAllData,
 }: HrSetupPanelProps) {
   return (
     <section className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-6">
@@ -451,13 +453,32 @@ export default function HrSetupPanel({
           )}
         </section>
 
-        <button
-          type="submit"
-          disabled={state.hrContextLoading}
-          className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-300"
-        >
-          {state.hrContextLoading ? ui.hrBuildingContext : ui.hrBuildContext}
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            type="submit"
+            disabled={state.hrContextLoading || state.hrClearLoading}
+            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-300"
+          >
+            {state.hrContextLoading ? ui.hrBuildingContext : ui.hrBuildContext}
+          </button>
+          <button
+            type="button"
+            onClick={onClearAllData}
+            disabled={
+              state.hrContextLoading ||
+              state.hrClearLoading ||
+              state.hrCompanyFetchLoading ||
+              state.hrRoleFetchLoading ||
+              state.hrResumeExtractLoading ||
+              state.hrProfileFetchLoading ||
+              state.hrInterviewLoading ||
+              state.hrCandidateAnswerLoading
+            }
+            className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700 disabled:bg-red-300"
+          >
+            {ui.hrClearContext}
+          </button>
+        </div>
       </form>
 
       {state.hrContextError && (

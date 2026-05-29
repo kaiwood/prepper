@@ -43,6 +43,7 @@ from prepper_cli.hr_context import (
     hr_context_to_dict,
 )
 from prepper_cli.admin_persistence import (
+    clear_admin_hr_setup,
     load_latest_admin_hr_setup,
     save_admin_hr_setup,
 )
@@ -112,6 +113,34 @@ _HR_TOOL_EVENT_LOG_PATH = os.path.join(
 def hr_context_options():
     return "", 204
 
+
+
+@hr_bp.route("/api/hr/setup/clear", methods=["OPTIONS"])
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def hr_setup_clear_options():
+    return "", 204
+
+
+@hr_bp.post("/api/hr/setup/clear")
+@limiter.limit("10 per minute")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def clear_hr_setup():
+    try:
+        deleted_count = clear_admin_hr_setup()
+    except Exception as exc:  # pragma: no cover - filesystem/sqlite safety net
+        _log_hr_route_failure("hr_setup_clear", exc)
+        return jsonify(_public_hr_error("Saved HR setup clear failed")), 502
+
+    _HR_CONTEXTS.clear()
+    _HR_CONTEXT_METADATA.clear()
+    _HR_INTERVIEW_SESSIONS.clear()
+    return jsonify({"cleared": True, "deleted_setups": deleted_count})
 
 
 @hr_bp.get("/api/hr/setup/latest")

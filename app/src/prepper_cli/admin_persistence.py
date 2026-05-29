@@ -98,6 +98,17 @@ def load_latest_admin_hr_setup(
     return _row_to_record(row) if row is not None else None
 
 
+def clear_admin_hr_setup(*, db_path: Path | str | None = None) -> int:
+    path = Path(db_path).expanduser() if db_path is not None else default_sqlite_path()
+    if not path.exists():
+        return 0
+    with _connect(path) as conn:
+        _ensure_schema(conn)
+        cursor = conn.execute("DELETE FROM admin_hr_setups")
+        conn.commit()
+        return int(cursor.rowcount)
+
+
 def _connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)

@@ -92,6 +92,7 @@ type TranslationStrings = {
   hrProfileTextPlaceholder: string;
   hrBuildContext: string;
   hrBuildingContext: string;
+  hrClearContext: string;
   hrContextSummary: string;
   hrStatusLabel: string;
   hrContextIdLabel: string;
@@ -233,6 +234,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrProfileTextPlaceholder: "Paste public profile or LinkedIn summary notes.",
     hrBuildContext: "Build context",
     hrBuildingContext: "Building context...",
+    hrClearContext: "Clear",
     hrContextSummary: "Context summary",
     hrStatusLabel: "Status",
     hrContextIdLabel: "Context ID",
@@ -376,6 +378,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrProfileTextPlaceholder: "Füge öffentliches Profil oder LinkedIn-Zusammenfassung ein.",
     hrBuildContext: "Kontext erstellen",
     hrBuildingContext: "Kontext wird erstellt...",
+    hrClearContext: "Leeren",
     hrContextSummary: "Kontextzusammenfassung",
     hrStatusLabel: "Status",
     hrContextIdLabel: "Kontext-ID",
@@ -517,6 +520,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrProfileTextPlaceholder: "Collez un profil public ou des notes de résumé LinkedIn.",
     hrBuildContext: "Créer le contexte",
     hrBuildingContext: "Création du contexte...",
+    hrClearContext: "Effacer",
     hrContextSummary: "Résumé du contexte",
     hrStatusLabel: "Statut",
     hrContextIdLabel: "ID du contexte",

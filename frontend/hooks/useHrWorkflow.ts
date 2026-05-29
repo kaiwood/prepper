@@ -81,6 +81,7 @@ export function useHrWorkflow({
     useState<HrContextResponse | null>(null);
   const [hrContextId, setHrContextId] = useState<string | null>(null);
   const [hrContextLoading, setHrContextLoading] = useState(false);
+  const [hrClearLoading, setHrClearLoading] = useState(false);
   const [hrContextError, setHrContextError] = useState<string | null>(null);
   const [hrMessage, setHrMessage] = useState("");
   const [hrConversation, setHrConversation] = useState<ConversationMessage[]>(
@@ -453,6 +454,64 @@ export function useHrWorkflow({
     setHrInterviewToolCallEvents([]);
   }
 
+  function clearLocalHrData() {
+    setHrSetupForm({
+      companyUrl: "",
+      companyText: "",
+      roleDescription: "",
+      roleUrl: "",
+      resumeText: "",
+      profileText: "",
+    });
+    setHrCompanyInputMode("companyText");
+    setHrRoleInputMode("roleDescription");
+    setHrResumeInputMode("resumeText");
+    setHrProfileInputMode("profileText");
+    setHrSetupErrors({});
+    setHrProfileUrl("");
+    setHrProfileOauthToken("");
+    setHrContextResult(null);
+    setHrContextId(null);
+    setHrContextError(null);
+    resetHrInterview();
+  }
+
+  async function handleClearAllData() {
+    if (
+      hrClearLoading ||
+      hrContextLoading ||
+      hrCompanyFetchLoading ||
+      hrRoleFetchLoading ||
+      hrResumeExtractLoading ||
+      hrProfileFetchLoading ||
+      hrInterviewLoading ||
+      hrCandidateAnswerLoading
+    ) {
+      return;
+    }
+
+    setHrClearLoading(true);
+    setHrContextError(null);
+
+    try {
+      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/setup/clear"), {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setHrContextError(formatApiError(data, ui.errorFallback));
+        return;
+      }
+
+      clearLocalHrData();
+    } catch {
+      setHrContextError(ui.errorBackendUnavailable);
+    } finally {
+      setHrClearLoading(false);
+    }
+  }
+
   function updateHrInterviewMetadata(data: HrInterviewResponse) {
     if (typeof data.interview_id === "string" && data.interview_id) {
       setHrInterviewId(data.interview_id);
@@ -686,6 +745,7 @@ export function useHrWorkflow({
 
   return {
     handleBuildHrContext,
+    handleClearAllData,
     handleExtractResumePdf,
     handleFetchCompanyUrl,
     handleFetchRoleUrl,
@@ -695,6 +755,7 @@ export function useHrWorkflow({
     handleSubmitHrInterview,
     hrCompanyFetchLoading,
     hrCompanyInputMode,
+    hrClearLoading,
     hrContextError,
     hrContextId,
     hrContextLoading,

@@ -137,6 +137,26 @@ def test_latest_hr_setup_returns_empty_when_no_saved_setup(monkeypatch, tmp_path
     assert response.get_json() == {"setup": None, "context_result": None}
 
 
+def test_clear_hr_setup_removes_saved_and_in_memory_context(monkeypatch, tmp_path):
+    monkeypatch.setenv("PREPPER_SQLITE_PATH", str(tmp_path / "prepper.sqlite3"))
+    app = create_app()
+    client = app.test_client()
+
+    context_response = client.post("/api/hr/context", json=_payload())
+    assert context_response.status_code == 200
+    context_id = context_response.get_json()["context_id"]
+    assert get_stored_hr_context(context_id).context_id == context_id
+
+    response = client.post("/api/hr/setup/clear")
+
+    assert response.status_code == 200
+    assert response.get_json()["cleared"] is True
+    assert get_stored_hr_context(context_id) is None
+    latest_response = client.get("/api/hr/setup/latest")
+    assert latest_response.status_code == 200
+    assert latest_response.get_json() == {"setup": None, "context_result": None}
+
+
 
 def test_hr_context_endpoint_fetches_company_url(monkeypatch):
     def fake_open(request, *, timeout_seconds, allow_private_url_fetch):

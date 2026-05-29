@@ -83,6 +83,7 @@ export function useUserInterview({
   const [availablePrompts, setAvailablePrompts] = useState<PromptMetadata[]>(
     [],
   );
+  const [defaultPromptId, setDefaultPromptId] = useState("");
   const [selectedPrompt, setSelectedPrompt] = useState("");
   const [promptsLoading, setPromptsLoading] = useState(true);
   const [promptsError, setPromptsError] = useState<string | null>(null);
@@ -241,6 +242,7 @@ export function useUserInterview({
             const initialPrompt = ids.includes(defaultPrompt)
               ? defaultPrompt
               : ids[0];
+            setDefaultPromptId(initialPrompt);
             setSelectedPrompt(initialPrompt);
             const selected = prompts.find(
               (prompt) => prompt.id === initialPrompt,
@@ -542,11 +544,26 @@ export function useUserInterview({
     setInterviewId(null);
     setHrContextId(null);
     setAdvancedSettings(buildAdvancedSettings(selectedPromptMetadata));
-    setSelectedDifficulty(
-      selectedPromptMetadata?.difficulty_enabled
-        ? (selectedPromptMetadata.default_difficulty ?? "medium")
-        : "medium",
-    );
+    setQuestionRoundtripLimit(resolveQuestionRoundtripLimit(selectedPromptMetadata));
+    setSelectedDifficulty(resolveDifficultySelection(selectedPromptMetadata));
+  }
+
+  function handleClearAll() {
+    const defaultPrompt =
+      availablePrompts.find((prompt) => prompt.id === defaultPromptId) ??
+      availablePrompts[0];
+    setConversation([]);
+    setMessage("");
+    setError(null);
+    setInterviewStatus(null);
+    setInterviewId(null);
+    setHrContextId(null);
+    setSettingsOpen(false);
+    setAdvancedSettingsOpen(false);
+    setSelectedPrompt(defaultPrompt?.id ?? "");
+    setAdvancedSettings(buildAdvancedSettings(defaultPrompt));
+    setQuestionRoundtripLimit(resolveQuestionRoundtripLimit(defaultPrompt));
+    setSelectedDifficulty(resolveDifficultySelection(defaultPrompt));
   }
 
   return {
@@ -554,12 +571,14 @@ export function useUserInterview({
     advancedSettingsOpen,
     availablePrompts,
     candidateAnswerLoading,
+    defaultPromptId,
     conversation,
     difficultyEnabled,
     difficultyLabelByValue,
     difficultyLevels,
     error,
     handleClear,
+    handleClearAll,
     handleGenerateCandidateAnswer,
     handlePromptChange,
     handleStart,
