@@ -1,5 +1,12 @@
+import pytest
+
 from app import create_app
 from prepper_cli.hr_context import HrToolResult
+
+
+@pytest.fixture(autouse=True)
+def isolated_sqlite(monkeypatch, tmp_path):
+    monkeypatch.setenv("PREPPER_SQLITE_PATH", str(tmp_path / "prepper.sqlite3"))
 
 
 def test_hr_company_fetch_endpoint_returns_text(monkeypatch):
@@ -35,6 +42,13 @@ def test_hr_company_fetch_endpoint_returns_text(monkeypatch):
     assert data["source"]["uri"] == "https://example.com/about"
     assert "chunks" not in data
 
+    latest_response = client.get("/api/hr/setup/latest")
+    assert latest_response.status_code == 200
+    latest = latest_response.get_json()
+    assert latest["setup"]["company_url"] == "https://example.com/about"
+    assert latest["setup"]["company_text"].startswith("# Example Co")
+    assert latest["context_result"] is None
+
 
 def test_hr_role_fetch_endpoint_returns_description(monkeypatch):
     def fake_fetch(*, mode, url, model=None):
@@ -66,6 +80,13 @@ def test_hr_role_fetch_endpoint_returns_description(monkeypatch):
     assert data["role_description"].startswith("# Data Analyst")
     assert data["source"]["uri"] == "https://example.com/jobs/analyst"
     assert "document" not in data
+
+    latest_response = client.get("/api/hr/setup/latest")
+    assert latest_response.status_code == 200
+    latest = latest_response.get_json()
+    assert latest["setup"]["role_url"] == "https://example.com/jobs/analyst"
+    assert latest["setup"]["role_description"].startswith("# Data Analyst")
+    assert latest["context_result"] is None
 
 
 def test_hr_company_fetch_endpoint_rejects_missing_url():
@@ -116,6 +137,42 @@ def test_hr_profile_fetch_endpoint_returns_summary(monkeypatch):
     assert data["source"]["provider"] == "linkedin"
     assert "secret-token" not in str(data)
     assert "api_payload" not in data
+
+    latest_response = client.get("/api/hr/setup/latest")
+    assert latest_response.status_code == 200
+    latest = latest_response.get_json()
+    assert latest["setup"]["profile_text"].startswith("## Profile")
+    assert "secret-token" not in str(latest)
+    assert latest["context_result"] is None
+
+
+def test_hr_company_fetch_endpoint_returns_error_when_persistence_fails(monkeypatch):
+    def fake_fetch(*, mode, url):
+        return HrToolResult(
+            tool_name="fetch_company_website",
+            status="success",
+            output={
+                "mode": mode,
+                "source": {"id": "company_website", "uri": url},
+                "document": {"markdown": "# Example Co"},
+            },
+        )
+
+    def fail_save(**_kwargs):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr("app.routes.hr.run_fetch_company_website_tool", fake_fetch)
+    monkeypatch.setattr("app.routes.hr.save_admin_hr_setup", fail_save)
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/hr/company/fetch",
+        json={"company_url": "https://example.com/about"},
+    )
+
+    assert response.status_code == 502
+    assert response.get_json()["error"] == "Company website fetch persistence failed"
 
 
 def test_hr_profile_fetch_endpoint_rejects_missing_token():

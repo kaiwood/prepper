@@ -1,7 +1,14 @@
 from io import BytesIO
 
+import pytest
+
 from app import create_app
 from prepper_cli.hr_context import HrToolResult
+
+
+@pytest.fixture(autouse=True)
+def isolated_sqlite(monkeypatch, tmp_path):
+    monkeypatch.setenv("PREPPER_SQLITE_PATH", str(tmp_path / "prepper.sqlite3"))
 
 
 def test_hr_resume_extract_endpoint_returns_profile(monkeypatch):
@@ -45,6 +52,13 @@ def test_hr_resume_extract_endpoint_returns_profile(monkeypatch):
     assert data["tool_result"]["output"]["profile"]["skills"] == ["Python", "SQL"]
     assert data["tool_result"]["output"]["resume_text"] == "# Resume\nPython and SQL analyst"
     assert "document" not in data["tool_result"]["output"]
+
+    latest_response = client.get("/api/hr/setup/latest")
+    assert latest_response.status_code == 200
+    latest = latest_response.get_json()
+    assert latest["setup"]["resume_text"] == "# Resume\nPython and SQL analyst"
+    assert "resume.pdf" not in str(latest)
+    assert latest["context_result"] is None
 
 
 def test_hr_resume_extract_endpoint_rejects_missing_file():

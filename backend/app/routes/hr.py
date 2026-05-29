@@ -156,8 +156,9 @@ def latest_hr_setup():
     if record is None:
         return jsonify({"setup": None, "context_result": None})
 
-    context_result = deepcopy(record.response_payload)
+    context_result = None
     if record.context_payload is not None:
+        context_result = deepcopy(record.response_payload)
         try:
             context = hr_context_from_dict(record.context_payload)
             _store_hr_context(context)
@@ -336,9 +337,20 @@ def fetch_company_website():
     document = output.get("document") if isinstance(output, dict) else None
     if not isinstance(document, dict) or not isinstance(document.get("markdown"), str):
         return jsonify(_public_hr_error("Company website fetch failed")), 502
+    company_text = document["markdown"]
+    try:
+        _save_fetched_hr_setup(
+            {
+                "company_url": company_url,
+                "company_text": company_text,
+            }
+        )
+    except Exception as exc:  # pragma: no cover - filesystem/sqlite safety net
+        _log_hr_route_failure("hr_company_fetch_persist", exc)
+        return jsonify(_public_hr_error("Company website fetch persistence failed")), 502
     return jsonify(
         {
-            "company_text": document["markdown"],
+            "company_text": company_text,
             "source": output.get("source") if isinstance(output.get("source"), dict) else None,
         }
     )
@@ -371,9 +383,20 @@ def fetch_role_description():
     output = payload.get("output") if isinstance(payload, dict) else None
     if not isinstance(output, dict) or not isinstance(output.get("role_description"), str):
         return jsonify(_public_hr_error("Role description fetch failed")), 502
+    role_description = output["role_description"]
+    try:
+        _save_fetched_hr_setup(
+            {
+                "role_url": role_url,
+                "role_description": role_description,
+            }
+        )
+    except Exception as exc:  # pragma: no cover - filesystem/sqlite safety net
+        _log_hr_route_failure("hr_role_fetch_persist", exc)
+        return jsonify(_public_hr_error("Role description fetch persistence failed")), 502
     return jsonify(
         {
-            "role_description": output["role_description"],
+            "role_description": role_description,
             "source": output.get("source") if isinstance(output.get("source"), dict) else None,
         }
     )
@@ -423,9 +446,15 @@ def fetch_social_profile():
     output = payload.get("output") if isinstance(payload, dict) else None
     if not isinstance(output, dict) or not isinstance(output.get("profile_text"), str):
         return jsonify(_public_hr_error("Social profile fetch failed")), 502
+    profile_text = output["profile_text"]
+    try:
+        _save_fetched_hr_setup({"profile_text": profile_text})
+    except Exception as exc:  # pragma: no cover - filesystem/sqlite safety net
+        _log_hr_route_failure("hr_profile_fetch_persist", exc)
+        return jsonify(_public_hr_error("Social profile fetch persistence failed")), 502
     return jsonify(
         {
-            "profile_text": output["profile_text"],
+            "profile_text": profile_text,
             "source": output.get("source") if isinstance(output.get("source"), dict) else None,
         }
     )
@@ -484,13 +513,17 @@ def extract_resume_profile():
         _log_hr_route_failure("hr_resume_extract", exc)
         return jsonify(_public_hr_error("Resume PDF extraction failed")), 502
 
-    return jsonify(
-        {
-            "tool_result": _public_resume_profile_tool_result(
-                hr_tool_result_to_dict(result)
-            ),
-        }
-    )
+    tool_result = _public_resume_profile_tool_result(hr_tool_result_to_dict(result))
+    output = tool_result.get("output") if isinstance(tool_result, dict) else None
+    resume_text = output.get("resume_text") if isinstance(output, dict) else None
+    if isinstance(resume_text, str) and resume_text.strip():
+        try:
+            _save_fetched_hr_setup({"resume_text": resume_text})
+        except Exception as exc:  # pragma: no cover - filesystem/sqlite safety net
+            _log_hr_route_failure("hr_resume_extract_persist", exc)
+            return jsonify(_public_hr_error("Resume PDF extraction persistence failed")), 502
+
+    return jsonify({"tool_result": tool_result})
 
 
 @hr_bp.post("/api/hr/interview/start")
@@ -791,6 +824,16 @@ def hr_assistant():
 
 def _build_tool_event_recorder(flow: str) -> HrToolEventRecorder:
     return HrToolEventRecorder(flow=flow, log_path=_HR_TOOL_EVENT_LOG_PATH)
+
+
+def _save_fetched_hr_setup(updated_fields: dict[str, str | None]) -> None:
+    latest = load_latest_admin_hr_setup()
+    setup_fields = latest.setup_fields if latest is not None and latest.context_payload is None else {}
+    save_admin_hr_setup(
+        setup_fields={**setup_fields, **updated_fields},
+        response_payload={"status": "draft"},
+        context_payload=None,
+    )
 
 
 def _save_admin_hr_setup(
