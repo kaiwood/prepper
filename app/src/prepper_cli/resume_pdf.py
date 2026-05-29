@@ -75,6 +75,8 @@ def run_extract_resume_pdf_profile_tool(
             model=model,
             max_chars=max_chars,
         )
+        if isinstance(result.output, dict):
+            result.output["resume_text"] = resume_text
     except Exception as exc:
         log_structured_event(
             "tool_call",

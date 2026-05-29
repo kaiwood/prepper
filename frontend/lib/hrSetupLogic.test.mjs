@@ -112,8 +112,8 @@ test("validates only the active resume tab", () => {
     validateHrSetupForm(
       {
         ...validForm,
-        resumeText: "",
-        profileText: "## Skills\n- SQL",
+        resumeText: "# Resume\n- SQL",
+        profileText: "",
       },
       undefined,
       { resumeInputMode: "resumePdf" },
@@ -131,7 +131,7 @@ test("validates only the active resume tab", () => {
       undefined,
       { resumeInputMode: "resumePdf" },
     ).resumeText,
-    "Extract a resume PDF profile or paste resume text.",
+    "Extract resume PDF text or paste resume text.",
   );
 });
 
@@ -250,13 +250,13 @@ test("builds HR context payload from company URL", () => {
   });
 });
 
-test("builds HR context payload from extracted resume PDF profile", () => {
+test("builds HR context payload from extracted resume PDF text", () => {
   assert.deepEqual(
     buildHrContextPayload(
       {
         ...validForm,
-        resumeText: "",
-        profileText: "## Skills\n- SQL",
+        resumeText: "# Resume\n- SQL",
+        profileText: "",
       },
       { resumeInputMode: "resumePdf" },
     ),
@@ -264,7 +264,7 @@ test("builds HR context payload from extracted resume PDF profile", () => {
       mode: "llm",
       company_url: "https://example.com/about",
       role_description: "# Role\nAnalyze workforce data.",
-      profile_text: "## Skills\n- SQL",
+      resume_text: "# Resume\n- SQL",
     },
   );
 });

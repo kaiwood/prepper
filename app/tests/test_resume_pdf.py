@@ -37,6 +37,7 @@ def test_run_extract_resume_pdf_profile_tool_uses_candidate_profile_tool(monkeyp
     )
 
     assert result.output["profile"]["skills"] == ["Python"]
+    assert result.output["resume_text"] == "# Resume\nPython developer"
     assert calls["pdf_bytes"] == b"%PDF-1.4"
     assert calls["max_chars"] == 123
     assert calls["candidate_kwargs"] == {

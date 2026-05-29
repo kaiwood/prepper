@@ -12,7 +12,7 @@ const DEFAULT_VALIDATION_MESSAGES = {
   companyTextLabel: "Company text",
   roleDescriptionLabel: "Role description",
   roleUrlLabel: "Role URL",
-  resumePdfRequired: "Extract a resume PDF profile or paste resume text.",
+  resumePdfRequired: "Extract resume PDF text or paste resume text.",
   resumeTextLabel: "Resume text",
   profileTextLabel: "Profile text",
   tooLong: (label, maxLength) =>
@@ -60,7 +60,7 @@ export function validateHrSetupForm(
   }
 
   if (resumeInputMode === "resumePdf") {
-    if (!profileText) {
+    if (!resumeText) {
       errors.resumeText = messages.resumePdfRequired ?? messages.resumeRequired;
     }
   } else if (!resumeText) {

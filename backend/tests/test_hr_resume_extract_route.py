@@ -21,6 +21,7 @@ def test_hr_resume_extract_endpoint_returns_profile(monkeypatch):
                     "risks": ["No management scope shown"],
                     "interview_focus_areas": ["Validate stakeholder examples"],
                 },
+                "resume_text": "# Resume\nPython and SQL analyst",
                 "document": {"markdown": "secret resume text"},
             },
         )
@@ -42,6 +43,7 @@ def test_hr_resume_extract_endpoint_returns_profile(monkeypatch):
     data = response.get_json()
     assert data["tool_result"]["tool_name"] == "extract_candidate_profile"
     assert data["tool_result"]["output"]["profile"]["skills"] == ["Python", "SQL"]
+    assert data["tool_result"]["output"]["resume_text"] == "# Resume\nPython and SQL analyst"
     assert "document" not in data["tool_result"]["output"]
 
 

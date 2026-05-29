@@ -18,7 +18,6 @@ import {
 } from "../lib/hrInterviewLogic.mjs";
 import type {
   CandidateAnswerResponse,
-  HrCandidateProfile,
   HrCompanyInputMode,
   HrContextResponse,
   HrDemoSetupResponse,
@@ -281,14 +280,12 @@ export function useHrWorkflow({
         return;
       }
 
-      const profile = data.tool_result?.output?.profile;
-      const profileText = formatHrCandidateProfile(profile);
-      if (!profileText) {
+      const resumeText = data.tool_result?.output?.resume_text;
+      if (typeof resumeText !== "string" || !resumeText.trim()) {
         setHrContextError(ui.errorFallback);
         return;
       }
-      updateHrSetupField("profileText", profileText);
-      setHrProfileInputMode("profileText");
+      updateHrSetupField("resumeText", resumeText);
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
     } finally {
@@ -676,34 +673,6 @@ export function useHrWorkflow({
     updateHrRoleInputMode,
     updateHrSetupField,
   };
-}
-
-function formatHrCandidateProfile(profile: HrCandidateProfile | undefined): string {
-  if (!profile || typeof profile !== "object") {
-    return "";
-  }
-  const sections = [
-    ["Skills", profile.skills],
-    ["Experience", profile.experience],
-    ["Seniority signals", profile.seniority_signals],
-    ["Risks", profile.risks],
-    ["Interview focus areas", profile.interview_focus_areas],
-  ] as const;
-  return sections
-    .map(([title, values]) => {
-      if (!Array.isArray(values) || values.length === 0) {
-        return "";
-      }
-      const lines = values
-        .filter(
-          (value): value is string =>
-            typeof value === "string" && value.trim().length > 0,
-        )
-        .map((value) => `- ${value.trim()}`);
-      return lines.length > 0 ? `## ${title}\n${lines.join("\n")}` : "";
-    })
-    .filter(Boolean)
-    .join("\n\n");
 }
 
 function getCompanyInputModeFromSetup(setup: {

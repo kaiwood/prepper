@@ -1158,10 +1158,13 @@ def _sanitize_public_context_dict(context_payload: dict[str, Any]) -> dict[str, 
 def _public_resume_profile_tool_result(tool_result: dict[str, Any]) -> dict[str, Any]:
     public_result = _sanitize_public_tool_result(tool_result)
     output = tool_result.get("output")
-    if isinstance(output, dict) and isinstance(output.get("profile"), dict):
+    if isinstance(output, dict):
         public_output = public_result.setdefault("output", {})
         if isinstance(public_output, dict):
-            public_output["profile"] = deepcopy(output["profile"])
+            if isinstance(output.get("profile"), dict):
+                public_output["profile"] = deepcopy(output["profile"])
+            if isinstance(output.get("resume_text"), str):
+                public_output["resume_text"] = output["resume_text"]
     return public_result
 
 

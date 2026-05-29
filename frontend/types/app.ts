@@ -132,6 +132,7 @@ export type HrToolResult = {
     result_count?: number;
     snippets?: HrRetrievalSnippet[];
     profile?: HrCandidateProfile;
+    resume_text?: string;
     [key: string]: unknown;
   };
 };
