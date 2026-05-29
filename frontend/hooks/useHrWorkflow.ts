@@ -189,7 +189,16 @@ export function useHrWorkflow({
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl, enabled, ui.errorBackendUnavailable, ui.errorFallback]);
+  }, [
+    apiBaseUrl,
+    enabled,
+    setHrCompanyInputMode,
+    setHrRoleInputMode,
+    setHrSetupErrors,
+    setHrSetupForm,
+    ui.errorBackendUnavailable,
+    ui.errorFallback,
+  ]);
 
   async function handleFetchCompanyUrl() {
     if (hrCompanyFetchLoading || hrContextLoading) {
