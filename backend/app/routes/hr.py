@@ -68,7 +68,6 @@ from prepper_cli.hr_tools import (
     run_fetch_company_website_tool,
     run_fetch_role_description_tool,
     run_fetch_social_profile_tool,
-    run_retrieve_company_context_tool,
 )
 from prepper_cli.resume_pdf import (
     DEFAULT_RESUME_PDF_MAX_BYTES,
