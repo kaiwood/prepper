@@ -508,39 +508,55 @@ def build_hr_context_from_inputs(
     if profile_source is not None:
         sources.append(profile_source)
 
+    summaries = HrContextSummaries(
+        company=company_document.summary,
+        role=role_document.summary,
+        candidate=_summarize_candidate_profile(candidate_profile),
+    )
+    replay_metadata = HrReplayMetadata(transcripts=())
+    context_tool_results = tuple(tool_results)
+    context_id = _build_input_context_id(
+        mode=mode,
+        company_text=company_document.markdown,
+        company_uri=company_source.uri,
+        role_description=normalized_role,
+        resume_text=normalized_resume,
+        profile_text=normalized_profile,
+    )
+
     from .hr_retrieval import build_retrieval_chunks
 
     chunks = build_retrieval_chunks(
         company_inputs=(company_document,),
         role_description=role_document,
+        candidate_inputs=tuple(candidate_inputs),
+        summaries=summaries,
+        candidate_profile=candidate_profile,
         sources=tuple(sources),
+        tool_results=context_tool_results,
+        replay_metadata=replay_metadata,
+        context_metadata={
+            "schema_version": HR_CONTEXT_SCHEMA_VERSION,
+            "context_id": context_id,
+            "fixture_id": _optional_non_empty_text(fixture_id),
+            "mode": mode,
+        },
     )
 
     context = HrContext(
         schema_version=HR_CONTEXT_SCHEMA_VERSION,
-        context_id=_build_input_context_id(
-            mode=mode,
-            company_text=company_document.markdown,
-            company_uri=company_source.uri,
-            role_description=normalized_role,
-            resume_text=normalized_resume,
-            profile_text=normalized_profile,
-        ),
+        context_id=context_id,
         fixture_id=_optional_non_empty_text(fixture_id),
         mode=mode,
         company_inputs=(company_document,),
         role_description=role_document,
         candidate_inputs=tuple(candidate_inputs),
-        summaries=HrContextSummaries(
-            company=company_document.summary,
-            role=role_document.summary,
-            candidate=_summarize_candidate_profile(candidate_profile),
-        ),
+        summaries=summaries,
         candidate_profile=candidate_profile,
         sources=tuple(sources),
         chunks=chunks,
-        tool_results=tuple(tool_results),
-        replay_metadata=HrReplayMetadata(transcripts=()),
+        tool_results=context_tool_results,
+        replay_metadata=replay_metadata,
     )
 
     return HrContextBuildResult(
@@ -698,12 +714,30 @@ def build_mock_hr_context(fixture: HrFixture) -> HrContext:
 
     sources = input_sources + transcript_sources
 
+    summaries = HrContextSummaries(
+        company=company_document.summary,
+        role=role_document.summary,
+        candidate=_summarize_candidate_profile(candidate_profile),
+    )
+    context_tool_results = (candidate_profile_result,)
+
     from .hr_retrieval import build_retrieval_chunks
 
     chunks = build_retrieval_chunks(
         company_inputs=(company_document,),
         role_description=role_document,
+        candidate_inputs=(resume_document, profile_document),
+        summaries=summaries,
+        candidate_profile=candidate_profile,
         sources=sources,
+        tool_results=context_tool_results,
+        replay_metadata=replay_metadata,
+        context_metadata={
+            "schema_version": HR_CONTEXT_SCHEMA_VERSION,
+            "context_id": context_id,
+            "fixture_id": fixture.id,
+            "mode": "mock",
+        },
     )
 
     return HrContext(
@@ -714,15 +748,11 @@ def build_mock_hr_context(fixture: HrFixture) -> HrContext:
         company_inputs=(company_document,),
         role_description=role_document,
         candidate_inputs=(resume_document, profile_document),
-        summaries=HrContextSummaries(
-            company=company_document.summary,
-            role=role_document.summary,
-            candidate=_summarize_candidate_profile(candidate_profile),
-        ),
+        summaries=summaries,
         candidate_profile=candidate_profile,
         sources=sources,
         chunks=chunks,
-        tool_results=(candidate_profile_result,),
+        tool_results=context_tool_results,
         replay_metadata=replay_metadata,
     )
 

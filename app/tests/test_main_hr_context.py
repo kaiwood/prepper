@@ -34,8 +34,15 @@ def test_hr_context_build_command_writes_context(monkeypatch, tmp_path: Path, ca
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert payload["fixture_id"] == "demo_hr"
     assert payload["mode"] == "mock"
-    assert len(payload["chunks"]) == 2
-    assert payload["chunks"][0]["id"] == "company_chunk_001"
+    assert len(payload["chunks"]) == 13
+    assert {chunk["id"] for chunk in payload["chunks"]} >= {
+        "company_chunk_001",
+        "role_chunk_001",
+        "resume_chunk_001",
+        "profile_chunk_001",
+        "candidate_profile_chunk_001",
+        "context_metadata_chunk_001",
+    }
     assert payload["candidate_profile"]["skills"]
     assert [result["tool_name"] for result in payload["tool_results"]] == [
         "extract_candidate_profile"
@@ -63,7 +70,7 @@ def test_hr_context_inspect_command_prints_safe_summary(monkeypatch, tmp_path: P
     assert captured.err == ""
     assert f"Context: {context.context_id}" in captured.out
     assert "Sources: 6" in captured.out
-    assert "Chunks: 2" in captured.out
+    assert "Chunks: 13" in captured.out
     assert "Replay transcripts: 2" in captured.out
     assert "Jordan Lee" not in captured.out
 
@@ -117,10 +124,9 @@ def test_hr_context_retrieve_command_prints_json(monkeypatch, tmp_path: Path, ca
     assert captured.err == ""
     payload = json.loads(captured.out)
     assert payload["query"] == "company values"
-    assert [result["id"] for result in payload["results"]] == [
-        "company_chunk_001",
-        "role_chunk_001",
-    ]
+    assert len(payload["results"]) == 3
+    assert any(result["metadata"]["source_kind"] == "company" for result in payload["results"])
+    assert any(result["metadata"]["field_path"] == "sources" for result in payload["results"])
     assert 0 < payload["results"][0]["score"] <= 1
 
 

@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import replace
 
@@ -34,22 +35,34 @@ def test_mock_chunks_are_deterministic_with_source_metadata():
     rebuilt = build_mock_hr_context(validate_hr_fixture("demo_hr"))
 
     assert context.chunks == rebuilt.chunks
-    assert [chunk.id for chunk in context.chunks] == [
+    chunk_by_id = {chunk.id: chunk for chunk in context.chunks}
+    assert {
         "company_chunk_001",
         "role_chunk_001",
-    ]
-    assert "## Values" in context.chunks[0].text
-    assert context.chunks[0].metadata == {
+        "resume_chunk_001",
+        "profile_chunk_001",
+        "context_metadata_chunk_001",
+        "context_summaries_chunk_001",
+        "candidate_profile_chunk_001",
+        "context_sources_chunk_001",
+        "tool_result_000_extract_candidate_profile_chunk_001",
+        "replay_metadata_chunk_001",
+    }.issubset(chunk_by_id)
+    assert "## Values" in chunk_by_id["company_chunk_001"].text
+    assert chunk_by_id["company_chunk_001"].metadata == {
         "source_id": "company",
         "source_kind": "company",
         "source_title": "Northstar Analytics",
         "source_uri": "fixture://company.md",
         "content_sha256": context.sources[0].content_sha256,
+        "field_path": "company_inputs[0].markdown",
         "start_index": "0",
         "chunk_index": "0",
     }
-    assert "## Success Signals" in context.chunks[-1].text
-    assert context.chunks[-1].metadata["source_uri"] == "fixture://role.md"
+    assert "## Success Signals" in chunk_by_id["role_chunk_001"].text
+    assert chunk_by_id["role_chunk_001"].metadata["source_uri"] == "fixture://role.md"
+    assert chunk_by_id["resume_chunk_001"].metadata["field_path"] == "candidate_inputs[0].markdown"
+    assert chunk_by_id["candidate_profile_chunk_001"].metadata["source_kind"] == "candidate_profile"
 
 
 def test_mock_retrieval_returns_expected_chunks_and_metadata():
@@ -60,20 +73,22 @@ def test_mock_retrieval_returns_expected_chunks_and_metadata():
 
     assert payload["query"] == "company values"
     assert payload["mode"] == "mock"
-    assert [chunk["id"] for chunk in payload["results"]] == [
-        "company_chunk_001",
-        "role_chunk_001",
-    ]
+    assert len(payload["results"]) == 3
+    assert any(chunk["metadata"]["source_kind"] == "company" for chunk in payload["results"])
+    assert any(chunk["metadata"]["field_path"] == "sources" for chunk in payload["results"])
     assert 0 < payload["results"][0]["score"] <= 1
     assert 0 < payload["results"][0]["relevance_percent"] <= 100
-    assert payload["results"][0]["source"] == {
+    company_result = next(
+        chunk for chunk in payload["results"] if chunk["metadata"]["source_kind"] == "company"
+    )
+    assert company_result["source"] == {
         "id": "company",
         "kind": "company",
         "title": "Northstar Analytics",
         "uri": "fixture://company.md",
     }
-    assert payload["results"][0]["metadata"]["source_title"] == "Northstar Analytics"
-    assert payload["results"][0]["metadata"]["source_uri"] == "fixture://company.md"
+    assert company_result["metadata"]["source_title"] == "Northstar Analytics"
+    assert company_result["metadata"]["source_uri"] == "fixture://company.md"
 
 
 def test_retrieval_logs_latency_and_counts(caplog):
@@ -85,7 +100,7 @@ def test_retrieval_logs_latency_and_counts(caplog):
     assert any(
         'event="retrieval"' in record.getMessage()
         and 'status="success"' in record.getMessage()
-        and 'result_count=2' in record.getMessage()
+        and 'result_count=3' in record.getMessage()
         and 'duration_ms=' in record.getMessage()
         for record in caplog.records
     )
@@ -93,14 +108,13 @@ def test_retrieval_logs_latency_and_counts(caplog):
 
 def test_mock_retrieval_can_rebuild_missing_chunks_for_old_contexts():
     context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
-    old_context = replace(context, chunks=())
+    old_context = replace(context, chunks=context.chunks[:2])
 
     result = retrieve_hr_context(old_context, query="company values", mode="mock")
 
-    assert [match.chunk.id for match in result.results] == [
-        "company_chunk_001",
-        "role_chunk_001",
-    ]
+    assert len(result.results) == 3
+    assert any(match.chunk.metadata["source_kind"] == "company" for match in result.results)
+    assert any(match.chunk.metadata["field_path"] == "sources" for match in result.results)
 
 
 def test_mock_retrieval_persists_faiss_index(tmp_path, monkeypatch):
@@ -116,6 +130,12 @@ def test_mock_retrieval_persists_faiss_index(tmp_path, monkeypatch):
     ]
     assert list(vector_store_dir.glob("mock/*/index.faiss"))
     assert list(vector_store_dir.glob("mock/*/index.pkl"))
+    manifests = list(vector_store_dir.glob("mock/*/index_manifest.json"))
+    assert manifests
+    manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert manifest["embedding_model"] == "mock-hashing-v1"
+    assert manifest["vector_dimension"] == 128
+    assert manifest["chunk_count"] == len(context.chunks)
 
 
 def test_mock_retrieval_rejects_empty_query():
@@ -134,7 +154,7 @@ def test_llm_retrieval_reports_missing_embedding_config(monkeypatch):
         retrieve_hr_context(context, query="company values", mode="llm")
 
 
-def test_llm_retrieval_uses_embeddings_and_source_metadata(monkeypatch):
+def test_llm_retrieval_uses_embeddings_and_source_metadata(monkeypatch, tmp_path):
     context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("OPENROUTER_EMBEDDING_MODEL", "openai/text-embedding-3-small")
@@ -157,6 +177,12 @@ def test_llm_retrieval_uses_embeddings_and_source_metadata(monkeypatch):
     assert 0 < payload["results"][0]["relevance_percent"] <= 100
     assert payload["results"][0]["source"]["uri"] == "fixture://company.md"
     assert payload["results"][0]["metadata"]["source_uri"] == "fixture://company.md"
+    manifests = list((tmp_path / "faiss").glob("llm/*/index_manifest.json"))
+    assert manifests
+    manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert manifest["embedding_model"] == "openai/text-embedding-3-small"
+    assert manifest["embedding_base_url"] == "https://openrouter.ai/api/v1"
+    assert manifest["vector_dimension"] == 2
 
 
 def test_openrouter_embedding_config_requires_embedding_model(monkeypatch):

@@ -148,7 +148,10 @@ def test_hr_tool_run_retrieve_company_context_mock_prints_json(
     assert payload["status"] == "success"
     assert payload["output"]["mode"] == "mock"
     assert payload["output"]["query"] == "company values"
-    assert payload["output"]["snippets"][0]["source_uri"] == "fixture://company.md"
+    assert any(
+        snippet["source_uri"] == "fixture://company.md"
+        for snippet in payload["output"]["snippets"]
+    )
 
 
 def test_hr_tool_run_retrieve_company_context_mock_prints_summary(
@@ -180,7 +183,7 @@ def test_hr_tool_run_retrieve_company_context_mock_prints_summary(
     assert "Tool: retrieve_company_context" in captured.out
     assert "Status: success" in captured.out
     assert "Query: company values" in captured.out
-    assert "Snippets: 2" in captured.out
+    assert "Snippets: 3" in captured.out
     assert "workforce-planning software" not in captured.out
 
 

@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import re
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,6 +32,8 @@ DEFAULT_CHUNK_SIZE_TOKENS = 350
 DEFAULT_CHUNK_OVERLAP_TOKENS = 50
 DEFAULT_MOCK_EMBEDDING_DIMENSIONS = 128
 VECTOR_STORE_ENV_VAR = "PREPPER_HR_VECTOR_STORE_DIR"
+FAISS_INDEX_MANIFEST_FILENAME = "index_manifest.json"
+FAISS_INDEX_MANIFEST_SCHEMA_VERSION = "prepper-faiss-index.v1"
 
 _STOP_WORDS = {
     "a",
@@ -80,18 +83,57 @@ def build_retrieval_chunks(
     company_inputs: tuple[HrContextInputDocument, ...],
     role_description: HrContextInputDocument,
     sources: tuple[HrContextSource, ...],
+    candidate_inputs: tuple[HrContextInputDocument, ...] = (),
+    summaries: Any | None = None,
+    candidate_profile: Any | None = None,
+    tool_results: tuple[Any, ...] = (),
+    replay_metadata: Any | None = None,
+    context_metadata: dict[str, Any] | None = None,
 ) -> tuple[HrContextChunk, ...]:
-    """Build deterministic retrieval chunks for company and role documents."""
+    """Build deterministic retrieval chunks for the full HR context."""
     source_by_id = {source.id: source for source in sources}
     chunks: list[HrContextChunk] = []
 
-    for document in (*company_inputs, role_description):
+    document_specs: list[tuple[HrContextInputDocument, str]] = [
+        *(
+            (document, f"company_inputs[{index}].markdown")
+            for index, document in enumerate(company_inputs)
+        ),
+        (role_description, "role_description.markdown"),
+        *(
+            (document, f"candidate_inputs[{index}].markdown")
+            for index, document in enumerate(candidate_inputs)
+        ),
+    ]
+    for document, field_path in document_specs:
         source = source_by_id.get(document.source_id)
         if source is None:
             raise HrContextValidationError(
                 f"Cannot chunk document '{document.source_id}' because its source is missing"
             )
-        chunks.extend(build_document_retrieval_chunks(document=document, source=source))
+        chunks.extend(
+            build_document_retrieval_chunks(
+                document=document,
+                source=source,
+                field_path=field_path,
+            )
+        )
+
+    for source, document, field_path in _build_structured_context_entries(
+        summaries=summaries,
+        candidate_profile=candidate_profile,
+        sources=sources,
+        tool_results=tool_results,
+        replay_metadata=replay_metadata,
+        context_metadata=context_metadata,
+    ):
+        chunks.extend(
+            build_document_retrieval_chunks(
+                document=document,
+                source=source,
+                field_path=field_path,
+            )
+        )
 
     return tuple(chunks)
 
@@ -100,9 +142,189 @@ def build_document_retrieval_chunks(
     *,
     document: HrContextInputDocument,
     source: HrContextSource,
+    field_path: str | None = None,
 ) -> tuple[HrContextChunk, ...]:
     """Build deterministic retrieval chunks for one source-backed document."""
-    return tuple(_chunk_document(document, source))
+    return tuple(_chunk_document(document, source, field_path=field_path))
+
+
+def _build_structured_context_entries(
+    *,
+    summaries: Any | None,
+    candidate_profile: Any | None,
+    sources: tuple[HrContextSource, ...],
+    tool_results: tuple[Any, ...],
+    replay_metadata: Any | None,
+    context_metadata: dict[str, Any] | None,
+) -> list[tuple[HrContextSource, HrContextInputDocument, str]]:
+    entries: list[tuple[HrContextSource, HrContextInputDocument, str]] = []
+
+    def add_entry(
+        *,
+        source_id: str,
+        kind: str,
+        title: str,
+        uri: str,
+        field_path: str,
+        markdown: str,
+    ) -> None:
+        normalized = _normalize_chunk_text(markdown)
+        if not normalized:
+            return
+        source = HrContextSource(
+            id=source_id,
+            kind=kind,
+            title=title,
+            uri=uri,
+            content_sha256=_sha256_text(normalized),
+        )
+        document = HrContextInputDocument(
+            source_id=source.id,
+            title=title,
+            markdown=normalized,
+            summary=_summarize_retrieval_text(normalized),
+        )
+        entries.append((source, document, field_path))
+
+    if context_metadata is not None:
+        add_entry(
+            source_id="context_metadata",
+            kind="context_metadata",
+            title="HR context metadata",
+            uri="context://metadata",
+            field_path="context_metadata",
+            markdown=_json_markdown("HR context metadata", context_metadata),
+        )
+
+    if summaries is not None:
+        add_entry(
+            source_id="context_summaries",
+            kind="summary",
+            title="HR context summaries",
+            uri="context://summaries",
+            field_path="summaries",
+            markdown=_summaries_to_markdown(summaries),
+        )
+
+    if candidate_profile is not None:
+        add_entry(
+            source_id="candidate_profile",
+            kind="candidate_profile",
+            title="Candidate profile",
+            uri="context://candidate_profile",
+            field_path="candidate_profile",
+            markdown=_candidate_profile_to_markdown(candidate_profile),
+        )
+
+    add_entry(
+        source_id="context_sources",
+        kind="source_catalog",
+        title="HR context source catalog",
+        uri="context://sources",
+        field_path="sources",
+        markdown=_sources_to_markdown(sources),
+    )
+
+    for index, tool_result in enumerate(tool_results):
+        tool_name = str(getattr(tool_result, "tool_name", f"tool_{index}"))
+        add_entry(
+            source_id=f"tool_result_{index:03d}_{_safe_path_part(tool_name)}",
+            kind="tool_result",
+            title=f"Tool result: {tool_name}",
+            uri=f"context://tool_results/{index}",
+            field_path=f"tool_results[{index}]",
+            markdown=_tool_result_to_markdown(tool_result),
+        )
+
+    if replay_metadata is not None:
+        add_entry(
+            source_id="replay_metadata",
+            kind="replay_metadata",
+            title="Replay metadata",
+            uri="context://replay_metadata",
+            field_path="replay_metadata",
+            markdown=_json_markdown("Replay metadata", replay_metadata),
+        )
+
+    return entries
+
+
+def _summaries_to_markdown(summaries: Any) -> str:
+    return "\n\n".join(
+        (
+            "# HR context summaries",
+            f"## Company\n{getattr(summaries, 'company', '')}",
+            f"## Role\n{getattr(summaries, 'role', '')}",
+            f"## Candidate\n{getattr(summaries, 'candidate', '')}",
+        )
+    )
+
+
+def _candidate_profile_to_markdown(profile: Any) -> str:
+    sections = ["# Candidate profile"]
+    for field_name, title in (
+        ("skills", "Skills"),
+        ("experience", "Experience"),
+        ("seniority_signals", "Seniority signals"),
+        ("risks", "Risks"),
+        ("interview_focus_areas", "Interview focus areas"),
+    ):
+        values = tuple(getattr(profile, field_name, ()) or ())
+        if not values:
+            continue
+        sections.append(f"## {title}\n" + "\n".join(f"- {value}" for value in values))
+    return "\n\n".join(sections)
+
+
+def _sources_to_markdown(sources: tuple[HrContextSource, ...]) -> str:
+    if not sources:
+        return ""
+    lines = ["# HR context sources"]
+    for source in sources:
+        lines.extend(
+            (
+                f"## {source.title}",
+                f"- id: {source.id}",
+                f"- kind: {source.kind}",
+                f"- uri: {source.uri}",
+                f"- content_sha256: {source.content_sha256}",
+            )
+        )
+    return "\n".join(lines)
+
+
+def _tool_result_to_markdown(tool_result: Any) -> str:
+    tool_name = str(getattr(tool_result, "tool_name", "HR tool result"))
+    return _json_markdown(f"Tool result: {tool_name}", tool_result)
+
+
+def _json_markdown(title: str, value: Any) -> str:
+    return f"# {title}\n\n```json\n{json.dumps(_to_jsonable(value), sort_keys=True, indent=2)}\n```"
+
+
+def _to_jsonable(value: Any) -> Any:
+    if hasattr(value, "__dataclass_fields__"):
+        return {
+            field_name: _to_jsonable(getattr(value, field_name))
+            for field_name in value.__dataclass_fields__
+        }
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(item) for item in value]
+    return value
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _summarize_retrieval_text(text: str, *, max_chars: int = 280) -> str:
+    normalized = " ".join(text.split())
+    if len(normalized) <= max_chars:
+        return normalized
+    truncated = normalized[: max_chars - 3].rsplit(" ", 1)[0].rstrip()
+    return f"{truncated or normalized[: max_chars - 3].rstrip()}..."
 
 
 def retrieve_hr_context(
@@ -132,11 +354,19 @@ def retrieve_hr_context(
 
         chunks = context.chunks
         rebuilt_chunks = False
-        if not chunks and rebuild_missing_chunks:
+        if rebuild_missing_chunks and (
+            not chunks or not _chunks_cover_full_context(context, chunks)
+        ):
             chunks = build_retrieval_chunks(
                 company_inputs=context.company_inputs,
                 role_description=context.role_description,
+                candidate_inputs=context.candidate_inputs,
+                summaries=context.summaries,
+                candidate_profile=context.candidate_profile,
                 sources=context.sources,
+                tool_results=context.tool_results,
+                replay_metadata=context.replay_metadata,
+                context_metadata=_context_metadata(context),
             )
             rebuilt_chunks = True
         log_fields["chunk_count"] = len(chunks)
@@ -217,12 +447,63 @@ def retrieval_result_to_dict(result: HrRetrievalResult) -> dict[str, Any]:
     }
 
 
+def _context_metadata(context: HrContext) -> dict[str, Any]:
+    return {
+        "schema_version": context.schema_version,
+        "context_id": context.context_id,
+        "fixture_id": context.fixture_id,
+        "mode": context.mode,
+        "company_input_count": len(context.company_inputs),
+        "candidate_input_count": len(context.candidate_inputs),
+        "source_count": len(context.sources),
+        "tool_result_count": len(context.tool_results),
+        "replay_transcript_count": len(context.replay_metadata.transcripts),
+    }
+
+
+def _chunks_cover_full_context(
+    context: HrContext,
+    chunks: tuple[HrContextChunk, ...],
+) -> bool:
+    actual_field_paths = {
+        chunk.metadata.get("field_path")
+        for chunk in chunks
+        if chunk.metadata.get("field_path")
+    }
+    expected_field_paths = {
+        "role_description.markdown",
+        "context_metadata",
+        "summaries",
+        "candidate_profile",
+        "sources",
+        "replay_metadata",
+    }
+    expected_field_paths.update(
+        f"company_inputs[{index}].markdown"
+        for index in range(len(context.company_inputs))
+    )
+    expected_field_paths.update(
+        f"candidate_inputs[{index}].markdown"
+        for index in range(len(context.candidate_inputs))
+    )
+    expected_field_paths.update(
+        f"tool_results[{index}]" for index in range(len(context.tool_results))
+    )
+    return expected_field_paths.issubset(actual_field_paths)
+
+
 def _chunk_document(
     document: HrContextInputDocument,
     source: HrContextSource,
+    *,
+    field_path: str | None = None,
 ) -> list[HrContextChunk]:
     splitter = _build_text_splitter()
-    langchain_documents = _build_langchain_documents((document,), {source.id: source})
+    langchain_documents = _build_langchain_documents(
+        (document,),
+        {source.id: source},
+        field_paths={source.id: field_path} if field_path else None,
+    )
     split_documents = splitter.split_documents(langchain_documents)
 
     chunks: list[HrContextChunk] = []
@@ -230,7 +511,9 @@ def _chunk_document(
         chunk_text = _normalize_chunk_text(split_document.page_content)
         if not chunk_text:
             continue
-        metadata = {str(key): str(value) for key, value in split_document.metadata.items()}
+        metadata = {
+            str(key): str(value) for key, value in split_document.metadata.items()
+        }
         metadata["chunk_index"] = str(len(chunks))
         chunks.append(
             HrContextChunk(
@@ -271,6 +554,8 @@ def _build_text_splitter():
 def _build_langchain_documents(
     documents: tuple[HrContextInputDocument, ...],
     source_by_id: dict[str, HrContextSource],
+    *,
+    field_paths: dict[str, str | None] | None = None,
 ):
     try:
         from langchain_core.documents import Document
@@ -286,16 +571,20 @@ def _build_langchain_documents(
             raise HrContextValidationError(
                 f"Cannot chunk document '{document.source_id}' because its source is missing"
             )
+        metadata = {
+            "source_id": source.id,
+            "source_kind": source.kind,
+            "source_title": source.title,
+            "source_uri": source.uri,
+            "content_sha256": source.content_sha256,
+        }
+        field_path = field_paths.get(source.id) if field_paths else None
+        if field_path:
+            metadata["field_path"] = field_path
         langchain_documents.append(
             Document(
                 page_content=document.markdown,
-                metadata={
-                    "source_id": source.id,
-                    "source_kind": source.kind,
-                    "source_title": source.title,
-                    "source_uri": source.uri,
-                    "content_sha256": source.content_sha256,
-                },
+                metadata=metadata,
             )
         )
     return langchain_documents
@@ -309,6 +598,7 @@ def _retrieve_faiss_matches(
     mode: str,
     embedding_model: str,
     limit: int,
+    embedding_base_url: str = "",
 ) -> tuple[HrRetrievalMatch, ...]:
     embeddings = _ensure_langchain_embeddings(embeddings)
     vector_store = _load_or_build_faiss_store(
@@ -316,13 +606,29 @@ def _retrieve_faiss_matches(
         embeddings=embeddings,
         mode=mode,
         embedding_model=embedding_model,
+        embedding_base_url=embedding_base_url,
     )
     try:
         docs_and_scores = vector_store.similarity_search_with_score(query, k=limit)
-    except Exception as exc:  # pragma: no cover - depends on provider/runtime
-        if mode == "llm":
-            raise HrContextValidationError(f"Live HR retrieval failed: {exc}") from exc
-        raise HrContextValidationError(f"HR retrieval failed: {exc}") from exc
+    except Exception:
+        # If a saved index was created with incompatible embedding dimensions or
+        # metadata, rebuild from the current chunks and retry once.
+        try:
+            vector_store = _load_or_build_faiss_store(
+                chunks,
+                embeddings=embeddings,
+                mode=mode,
+                embedding_model=embedding_model,
+                embedding_base_url=embedding_base_url,
+                force_rebuild=True,
+            )
+            docs_and_scores = vector_store.similarity_search_with_score(query, k=limit)
+        except Exception as exc:  # pragma: no cover - depends on provider/runtime
+            if mode == "llm":
+                raise HrContextValidationError(
+                    f"Live HR retrieval failed: {exc}"
+                ) from exc
+            raise HrContextValidationError(f"HR retrieval failed: {exc}") from exc
 
     matches: list[HrRetrievalMatch] = []
     for document, raw_score in docs_and_scores:
@@ -339,6 +645,8 @@ def _load_or_build_faiss_store(
     embeddings,
     mode: str,
     embedding_model: str,
+    embedding_base_url: str = "",
+    force_rebuild: bool = False,
 ):
     try:
         from langchain_community.vectorstores import FAISS
@@ -351,8 +659,21 @@ def _load_or_build_faiss_store(
         chunks,
         mode=mode,
         embedding_model=embedding_model,
+        embedding_base_url=embedding_base_url,
     )
-    if _faiss_index_exists(index_dir):
+    if force_rebuild and index_dir.exists():
+        shutil.rmtree(index_dir)
+    if (
+        not force_rebuild
+        and _faiss_index_exists(index_dir)
+        and _faiss_manifest_matches(
+            index_dir,
+            chunks=chunks,
+            mode=mode,
+            embedding_model=embedding_model,
+            embedding_base_url=embedding_base_url,
+        )
+    ):
         try:
             return FAISS.load_local(
                 str(index_dir),
@@ -372,6 +693,14 @@ def _load_or_build_faiss_store(
         )
         index_dir.mkdir(parents=True, exist_ok=True)
         vector_store.save_local(str(index_dir))
+        _write_faiss_manifest(
+            index_dir,
+            chunks=chunks,
+            mode=mode,
+            embedding_model=embedding_model,
+            embedding_base_url=embedding_base_url,
+            vector_dimension=_faiss_vector_dimension(vector_store),
+        )
     except Exception as exc:  # pragma: no cover - depends on provider/runtime
         if mode == "llm":
             raise HrContextValidationError(f"Live HR retrieval failed: {exc}") from exc
@@ -417,11 +746,13 @@ def _faiss_index_dir(
     *,
     mode: str,
     embedding_model: str,
+    embedding_base_url: str = "",
 ) -> Path:
     return _vector_store_root() / _safe_path_part(mode) / _retrieval_index_key(
         chunks,
         mode=mode,
         embedding_model=embedding_model,
+        embedding_base_url=embedding_base_url,
     )
 
 
@@ -438,10 +769,12 @@ def _retrieval_index_key(
     *,
     mode: str,
     embedding_model: str,
+    embedding_base_url: str = "",
 ) -> str:
     payload = {
         "mode": mode,
         "embedding_model": embedding_model,
+        "embedding_base_url": embedding_base_url,
         "chunk_size_tokens": DEFAULT_CHUNK_SIZE_TOKENS,
         "chunk_overlap_tokens": DEFAULT_CHUNK_OVERLAP_TOKENS,
         "chunks": [
@@ -464,6 +797,96 @@ def _safe_path_part(value: str) -> str:
 
 def _faiss_index_exists(index_dir: Path) -> bool:
     return (index_dir / "index.faiss").exists() and (index_dir / "index.pkl").exists()
+
+
+def _faiss_manifest_matches(
+    index_dir: Path,
+    *,
+    chunks: tuple[HrContextChunk, ...],
+    mode: str,
+    embedding_model: str,
+    embedding_base_url: str,
+) -> bool:
+    manifest_path = index_dir / FAISS_INDEX_MANIFEST_FILENAME
+    if not manifest_path.exists():
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    expected = _faiss_manifest_payload(
+        chunks=chunks,
+        mode=mode,
+        embedding_model=embedding_model,
+        embedding_base_url=embedding_base_url,
+        vector_dimension=manifest.get("vector_dimension"),
+    )
+    return all(
+        manifest.get(key) == expected[key]
+        for key in (
+            "schema_version",
+            "mode",
+            "embedding_model",
+            "embedding_base_url",
+            "chunk_size_tokens",
+            "chunk_overlap_tokens",
+            "chunk_count",
+            "chunk_fingerprint",
+        )
+    )
+
+
+def _write_faiss_manifest(
+    index_dir: Path,
+    *,
+    chunks: tuple[HrContextChunk, ...],
+    mode: str,
+    embedding_model: str,
+    embedding_base_url: str,
+    vector_dimension: int | None,
+) -> None:
+    manifest = _faiss_manifest_payload(
+        chunks=chunks,
+        mode=mode,
+        embedding_model=embedding_model,
+        embedding_base_url=embedding_base_url,
+        vector_dimension=vector_dimension,
+    )
+    (index_dir / FAISS_INDEX_MANIFEST_FILENAME).write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _faiss_manifest_payload(
+    *,
+    chunks: tuple[HrContextChunk, ...],
+    mode: str,
+    embedding_model: str,
+    embedding_base_url: str,
+    vector_dimension: int | None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": FAISS_INDEX_MANIFEST_SCHEMA_VERSION,
+        "mode": mode,
+        "embedding_model": embedding_model,
+        "embedding_base_url": embedding_base_url,
+        "vector_dimension": vector_dimension,
+        "chunk_size_tokens": DEFAULT_CHUNK_SIZE_TOKENS,
+        "chunk_overlap_tokens": DEFAULT_CHUNK_OVERLAP_TOKENS,
+        "chunk_count": len(chunks),
+        "chunk_fingerprint": _retrieval_index_key(
+            chunks,
+            mode=mode,
+            embedding_model=embedding_model,
+            embedding_base_url=embedding_base_url,
+        ),
+    }
+
+
+def _faiss_vector_dimension(vector_store: Any) -> int | None:
+    dimension = getattr(getattr(vector_store, "index", None), "d", None)
+    return dimension if isinstance(dimension, int) else None
 
 
 def _distance_to_similarity_score(raw_score: Any) -> float:
@@ -547,6 +970,7 @@ def _retrieve_llm_chunks(
         embeddings=embeddings,
         mode="llm",
         embedding_model=config.embedding_model,
+        embedding_base_url=config.base_url,
         limit=limit,
     )
 

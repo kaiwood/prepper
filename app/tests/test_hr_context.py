@@ -42,13 +42,25 @@ def test_build_mock_hr_context_from_demo_fixture():
     assert "SQL" in context.candidate_profile.skills
     assert "Customer Insights Analyst, BrightPath HR Software" in context.candidate_profile.experience
     assert context.candidate_profile.interview_focus_areas
-    assert len(context.chunks) == 2
-    assert context.chunks[0].id == "company_chunk_001"
-    assert context.chunks[0].source_id == "company"
-    assert context.chunks[0].metadata["source_uri"] == "fixture://company.md"
-    assert context.chunks[0].metadata["source_kind"] == "company"
-    assert context.chunks[1].id == "role_chunk_001"
-    assert context.chunks[1].metadata["source_uri"] == "fixture://role.md"
+    chunk_by_id = {chunk.id: chunk for chunk in context.chunks}
+    assert {
+        "company_chunk_001",
+        "role_chunk_001",
+        "resume_chunk_001",
+        "profile_chunk_001",
+        "context_metadata_chunk_001",
+        "context_summaries_chunk_001",
+        "candidate_profile_chunk_001",
+        "replay_metadata_chunk_001",
+    }.issubset(chunk_by_id)
+    assert chunk_by_id["company_chunk_001"].source_id == "company"
+    assert chunk_by_id["company_chunk_001"].metadata["source_uri"] == "fixture://company.md"
+    assert chunk_by_id["company_chunk_001"].metadata["source_kind"] == "company"
+    assert chunk_by_id["company_chunk_001"].metadata["field_path"] == "company_inputs[0].markdown"
+    assert chunk_by_id["role_chunk_001"].metadata["source_uri"] == "fixture://role.md"
+    assert chunk_by_id["resume_chunk_001"].metadata["source_kind"] == "resume"
+    assert chunk_by_id["profile_chunk_001"].metadata["source_kind"] == "profile"
+    assert chunk_by_id["candidate_profile_chunk_001"].metadata["field_path"] == "candidate_profile"
     assert [result.tool_name for result in context.tool_results] == [
         "extract_candidate_profile"
     ]

@@ -179,23 +179,23 @@ def test_retrieve_company_context_mock_returns_source_snippets():
     assert payload["status"] == "success"
     assert payload["output"]["mode"] == "mock"
     assert payload["output"]["query"] == "company values"
-    assert payload["output"]["result_count"] == 2
-    assert [snippet["chunk_id"] for snippet in payload["output"]["snippets"]] == [
-        "company_chunk_001",
-        "role_chunk_001",
-    ]
-    assert 0 < payload["output"]["snippets"][0]["score"] <= 1
-    assert 0 < payload["output"]["snippets"][0]["relevance_percent"] <= 100
-    assert payload["output"]["snippets"][0]["source_title"] == "Northstar Analytics"
-    assert payload["output"]["snippets"][0]["source_uri"] == "fixture://company.md"
-    assert payload["output"]["snippets"][0]["source"] == {
+    assert payload["output"]["result_count"] == 3
+    snippets = payload["output"]["snippets"]
+    assert any(snippet["source_kind"] == "company" for snippet in snippets)
+    assert any(snippet["metadata"]["field_path"] == "sources" for snippet in snippets)
+    assert 0 < snippets[0]["score"] <= 1
+    assert 0 < snippets[0]["relevance_percent"] <= 100
+    company_snippet = next(snippet for snippet in snippets if snippet["source_kind"] == "company")
+    assert company_snippet["source_title"] == "Northstar Analytics"
+    assert company_snippet["source_uri"] == "fixture://company.md"
+    assert company_snippet["source"] == {
         "id": "company",
         "kind": "company",
         "title": "Northstar Analytics",
         "uri": "fixture://company.md",
     }
-    assert payload["output"]["snippets"][0]["metadata"]["source_kind"] == "company"
-    assert payload["output"]["sources"][0]["relevance_percent"] == payload["output"]["snippets"][0]["relevance_percent"]
+    assert company_snippet["metadata"]["source_kind"] == "company"
+    assert payload["output"]["sources"][0]["relevance_percent"] == snippets[0]["relevance_percent"]
 
 
 def test_retrieve_company_context_can_return_role_snippets():
