@@ -82,6 +82,32 @@ def test_hr_assistant_answers_with_context_and_exposes_tools():
     assert isinstance(data["sources"][0]["relevance_percent"], int)
     assert 0 < data["sources"][0]["relevance_percent"] <= 100
     assert 0 < data["sources"][0]["score"] <= 1
+    assert "debug_context" not in data
+    assert "profile" not in data["tool_results"][0]["output"]
+    assert "query" not in data["tool_results"][-1]["output"]
+    assert "snippets" not in data["tool_results"][-1]["output"]
+
+
+def test_hr_assistant_can_return_explicit_debug_context():
+    app = create_app()
+    client = app.test_client()
+    context_id = _build_context(client)
+
+    response = client.post(
+        "/api/hr/assistant",
+        json={
+            "context_id": context_id,
+            "message": "What should I test?",
+            "mode": "mock",
+            "include_debug_context": True,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["debug_context"]["context_id"] == context_id
+    assert data["debug_context"]["candidate_profile"]["skills"]
+    assert data["debug_context"]["chunks"]
 
 
 def test_hr_assistant_rejects_invalid_context_id():
@@ -144,6 +170,7 @@ def test_hr_interview_mock_start_and_turn_include_retrieval():
             "context_id": context_id,
             "mode": "mock",
             "max_question_roundtrips": 1,
+            "include_debug_context": True,
         },
     )
 
@@ -151,6 +178,8 @@ def test_hr_interview_mock_start_and_turn_include_retrieval():
     start_data = start.get_json()
     assert start_data["context_id"] == context_id
     assert start_data["interview_enabled"] is True
+    assert start_data["debug_context"]["context_id"] == context_id
+    assert start_data["debug_context"]["chunks"]
     assert start_data["tool_results"][0]["tool_name"] == "retrieve_company_context"
     assert start_data["sources"]
     assert isinstance(start_data["sources"][0]["relevance_percent"], int)
@@ -162,6 +191,7 @@ def test_hr_interview_mock_start_and_turn_include_retrieval():
             "context_id": context_id,
             "interview_id": start_data["interview_id"],
             "message": "I like privacy-first HR analytics.",
+            "include_debug_context": True,
         },
     )
 
@@ -169,7 +199,10 @@ def test_hr_interview_mock_start_and_turn_include_retrieval():
     turn_data = turn.get_json()
     assert turn_data["interview_complete"] is True
     assert turn_data["final_result"]["passed"] is True
+    assert turn_data["debug_context"]["context_id"] == context_id
     assert turn_data["tool_results"][0]["tool_name"] == "retrieve_company_context"
+    assert "query" not in turn_data["tool_results"][0]["output"]
+    assert "snippets" not in turn_data["tool_results"][0]["output"]
 
 
 def test_hr_interview_rejects_invalid_context_id():

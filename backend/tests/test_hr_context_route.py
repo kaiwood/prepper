@@ -48,8 +48,15 @@ def test_hr_context_endpoint_builds_and_stores_context_from_text():
     assert data["context_id"].startswith("hrctx_input_")
     assert data["context"]["context_id"] == data["context_id"]
     assert data["context"]["fixture_id"] is None
+    assert "debug_context" not in data
+    assert "company_inputs" not in data["context"]
+    assert "role_description" not in data["context"]
+    assert "candidate_inputs" not in data["context"]
+    assert "candidate_profile" not in data["context"]
+    assert "chunks" not in data["context"]
     assert data["summaries"]["company"].startswith("Example Co")
     assert data["tool_results"][0]["tool_name"] == "extract_candidate_profile"
+    assert "profile" not in data["tool_results"][0]["output"]
     assert data["tool_call_events"][0]["tool_name"] == "extract_candidate_profile"
     assert data["tool_call_events"][0]["status"] == "success"
     assert data["errors"] == []
@@ -86,6 +93,33 @@ def test_hr_context_endpoint_fetches_company_url(monkeypatch):
         "fetch_company_website",
         "extract_candidate_profile",
     ]
+    assert "document" not in data["tool_results"][0]["output"]
+    assert "chunks" not in data["tool_results"][0]["output"]
+    assert data["tool_results"][0]["output"]["summary"] == "HR analytics platform."
+
+
+def test_hr_context_endpoint_can_return_explicit_debug_context():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/hr/context",
+        json=_payload(include_debug_context=True),
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["context"]["context_id"] == data["context_id"]
+    assert "company_inputs" not in data["context"]
+    assert data["debug_context"]["context_id"] == data["context_id"]
+    assert data["debug_context"]["company_inputs"][0]["markdown"].startswith(
+        "# Example Co"
+    )
+    assert data["debug_context"]["role_description"]["markdown"].startswith(
+        "# Analyst"
+    )
+    assert data["debug_context"]["candidate_profile"]["skills"]
+    assert data["debug_context"]["chunks"]
 
 
 def test_hr_context_endpoint_rejects_validation_errors():
@@ -163,6 +197,7 @@ def test_hr_context_endpoint_returns_partial_when_candidate_tool_fails(monkeypat
     safe_message = "extract_candidate_profile failed; review server logs or rerun the workflow locally."
     assert data["tool_results"][0]["output"]["error"] == safe_message
     assert data["context"]["tool_results"][0]["output"]["error"] == safe_message
+    assert "candidate_profile" not in data["context"]
     assert data["errors"] == [
         {
             "tool_name": "extract_candidate_profile",
