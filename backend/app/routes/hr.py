@@ -81,6 +81,7 @@ _HR_TEXT_LIMITS = {
     "context_id": 128,
     "interview_id": 128,
     "mode": 32,
+    "language": 32,
     "model": 200,
     "fixture_id": 128,
     "difficulty": 32,
@@ -272,6 +273,7 @@ def start_hr_interview():
         context = _require_stored_context(context_id)
         include_debug_context = _include_debug_context(data)
         mode = _optional_string(data, "mode") or "llm"
+        language = _optional_string(data, "language")
         _validate_hr_mode(mode)
         descriptor = load_prompt_descriptor(_HR_INTERVIEW_STYLE)
         question_limit = resolve_roundtrip_limit(
@@ -324,6 +326,7 @@ def start_hr_interview():
                 frequency_penalty=model_settings["frequency_penalty"],
                 presence_penalty=model_settings["presence_penalty"],
                 max_tokens=model_settings["max_tokens"],
+                language=language,
                 model=_optional_string(data, "model"),
             )
             parsed = parse_reply_metadata(raw_reply)
@@ -349,6 +352,7 @@ def start_hr_interview():
         "descriptor": descriptor,
         "conversation": conversation,
         "difficulty": difficulty,
+        "language": language,
         "question_limit": question_limit,
         "question_count": question_count,
         "pass_threshold": pass_threshold,
@@ -457,7 +461,7 @@ def continue_hr_interview():
                 message=message,
                 conversation=session["conversation"],
                 descriptor=runtime_descriptor,
-                language=None,
+                language=session.get("language"),
                 question_limit=session["question_limit"],
                 pass_threshold=session["pass_threshold"],
                 model_settings=session["model_settings"],

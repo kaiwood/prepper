@@ -13,6 +13,7 @@ test("builds HR interview start payload with live mode by default", () => {
       contextId: " hrctx_123 ",
       questionRoundtripLimit: 3,
       difficulty: " medium ",
+      language: " de ",
       advancedSettings: {
         temperature: 0.4,
         top_p: 0.9,
@@ -25,6 +26,7 @@ test("builds HR interview start payload with live mode by default", () => {
       mode: "llm",
       max_question_roundtrips: 3,
       difficulty: "medium",
+      language: "de",
       temperature: 0.4,
       top_p: 0.9,
       frequency_penalty: 0.1,

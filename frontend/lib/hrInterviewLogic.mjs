@@ -6,6 +6,7 @@ export const DEFAULT_HR_INTERVIEW_MODE = "llm";
  *   mode?: string,
  *   questionRoundtripLimit?: number,
  *   difficulty?: string,
+ *   language?: string,
  *   advancedSettings?: Record<string, number>,
  *   model?: string,
  * }} [options]
@@ -15,6 +16,7 @@ export function buildHrInterviewStartPayload({
   mode = DEFAULT_HR_INTERVIEW_MODE,
   questionRoundtripLimit,
   difficulty,
+  language,
   advancedSettings,
   model,
 } = {}) {
@@ -30,6 +32,11 @@ export function buildHrInterviewStartPayload({
   const normalizedDifficulty = normalizeText(difficulty);
   if (normalizedDifficulty) {
     payload.difficulty = normalizedDifficulty;
+  }
+
+  const normalizedLanguage = normalizeText(language);
+  if (normalizedLanguage) {
+    payload.language = normalizedLanguage;
   }
 
   const normalizedModel = normalizeText(model);

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { ConversationMessage } from "../components/Conversation";
+import type { LanguageCode } from "../lib/translations";
 import { formatApiError } from "../lib/inputLimits.mjs";
 import { buildApiUrl } from "../lib/appLogic.mjs";
 import {
@@ -28,12 +29,14 @@ import type {
 
 type UseHrWorkflowOptions = {
   apiBaseUrl: string;
+  language: LanguageCode;
   ui: TranslationStrings;
   enabled?: boolean;
 };
 
 export function useHrWorkflow({
   apiBaseUrl,
+  language,
   ui,
   enabled = true,
 }: UseHrWorkflowOptions) {
@@ -287,7 +290,7 @@ export function useHrWorkflow({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            buildHrInterviewStartPayload({ contextId: hrContextId }),
+            buildHrInterviewStartPayload({ contextId: hrContextId, language }),
           ),
         },
       );

@@ -205,6 +205,76 @@ def test_hr_interview_mock_start_and_turn_include_retrieval():
     assert "snippets" not in turn_data["tool_results"][0]["output"]
 
 
+def test_hr_interview_llm_uses_start_language(monkeypatch):
+    captured = {}
+
+    def fake_retrieval(**kwargs):
+        return {
+            "tool_name": "retrieve_company_context",
+            "status": "success",
+            "output": {"mode": "llm", "query": kwargs["query"], "snippets": []},
+        }
+
+    def fake_opener(**kwargs):
+        captured["opener_language"] = kwargs["language"]
+        return "Eröffnungsfrage?\n[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+
+    def fake_turn(**kwargs):
+        captured["turn_language"] = kwargs["language"]
+        return {
+            "reply": "Nächste Frage?",
+            "interview_complete": False,
+            "question_count": 1,
+            "question_limit": kwargs["question_limit"],
+            "pass_threshold": kwargs["pass_threshold"],
+            "turn_type": "question",
+            "metadata_warning": False,
+        }
+
+    monkeypatch.setattr("app.routes.hr._run_hr_interview_retrieval", fake_retrieval)
+    monkeypatch.setattr("app.routes.hr.get_interview_opener", fake_opener)
+    monkeypatch.setattr("app.routes.hr.run_interview_turn", fake_turn)
+
+    app = create_app()
+    client = app.test_client()
+    context_id = _build_context(client)
+
+    start = client.post(
+        "/api/hr/interview/start",
+        json={"context_id": context_id, "mode": "llm", "language": "de"},
+    )
+
+    assert start.status_code == 200
+    start_data = start.get_json()
+    assert captured["opener_language"] == "de"
+
+    turn = client.post(
+        "/api/hr/interview",
+        json={
+            "context_id": context_id,
+            "interview_id": start_data["interview_id"],
+            "message": "Meine Antwort.",
+        },
+    )
+
+    assert turn.status_code == 200
+    assert captured["turn_language"] == "de"
+
+
+def test_hr_interview_rejects_non_string_language():
+    app = create_app()
+    client = app.test_client()
+    context_id = _build_context(client)
+
+    response = client.post(
+        "/api/hr/interview/start",
+        json={"context_id": context_id, "mode": "mock", "language": 123},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"error": "language must be a string"}
+
+
 def test_hr_interview_rejects_invalid_context_id():
     app = create_app()
     client = app.test_client()

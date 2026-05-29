@@ -32,6 +32,7 @@ export default function Home() {
   });
   const hrWorkflow = useHrWorkflow({
     apiBaseUrl: API_BASE_URL,
+    language,
     ui,
     enabled: selectedArea === "admin",
   });
