@@ -19,6 +19,7 @@ import {
 import type {
   CandidateAnswerResponse,
   HrCompanyInputMode,
+  HrCompanyFetchResponse,
   HrContextResponse,
   HrDemoSetupResponse,
   HrInterviewResponse,
@@ -28,6 +29,7 @@ import type {
   HrProfileFetchResponse,
   HrProfileInputMode,
   HrResumeExtractResponse,
+  HrRoleFetchResponse,
   HrResumeInputMode,
   HrRoleInputMode,
   HrSetupFormState,
@@ -71,6 +73,8 @@ export function useHrWorkflow({
   const [hrSetupErrors, setHrSetupErrors] =
     useState<HrSetupValidationErrors>({});
   const [hrDemoSetupLoading, setHrDemoSetupLoading] = useState(false);
+  const [hrCompanyFetchLoading, setHrCompanyFetchLoading] = useState(false);
+  const [hrRoleFetchLoading, setHrRoleFetchLoading] = useState(false);
   const [hrResumeExtractLoading, setHrResumeExtractLoading] = useState(false);
   const [hrProfileFetchLoading, setHrProfileFetchLoading] = useState(false);
   const [hrProfileUrl, setHrProfileUrl] = useState("");
@@ -251,6 +255,94 @@ export function useHrWorkflow({
       );
     });
   };
+
+  async function handleFetchCompanyUrl() {
+    if (hrCompanyFetchLoading || hrContextLoading) {
+      return;
+    }
+
+    const companyUrl = hrSetupForm.companyUrl.trim();
+    if (!companyUrl) {
+      setHrContextError(`${ui.hrCompanyUrlLabel} is required.`);
+      return;
+    }
+    if (companyUrl.length > INPUT_LIMITS.companyUrl) {
+      setHrContextError(`${ui.hrCompanyUrlLabel} is too long.`);
+      return;
+    }
+
+    setHrCompanyFetchLoading(true);
+    setHrContextError(null);
+
+    try {
+      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/company/fetch"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_url: companyUrl }),
+      });
+      const data: HrCompanyFetchResponse = await res.json();
+
+      if (!res.ok) {
+        setHrContextError(formatApiError(data, ui.errorFallback));
+        return;
+      }
+
+      if (!data.company_text?.trim()) {
+        setHrContextError(ui.errorFallback);
+        return;
+      }
+      updateHrSetupField("companyText", data.company_text);
+      setHrCompanyInputMode("companyText");
+    } catch {
+      setHrContextError(ui.errorBackendUnavailable);
+    } finally {
+      setHrCompanyFetchLoading(false);
+    }
+  }
+
+  async function handleFetchRoleUrl() {
+    if (hrRoleFetchLoading || hrContextLoading) {
+      return;
+    }
+
+    const roleUrl = hrSetupForm.roleUrl.trim();
+    if (!roleUrl) {
+      setHrContextError(`${ui.hrRoleUrlLabel} is required.`);
+      return;
+    }
+    if (roleUrl.length > INPUT_LIMITS.roleUrl) {
+      setHrContextError(`${ui.hrRoleUrlLabel} is too long.`);
+      return;
+    }
+
+    setHrRoleFetchLoading(true);
+    setHrContextError(null);
+
+    try {
+      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/role/fetch"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role_url: roleUrl }),
+      });
+      const data: HrRoleFetchResponse = await res.json();
+
+      if (!res.ok) {
+        setHrContextError(formatApiError(data, ui.errorFallback));
+        return;
+      }
+
+      if (!data.role_description?.trim()) {
+        setHrContextError(ui.errorFallback);
+        return;
+      }
+      updateHrSetupField("roleDescription", data.role_description);
+      setHrRoleInputMode("roleDescription");
+    } catch {
+      setHrContextError(ui.errorBackendUnavailable);
+    } finally {
+      setHrRoleFetchLoading(false);
+    }
+  }
 
   async function handleExtractResumePdf(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -629,11 +721,14 @@ export function useHrWorkflow({
   return {
     handleBuildHrContext,
     handleExtractResumePdf,
+    handleFetchCompanyUrl,
+    handleFetchRoleUrl,
     handleFetchSocialProfile,
     handleGenerateHrCandidateAnswer,
     handleLoadHrDemoSetup,
     handleStartHrInterview,
     handleSubmitHrInterview,
+    hrCompanyFetchLoading,
     hrCompanyInputMode,
     hrContextError,
     hrContextId,
@@ -659,6 +754,7 @@ export function useHrWorkflow({
     hrProfileUrl,
     hrResumeExtractLoading,
     hrResumeInputMode,
+    hrRoleFetchLoading,
     hrRoleInputMode,
     latestHrInterviewerQuestion,
     hrSetupErrors,

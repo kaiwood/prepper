@@ -60,6 +60,8 @@ from prepper_cli.structured_logging import (
 )
 from prepper_cli.hr_tools import (
     hr_tool_result_to_dict,
+    run_fetch_company_website_tool,
+    run_fetch_role_description_tool,
     run_fetch_social_profile_tool,
     run_retrieve_company_context_tool,
 )
@@ -280,6 +282,24 @@ def hr_resume_extract_options():
     return "", 204
 
 
+@hr_bp.route("/api/hr/company/fetch", methods=["OPTIONS"])
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def hr_company_fetch_options():
+    return "", 204
+
+
+@hr_bp.route("/api/hr/role/fetch", methods=["OPTIONS"])
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def hr_role_fetch_options():
+    return "", 204
+
+
 @hr_bp.route("/api/hr/profile/fetch", methods=["OPTIONS"])
 @cross_origin(
     origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -287,6 +307,76 @@ def hr_resume_extract_options():
 )
 def hr_profile_fetch_options():
     return "", 204
+
+
+@hr_bp.post("/api/hr/company/fetch")
+@limiter.limit("10 per minute")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def fetch_company_website():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body is required"}), 400
+
+    try:
+        company_url = _required_string(data, "company_url")
+        result = run_fetch_company_website_tool(mode="llm", url=company_url)
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:  # pragma: no cover - defensive API safety net
+        _log_hr_route_failure("hr_company_fetch", exc)
+        return jsonify(_public_hr_error("Company website fetch failed")), 502
+
+    payload = hr_tool_result_to_dict(result)
+    output = payload.get("output") if isinstance(payload, dict) else None
+    document = output.get("document") if isinstance(output, dict) else None
+    if not isinstance(document, dict) or not isinstance(document.get("markdown"), str):
+        return jsonify(_public_hr_error("Company website fetch failed")), 502
+    return jsonify(
+        {
+            "company_text": document["markdown"],
+            "source": output.get("source") if isinstance(output.get("source"), dict) else None,
+        }
+    )
+
+
+@hr_bp.post("/api/hr/role/fetch")
+@limiter.limit("10 per minute")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def fetch_role_description():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body is required"}), 400
+
+    try:
+        role_url = _required_string(data, "role_url")
+        model = _optional_string(data, "model")
+        result = run_fetch_role_description_tool(mode="llm", url=role_url, model=model)
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:  # pragma: no cover - defensive API safety net
+        _log_hr_route_failure("hr_role_fetch", exc)
+        return jsonify(_public_hr_error("Role description fetch failed")), 502
+
+    payload = hr_tool_result_to_dict(result)
+    output = payload.get("output") if isinstance(payload, dict) else None
+    if not isinstance(output, dict) or not isinstance(output.get("role_description"), str):
+        return jsonify(_public_hr_error("Role description fetch failed")), 502
+    return jsonify(
+        {
+            "role_description": output["role_description"],
+            "source": output.get("source") if isinstance(output.get("source"), dict) else None,
+        }
+    )
 
 
 @hr_bp.post("/api/hr/profile/fetch")

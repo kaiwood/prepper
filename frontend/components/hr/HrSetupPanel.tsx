@@ -104,18 +104,28 @@ export default function HrSetupPanel({
               >
                 {ui.hrCompanyUrlLabel}
               </label>
-              <input
-                id="hr-company-url"
-                type="url"
-                value={state.hrSetupForm.companyUrl}
-                onChange={(event) =>
-                  state.updateHrSetupField("companyUrl", event.target.value)
-                }
-                disabled={state.hrContextLoading}
-                maxLength={INPUT_LIMITS.companyUrl}
-                placeholder="https://example.com/about"
-                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-              />
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input
+                  id="hr-company-url"
+                  type="url"
+                  value={state.hrSetupForm.companyUrl}
+                  onChange={(event) =>
+                    state.updateHrSetupField("companyUrl", event.target.value)
+                  }
+                  disabled={state.hrContextLoading || state.hrCompanyFetchLoading}
+                  maxLength={INPUT_LIMITS.companyUrl}
+                  placeholder="https://example.com/about"
+                  className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                />
+                <button
+                  type="button"
+                  onClick={state.handleFetchCompanyUrl}
+                  disabled={state.hrContextLoading || state.hrCompanyFetchLoading}
+                  className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-400"
+                >
+                  {state.hrCompanyFetchLoading ? ui.hrFetchingCompany : ui.hrFetchCompany}
+                </button>
+              </div>
               <p className="text-sm text-gray-500">
                 {ui.hrCompanyUrlHint}
               </p>
@@ -201,18 +211,28 @@ export default function HrSetupPanel({
               >
                 {ui.hrRoleUrlLabel}
               </label>
-              <input
-                id="hr-role-url"
-                type="url"
-                value={state.hrSetupForm.roleUrl}
-                onChange={(event) =>
-                  state.updateHrSetupField("roleUrl", event.target.value)
-                }
-                disabled={state.hrContextLoading}
-                maxLength={INPUT_LIMITS.roleUrl}
-                placeholder="https://example.com/jobs/role"
-                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-              />
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input
+                  id="hr-role-url"
+                  type="url"
+                  value={state.hrSetupForm.roleUrl}
+                  onChange={(event) =>
+                    state.updateHrSetupField("roleUrl", event.target.value)
+                  }
+                  disabled={state.hrContextLoading || state.hrRoleFetchLoading}
+                  maxLength={INPUT_LIMITS.roleUrl}
+                  placeholder="https://example.com/jobs/role"
+                  className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                />
+                <button
+                  type="button"
+                  onClick={state.handleFetchRoleUrl}
+                  disabled={state.hrContextLoading || state.hrRoleFetchLoading}
+                  className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-400"
+                >
+                  {state.hrRoleFetchLoading ? ui.hrFetchingRole : ui.hrFetchRole}
+                </button>
+              </div>
               <p className="text-sm text-gray-500">{ui.hrRoleUrlHint}</p>
             </div>
           )}

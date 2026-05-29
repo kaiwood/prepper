@@ -142,6 +142,18 @@ export type HrResumeExtractResponse = {
   error?: string;
 };
 
+export type HrCompanyFetchResponse = {
+  company_text?: string;
+  source?: HrContextSource | null;
+  error?: string;
+};
+
+export type HrRoleFetchResponse = {
+  role_description?: string;
+  source?: HrContextSource | null;
+  error?: string;
+};
+
 export type HrProfileFetchResponse = {
   profile_text?: string;
   source?: HrContextSource | null;

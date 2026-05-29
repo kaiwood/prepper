@@ -67,12 +67,16 @@ type TranslationStrings = {
   hrLoadingDemo: string;
   hrCompanyUrlLabel: string;
   hrCompanyUrlHint: string;
+  hrFetchCompany: string;
+  hrFetchingCompany: string;
   hrCompanyTextLabel: string;
   hrCompanyTextPlaceholder: string;
   hrRoleDescriptionLabel: string;
   hrRoleDescriptionPlaceholder: string;
   hrRoleUrlLabel: string;
   hrRoleUrlHint: string;
+  hrFetchRole: string;
+  hrFetchingRole: string;
   hrResumeTextLabel: string;
   hrResumeTextPlaceholder: string;
   hrResumePdfLabel: string;
@@ -204,6 +208,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrLoadingDemo: "Loading demo...",
     hrCompanyUrlLabel: "Company URL",
     hrCompanyUrlHint: "Use either a public company URL or paste company text below.",
+    hrFetchCompany: "Fetch company",
+    hrFetchingCompany: "Fetching...",
     hrCompanyTextLabel: "Company text",
     hrCompanyTextPlaceholder:
       "Paste company overview, values, and interview-relevant facts.",
@@ -212,6 +218,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
       "Paste responsibilities, required skills, and success signals.",
     hrRoleUrlLabel: "Job-ad URL",
     hrRoleUrlHint: "Use either a public job-ad URL or paste the role description.",
+    hrFetchRole: "Fetch role",
+    hrFetchingRole: "Fetching...",
     hrResumeTextLabel: "Resume text",
     hrResumeTextPlaceholder: "Paste candidate resume content.",
     hrResumePdfLabel: "Resume PDF",
@@ -345,6 +353,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrLoadingDemo: "Demo wird geladen...",
     hrCompanyUrlLabel: "Unternehmens-URL",
     hrCompanyUrlHint: "Nutze entweder eine öffentliche Unternehmens-URL oder füge unten Unternehmenstext ein.",
+    hrFetchCompany: "Unternehmen abrufen",
+    hrFetchingCompany: "Wird abgerufen...",
     hrCompanyTextLabel: "Unternehmenstext",
     hrCompanyTextPlaceholder:
       "Füge Unternehmensüberblick, Werte und interviewrelevante Fakten ein.",
@@ -353,6 +363,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
       "Füge Aufgaben, erforderliche Fähigkeiten und Erfolgssignale ein.",
     hrRoleUrlLabel: "Stellenanzeigen-URL",
     hrRoleUrlHint: "Nutze entweder eine öffentliche Stellenanzeigen-URL oder füge die Rollenbeschreibung ein.",
+    hrFetchRole: "Rolle abrufen",
+    hrFetchingRole: "Wird abgerufen...",
     hrResumeTextLabel: "Lebenslauftext",
     hrResumeTextPlaceholder: "Füge den Lebenslauf der Kandidatin oder des Kandidaten ein.",
     hrResumePdfLabel: "Lebenslauf-PDF",
@@ -484,6 +496,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrLoadingDemo: "Chargement de la démo...",
     hrCompanyUrlLabel: "URL de l'entreprise",
     hrCompanyUrlHint: "Utilisez soit une URL publique de l'entreprise, soit le texte de l'entreprise ci-dessous.",
+    hrFetchCompany: "Récupérer l'entreprise",
+    hrFetchingCompany: "Récupération...",
     hrCompanyTextLabel: "Texte de l'entreprise",
     hrCompanyTextPlaceholder:
       "Collez la présentation de l'entreprise, ses valeurs et les faits utiles pour l'entretien.",
@@ -492,6 +506,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
       "Collez les responsabilités, les compétences requises et les signaux de réussite.",
     hrRoleUrlLabel: "URL de l'offre",
     hrRoleUrlHint: "Utilisez soit une URL publique d'offre d'emploi, soit la description du rôle.",
+    hrFetchRole: "Récupérer le rôle",
+    hrFetchingRole: "Récupération...",
     hrResumeTextLabel: "Texte du CV",
     hrResumeTextPlaceholder: "Collez le contenu du CV du candidat.",
     hrResumePdfLabel: "PDF du CV",
