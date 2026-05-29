@@ -2,7 +2,6 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import type { ConversationMessage } from "../components/Conversation";
 import type { LanguageCode } from "../lib/translations";
 import { INPUT_LIMITS, formatApiError } from "../lib/inputLimits.mjs";
-import { buildApiUrl } from "../lib/appLogic.mjs";
 import {
   EMPTY_HR_SETUP_FORM,
   buildHrContextPayload,
@@ -14,22 +13,24 @@ import {
   validateHrSetupForm,
 } from "../lib/hrSetupLogic.mjs";
 import {
-  buildHrInterviewStartPayload,
-  buildHrInterviewTurnPayload,
-} from "../lib/hrInterviewLogic.mjs";
+  buildHrContext,
+  clearHrSetup,
+  continueHrInterview,
+  extractHrResume,
+  fetchHrCompany,
+  fetchHrProfile,
+  fetchHrRole,
+  fetchLatestHrSetup,
+  generateHrCandidateAnswer,
+  startHrInterview,
+} from "../lib/hrWorkflowApi";
 import type {
-  CandidateAnswerResponse,
   HrCompanyInputMode,
-  HrCompanyFetchResponse,
   HrContextResponse,
   HrInterviewResponse,
   HrInterviewSource,
-  HrLatestSetupResponse,
   HrInterviewStatus,
-  HrProfileFetchResponse,
   HrProfileInputMode,
-  HrResumeExtractResponse,
-  HrRoleFetchResponse,
   HrResumeInputMode,
   HrRoleInputMode,
   HrSetupFormState,
@@ -132,12 +133,11 @@ export function useHrWorkflow({
 
     async function loadLatestHrSetup() {
       try {
-        const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/setup/latest"));
-        const data: HrLatestSetupResponse = await res.json();
+        const { ok, data } = await fetchLatestHrSetup(apiBaseUrl);
         if (cancelled) {
           return;
         }
-        if (!res.ok) {
+        if (!ok) {
           setHrContextError(formatApiError(data, ui.errorFallback));
           return;
         }
@@ -273,14 +273,9 @@ export function useHrWorkflow({
     setHrContextError(null);
 
     try {
-      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/company/fetch"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company_url: companyUrl }),
-      });
-      const data: HrCompanyFetchResponse = await res.json();
+      const { ok, data } = await fetchHrCompany(apiBaseUrl, companyUrl);
 
-      if (!res.ok) {
+      if (!ok) {
         setHrContextError(formatApiError(data, ui.errorFallback));
         return;
       }
@@ -318,14 +313,9 @@ export function useHrWorkflow({
     setHrContextError(null);
 
     try {
-      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/role/fetch"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role_url: roleUrl }),
-      });
-      const data: HrRoleFetchResponse = await res.json();
+      const { ok, data } = await fetchHrRole(apiBaseUrl, roleUrl);
 
-      if (!res.ok) {
+      if (!ok) {
         setHrContextError(formatApiError(data, ui.errorFallback));
         return;
       }
@@ -354,20 +344,10 @@ export function useHrWorkflow({
     setHrResumeExtractLoading(true);
     setHrContextError(null);
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const res = await fetch(
-        buildApiUrl(apiBaseUrl, "/api/hr/resume/extract"),
-        {
-          method: "POST",
-          body: formData,
-        },
-      );
-      const data: HrResumeExtractResponse = await res.json();
+      const { ok, data } = await extractHrResume(apiBaseUrl, file);
 
-      if (!res.ok) {
+      if (!ok) {
         setHrContextError(formatApiError(data, ui.errorFallback));
         return;
       }
@@ -416,17 +396,13 @@ export function useHrWorkflow({
     setHrContextError(null);
 
     try {
-      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/profile/fetch"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile_url: profileUrl,
-          oauth_token: oauthToken,
-        }),
-      });
-      const data: HrProfileFetchResponse = await res.json();
+      const { ok, data } = await fetchHrProfile(
+        apiBaseUrl,
+        profileUrl,
+        oauthToken,
+      );
 
-      if (!res.ok) {
+      if (!ok) {
         setHrContextError(formatApiError(data, ui.errorFallback));
         return;
       }
@@ -493,12 +469,9 @@ export function useHrWorkflow({
     setHrContextError(null);
 
     try {
-      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/setup/clear"), {
-        method: "POST",
-      });
-      const data = await res.json();
+      const { ok, data } = await clearHrSetup(apiBaseUrl);
 
-      if (!res.ok) {
+      if (!ok) {
         setHrContextError(formatApiError(data, ui.errorFallback));
         return;
       }
@@ -562,20 +535,16 @@ export function useHrWorkflow({
     resetHrInterview();
 
     try {
-      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/context"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          buildHrContextPayload(hrSetupForm, {
-            companyInputMode: hrCompanyInputMode,
-            roleInputMode: hrRoleInputMode,
-            resumeInputMode: hrResumeInputMode,
-          }),
-        ),
-      });
-      const data: HrContextResponse = await res.json();
+      const { ok, data } = await buildHrContext(
+        apiBaseUrl,
+        buildHrContextPayload(hrSetupForm, {
+          companyInputMode: hrCompanyInputMode,
+          roleInputMode: hrRoleInputMode,
+          resumeInputMode: hrResumeInputMode,
+        }),
+      );
 
-      if (!res.ok) {
+      if (!ok) {
         setHrContextError(formatApiError(data, ui.errorFallback));
         return;
       }
@@ -618,19 +587,13 @@ export function useHrWorkflow({
     setHrInterviewToolCallEvents([]);
 
     try {
-      const res = await fetch(
-        buildApiUrl(apiBaseUrl, "/api/hr/interview/start"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            buildHrInterviewStartPayload({ contextId: hrContextId, language }),
-          ),
-        },
+      const { ok, data } = await startHrInterview(
+        apiBaseUrl,
+        hrContextId,
+        language,
       );
-      const data: HrInterviewResponse = await res.json();
 
-      if (!res.ok) {
+      if (!ok) {
         setHrInterviewError(formatApiError(data, ui.errorFallback));
         return;
       }
@@ -669,20 +632,14 @@ export function useHrWorkflow({
     setHrInterviewError(null);
 
     try {
-      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/interview"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          buildHrInterviewTurnPayload({
-            contextId: hrContextId,
-            interviewId: hrInterviewId,
-            message: prompt,
-          }),
-        ),
-      });
-      const data: HrInterviewResponse = await res.json();
+      const { ok, data } = await continueHrInterview(
+        apiBaseUrl,
+        hrContextId,
+        hrInterviewId,
+        prompt,
+      );
 
-      if (!res.ok) {
+      if (!ok) {
         setHrInterviewError(formatApiError(data, ui.errorFallback));
         return;
       }
@@ -715,21 +672,13 @@ export function useHrWorkflow({
     setHrInterviewError(null);
 
     try {
-      const res = await fetch(
-        buildApiUrl(apiBaseUrl, "/api/presentation/candidate-answer"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            current_question: latestHrInterviewerQuestion,
-            system_prompt_name: "hr_candidate_fit",
-            language,
-          }),
-        },
+      const { ok, data } = await generateHrCandidateAnswer(
+        apiBaseUrl,
+        latestHrInterviewerQuestion,
+        language,
       );
-      const data: CandidateAnswerResponse = await res.json();
 
-      if (!res.ok) {
+      if (!ok) {
         setHrInterviewError(formatApiError(data, ui.errorFallback));
         return;
       }
