@@ -1,9 +1,9 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useHrSetupState } from "./useHrSetupState";
 import type { ConversationMessage } from "../components/Conversation";
 import type { LanguageCode } from "../lib/translations";
 import { INPUT_LIMITS, formatApiError } from "../lib/inputLimits.mjs";
 import {
-  EMPTY_HR_SETUP_FORM,
   buildHrContextPayload,
   buildHrSetupFormFromApi,
   hasHrResolvedCompanyText,
@@ -30,10 +30,7 @@ import type {
   HrInterviewResponse,
   HrInterviewSource,
   HrInterviewStatus,
-  HrProfileInputMode,
-  HrResumeInputMode,
   HrRoleInputMode,
-  HrSetupFormState,
   HrSetupValidationErrors,
   HrToolCallEvent,
   HrToolResult,
@@ -55,25 +52,47 @@ export function useHrWorkflow({
   ui,
   enabled = true,
 }: UseHrWorkflowOptions) {
-  const [hrSetupForm, setHrSetupForm] = useState<HrSetupFormState>({
-    ...EMPTY_HR_SETUP_FORM,
-  });
-  const [hrCompanyInputMode, setHrCompanyInputMode] =
-    useState<HrCompanyInputMode>("companyText");
-  const [hrRoleInputMode, setHrRoleInputMode] =
-    useState<HrRoleInputMode>("roleDescription");
-  const [hrResumeInputMode, setHrResumeInputMode] =
-    useState<HrResumeInputMode>("resumeText");
-  const [hrProfileInputMode, setHrProfileInputMode] =
-    useState<HrProfileInputMode>("profileText");
-  const [hrSetupErrors, setHrSetupErrors] =
-    useState<HrSetupValidationErrors>({});
+  const hrSetupValidationMessages = {
+    companyEither: ui.hrValidationCompanyEither,
+    companyRequired: ui.hrValidationCompanyRequired,
+    roleRequired: ui.hrValidationRoleRequired,
+    roleEither: ui.hrValidationRoleEither,
+    resumeRequired: ui.hrValidationResumeRequired,
+    resumePdfRequired: ui.hrValidationResumePdfRequired,
+    companyUrlLabel: ui.hrValidationCompanyUrlLabel,
+    companyTextLabel: ui.hrValidationCompanyTextLabel,
+    roleDescriptionLabel: ui.hrValidationRoleDescriptionLabel,
+    roleUrlLabel: ui.hrValidationRoleUrlLabel,
+    resumeTextLabel: ui.hrValidationResumeTextLabel,
+    profileTextLabel: ui.hrValidationProfileTextLabel,
+    tooLong: ui.hrValidationTooLong,
+  };
+  const {
+    hrCompanyInputMode,
+    hrProfileInputMode,
+    hrProfileOauthToken,
+    hrProfileUrl,
+    hrResumeInputMode,
+    hrRoleInputMode,
+    hrSetupErrors,
+    hrSetupForm,
+    resetHrSetupState,
+    setHrCompanyInputMode,
+    setHrProfileOauthToken,
+    setHrProfileUrl,
+    setHrRoleInputMode,
+    setHrSetupErrors,
+    setHrSetupForm,
+    updateHrCompanyInputMode,
+    updateHrProfileInputMode,
+    updateHrResumeInputMode,
+    updateHrRoleInputMode,
+    updateHrSetupField,
+  } = useHrSetupState(hrSetupValidationMessages);
   const [hrCompanyFetchLoading, setHrCompanyFetchLoading] = useState(false);
   const [hrRoleFetchLoading, setHrRoleFetchLoading] = useState(false);
   const [hrResumeExtractLoading, setHrResumeExtractLoading] = useState(false);
   const [hrProfileFetchLoading, setHrProfileFetchLoading] = useState(false);
-  const [hrProfileUrl, setHrProfileUrl] = useState("");
-  const [hrProfileOauthToken, setHrProfileOauthToken] = useState("");
   const [hrContextResult, setHrContextResult] =
     useState<HrContextResponse | null>(null);
   const [hrSetupToolResults, setHrSetupToolResults] = useState<
@@ -107,21 +126,6 @@ export function useHrWorkflow({
   const hrInterviewCompleted = Boolean(hrInterviewStatus?.interview_complete);
   const hrFinalResult = hrInterviewStatus?.final_result;
   const hrResultPassed = hrFinalResult?.passed ?? false;
-  const hrSetupValidationMessages = {
-    companyEither: ui.hrValidationCompanyEither,
-    companyRequired: ui.hrValidationCompanyRequired,
-    roleRequired: ui.hrValidationRoleRequired,
-    roleEither: ui.hrValidationRoleEither,
-    resumeRequired: ui.hrValidationResumeRequired,
-    resumePdfRequired: ui.hrValidationResumePdfRequired,
-    companyUrlLabel: ui.hrValidationCompanyUrlLabel,
-    companyTextLabel: ui.hrValidationCompanyTextLabel,
-    roleDescriptionLabel: ui.hrValidationRoleDescriptionLabel,
-    roleUrlLabel: ui.hrValidationRoleUrlLabel,
-    resumeTextLabel: ui.hrValidationResumeTextLabel,
-    profileTextLabel: ui.hrValidationProfileTextLabel,
-    tooLong: ui.hrValidationTooLong,
-  };
   const hrHasStarted = hrConversation.length > 0;
   const latestHrInterviewerQuestion = [...hrConversation]
     .reverse()
@@ -186,73 +190,6 @@ export function useHrWorkflow({
       cancelled = true;
     };
   }, [apiBaseUrl, enabled, ui.errorBackendUnavailable, ui.errorFallback]);
-
-  const updateHrCompanyInputMode = (mode: HrCompanyInputMode) => {
-    setHrCompanyInputMode(mode);
-    setHrSetupErrors((prev) => {
-      if (Object.keys(prev).length === 0) {
-        return prev;
-      }
-      return validateHrSetupForm(hrSetupForm, hrSetupValidationMessages, {
-        companyInputMode: mode,
-        roleInputMode: hrRoleInputMode,
-        resumeInputMode: hrResumeInputMode,
-      });
-    });
-  };
-
-  const updateHrRoleInputMode = (mode: HrRoleInputMode) => {
-    setHrRoleInputMode(mode);
-    setHrSetupErrors((prev) => {
-      if (Object.keys(prev).length === 0) {
-        return prev;
-      }
-      return validateHrSetupForm(hrSetupForm, hrSetupValidationMessages, {
-        companyInputMode: hrCompanyInputMode,
-        roleInputMode: mode,
-        resumeInputMode: hrResumeInputMode,
-      });
-    });
-  };
-
-  const updateHrResumeInputMode = (mode: HrResumeInputMode) => {
-    setHrResumeInputMode(mode);
-    setHrSetupErrors((prev) => {
-      if (Object.keys(prev).length === 0) {
-        return prev;
-      }
-      return validateHrSetupForm(hrSetupForm, hrSetupValidationMessages, {
-        companyInputMode: hrCompanyInputMode,
-        roleInputMode: hrRoleInputMode,
-        resumeInputMode: mode,
-      });
-    });
-  };
-
-  const updateHrProfileInputMode = (mode: HrProfileInputMode) => {
-    setHrProfileInputMode(mode);
-  };
-
-  const updateHrSetupField = (
-    field: keyof HrSetupFormState,
-    value: string,
-  ) => {
-    setHrSetupForm((prev) => ({ ...prev, [field]: value }));
-    setHrSetupErrors((prev) => {
-      if (Object.keys(prev).length === 0) {
-        return prev;
-      }
-      return validateHrSetupForm(
-        { ...hrSetupForm, [field]: value },
-        hrSetupValidationMessages,
-        {
-          companyInputMode: hrCompanyInputMode,
-          roleInputMode: hrRoleInputMode,
-          resumeInputMode: hrResumeInputMode,
-        },
-      );
-    });
-  };
 
   async function handleFetchCompanyUrl() {
     if (hrCompanyFetchLoading || hrContextLoading) {
@@ -413,7 +350,7 @@ export function useHrWorkflow({
       }
       updateHrSetupField("profileText", data.profile_text);
       setHrSetupToolResults((prev) => upsertHrToolResult(prev, data.tool_result));
-      setHrProfileInputMode("profileText");
+      updateHrProfileInputMode("profileText");
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
     } finally {
@@ -436,14 +373,7 @@ export function useHrWorkflow({
   }
 
   function clearLocalHrData() {
-    setHrSetupForm({ ...EMPTY_HR_SETUP_FORM });
-    setHrCompanyInputMode("companyText");
-    setHrRoleInputMode("roleDescription");
-    setHrResumeInputMode("resumeText");
-    setHrProfileInputMode("profileText");
-    setHrSetupErrors({});
-    setHrProfileUrl("");
-    setHrProfileOauthToken("");
+    resetHrSetupState();
     setHrContextResult(null);
     setHrSetupToolResults([]);
     setHrContextId(null);
