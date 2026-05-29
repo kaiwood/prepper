@@ -16,14 +16,25 @@ const DEFAULT_VALIDATION_MESSAGES = {
     `${label} must be ${maxLength} characters or fewer.`,
 };
 
-export function validateHrSetupForm(form, messages = DEFAULT_VALIDATION_MESSAGES) {
+export function validateHrSetupForm(
+  form,
+  messages = DEFAULT_VALIDATION_MESSAGES,
+  options = {},
+) {
+  const companyInputMode = normalizeCompanyInputMode(options.companyInputMode);
   const companyUrl = normalizeText(form?.companyUrl);
   const companyText = normalizeText(form?.companyText);
+  const activeCompanyUrl = companyInputMode === "companyUrl" ? companyUrl : "";
+  const activeCompanyText = companyInputMode === "companyText" ? companyText : "";
   const roleDescription = normalizeText(form?.roleDescription);
   const resumeText = normalizeText(form?.resumeText);
   const errors = {};
 
-  if (companyUrl && companyText) {
+  if (companyInputMode) {
+    if (!activeCompanyUrl && !activeCompanyText) {
+      errors.company = messages.companyRequired;
+    }
+  } else if (companyUrl && companyText) {
     errors.company = messages.companyEither;
   } else if (!companyUrl && !companyText) {
     errors.company = messages.companyRequired;
@@ -41,7 +52,7 @@ export function validateHrSetupForm(form, messages = DEFAULT_VALIDATION_MESSAGES
     errors,
     "company",
     messages.companyUrlLabel,
-    companyUrl,
+    companyInputMode ? activeCompanyUrl : companyUrl,
     INPUT_LIMITS.companyUrl,
     messages,
   );
@@ -49,7 +60,7 @@ export function validateHrSetupForm(form, messages = DEFAULT_VALIDATION_MESSAGES
     errors,
     "company",
     messages.companyTextLabel,
-    companyText,
+    companyInputMode ? activeCompanyText : companyText,
     INPUT_LIMITS.companyText,
     messages,
   );
@@ -102,15 +113,16 @@ export function buildHrContextPayload(form, options = {}) {
     resume_text: normalizeText(form?.resumeText),
   };
 
+  const companyInputMode = normalizeCompanyInputMode(options.companyInputMode);
   const companyUrl = normalizeText(form?.companyUrl);
   const companyText = normalizeText(form?.companyText);
   const profileText = normalizeText(form?.profileText);
 
-  if (companyUrl) {
+  if ((!companyInputMode || companyInputMode === "companyUrl") && companyUrl) {
     payload.company_url = companyUrl;
   }
 
-  if (companyText) {
+  if ((!companyInputMode || companyInputMode === "companyText") && companyText) {
     payload.company_text = companyText;
   }
 
@@ -125,6 +137,10 @@ function validateHrMaxLength(errors, field, label, value, maxLength, messages) {
   if (typeof value === "string" && value.length > maxLength) {
     errors[field] = messages.tooLong(label, maxLength);
   }
+}
+
+function normalizeCompanyInputMode(value) {
+  return value === "companyText" || value === "companyUrl" ? value : null;
 }
 
 function normalizeText(value) {

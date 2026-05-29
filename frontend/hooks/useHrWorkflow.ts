@@ -15,6 +15,7 @@ import {
 } from "../lib/hrInterviewLogic.mjs";
 import type {
   CandidateAnswerResponse,
+  HrCompanyInputMode,
   HrContextResponse,
   HrDemoSetupResponse,
   HrInterviewResponse,
@@ -50,6 +51,8 @@ export function useHrWorkflow({
     resumeText: "",
     profileText: "",
   });
+  const [hrCompanyInputMode, setHrCompanyInputMode] =
+    useState<HrCompanyInputMode>("companyText");
   const [hrSetupErrors, setHrSetupErrors] =
     useState<HrSetupValidationErrors>({});
   const [hrDemoSetupLoading, setHrDemoSetupLoading] = useState(false);
@@ -116,6 +119,7 @@ export function useHrWorkflow({
         }
         if (data.setup) {
           setHrSetupForm(buildHrSetupFormFromApi(data.setup));
+          setHrCompanyInputMode(getCompanyInputModeFromSetup(data.setup));
           setHrSetupErrors({});
         }
         if (data.context_result) {
@@ -146,6 +150,18 @@ export function useHrWorkflow({
     };
   }, [apiBaseUrl, enabled, ui.errorBackendUnavailable, ui.errorFallback]);
 
+  const updateHrCompanyInputMode = (mode: HrCompanyInputMode) => {
+    setHrCompanyInputMode(mode);
+    setHrSetupErrors((prev) => {
+      if (Object.keys(prev).length === 0) {
+        return prev;
+      }
+      return validateHrSetupForm(hrSetupForm, hrSetupValidationMessages, {
+        companyInputMode: mode,
+      });
+    });
+  };
+
   const updateHrSetupField = (
     field: keyof HrSetupFormState,
     value: string,
@@ -158,6 +174,7 @@ export function useHrWorkflow({
       return validateHrSetupForm(
         { ...hrSetupForm, [field]: value },
         hrSetupValidationMessages,
+        { companyInputMode: hrCompanyInputMode },
       );
     });
   };
@@ -185,6 +202,7 @@ export function useHrWorkflow({
       }
 
       setHrSetupForm(buildHrSetupFormFromApi(data.setup));
+      setHrCompanyInputMode(getCompanyInputModeFromSetup(data.setup));
       setHrSetupErrors({});
     } catch {
       setHrContextError(ui.errorBackendUnavailable);
@@ -237,6 +255,7 @@ export function useHrWorkflow({
     const validationErrors = validateHrSetupForm(
       hrSetupForm,
       hrSetupValidationMessages,
+      { companyInputMode: hrCompanyInputMode },
     ) as HrSetupValidationErrors;
     setHrSetupErrors(validationErrors);
     if (hasHrSetupValidationErrors(validationErrors)) {
@@ -254,7 +273,11 @@ export function useHrWorkflow({
       const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/context"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildHrContextPayload(hrSetupForm)),
+        body: JSON.stringify(
+          buildHrContextPayload(hrSetupForm, {
+            companyInputMode: hrCompanyInputMode,
+          }),
+        ),
       });
       const data: HrContextResponse = await res.json();
 
@@ -424,6 +447,7 @@ export function useHrWorkflow({
     handleLoadHrDemoSetup,
     handleStartHrInterview,
     handleSubmitHrInterview,
+    hrCompanyInputMode,
     hrContextError,
     hrContextId,
     hrContextLoading,
@@ -447,8 +471,22 @@ export function useHrWorkflow({
     hrSetupForm,
     resetHrInterview,
     setHrMessage,
+    updateHrCompanyInputMode,
     updateHrSetupField,
   };
+}
+
+function getCompanyInputModeFromSetup(setup: {
+  company_text?: unknown;
+  company_url?: unknown;
+}): HrCompanyInputMode {
+  if (typeof setup.company_text === "string" && setup.company_text.trim()) {
+    return "companyText";
+  }
+  if (typeof setup.company_url === "string" && setup.company_url.trim()) {
+    return "companyUrl";
+  }
+  return "companyText";
 }
 
 export type HrWorkflowState = ReturnType<typeof useHrWorkflow>;

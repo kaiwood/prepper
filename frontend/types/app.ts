@@ -73,6 +73,8 @@ export type CandidateAnswerResponse = {
   error?: string;
 };
 
+export type HrCompanyInputMode = "companyText" | "companyUrl";
+
 export type HrSetupFormState = {
   companyUrl: string;
   companyText: string;

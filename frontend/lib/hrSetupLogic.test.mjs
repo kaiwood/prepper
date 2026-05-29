@@ -63,6 +63,45 @@ test("rejects company URL and text together", () => {
   );
 });
 
+test("validates only the active company tab", () => {
+  assert.deepEqual(
+    validateHrSetupForm(
+      {
+        ...validForm,
+        companyText: "# Company\nPrivacy-first analytics.",
+      },
+      undefined,
+      { companyInputMode: "companyText" },
+    ),
+    {},
+  );
+
+  assert.equal(
+    validateHrSetupForm(
+      {
+        ...validForm,
+        companyText: "",
+      },
+      undefined,
+      { companyInputMode: "companyText" },
+    ).company,
+    "Enter a company URL or paste company text.",
+  );
+
+  assert.deepEqual(
+    validateHrSetupForm(
+      {
+        ...validForm,
+        companyUrl: "https://example.com/" + "x".repeat(INPUT_LIMITS.companyUrl),
+        companyText: "# Company\nPrivacy-first analytics.",
+      },
+      undefined,
+      { companyInputMode: "companyText" },
+    ),
+    {},
+  );
+});
+
 test("builds HR setup form from API fields", () => {
   assert.deepEqual(
     buildHrSetupFormFromApi({
@@ -128,6 +167,39 @@ test("builds HR context payload from pasted company text", () => {
       company_text: "# Company\nEvidence-led decisions.",
       role_description: "Role summary",
       resume_text: "Resume summary",
+    },
+  );
+});
+
+test("builds HR context payload from the active company tab only", () => {
+  const formWithBothCompanyInputs = {
+    ...validForm,
+    companyText: " # Company\nEvidence-led decisions. ",
+  };
+
+  assert.deepEqual(
+    buildHrContextPayload(formWithBothCompanyInputs, {
+      companyInputMode: "companyText",
+    }),
+    {
+      mode: "llm",
+      company_text: "# Company\nEvidence-led decisions.",
+      role_description: "# Role\nAnalyze workforce data.",
+      resume_text: "# Resume\nSQL and customer analytics.",
+      profile_text: "Responsible AI interests.",
+    },
+  );
+
+  assert.deepEqual(
+    buildHrContextPayload(formWithBothCompanyInputs, {
+      companyInputMode: "companyUrl",
+    }),
+    {
+      mode: "llm",
+      company_url: "https://example.com/about",
+      role_description: "# Role\nAnalyze workforce data.",
+      resume_text: "# Resume\nSQL and customer analytics.",
+      profile_text: "Responsible AI interests.",
     },
   );
 });

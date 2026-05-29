@@ -29,49 +29,98 @@ export default function HrSetupPanel({
       </div>
 
       <form className="mt-6 flex flex-col gap-5" onSubmit={state.handleBuildHrContext}>
-        <section className="flex flex-col gap-2">
-          <label
-            htmlFor="hr-company-url"
-            className="text-sm font-medium text-gray-700"
+        <section className="flex flex-col gap-3">
+          <div
+            className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1"
+            role="tablist"
+            aria-label={ui.hrCompanyLabel}
           >
-            {ui.hrCompanyUrlLabel}
-          </label>
-          <input
-            id="hr-company-url"
-            type="url"
-            value={state.hrSetupForm.companyUrl}
-            onChange={(event) =>
-              state.updateHrSetupField("companyUrl", event.target.value)
-            }
-            disabled={state.hrContextLoading}
-            maxLength={INPUT_LIMITS.companyUrl}
-            placeholder="https://example.com/about"
-            className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-          />
-          <p className="text-sm text-gray-500">
-            {ui.hrCompanyUrlHint}
-          </p>
-        </section>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={state.hrCompanyInputMode === "companyText"}
+              aria-controls="hr-company-text-panel"
+              disabled={state.hrContextLoading}
+              onClick={() => state.updateHrCompanyInputMode("companyText")}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
+                state.hrCompanyInputMode === "companyText"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              {ui.hrCompanyTextLabel}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={state.hrCompanyInputMode === "companyUrl"}
+              aria-controls="hr-company-url-panel"
+              disabled={state.hrContextLoading}
+              onClick={() => state.updateHrCompanyInputMode("companyUrl")}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
+                state.hrCompanyInputMode === "companyUrl"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              {ui.hrCompanyUrlLabel}
+            </button>
+          </div>
 
-        <section className="flex flex-col gap-2">
-          <label
-            htmlFor="hr-company-text"
-            className="text-sm font-medium text-gray-700"
-          >
-            {ui.hrCompanyTextLabel}
-          </label>
-          <textarea
-            id="hr-company-text"
-            value={state.hrSetupForm.companyText}
-            onChange={(event) =>
-              state.updateHrSetupField("companyText", event.target.value)
-            }
-            disabled={state.hrContextLoading}
-            maxLength={INPUT_LIMITS.companyText}
-            rows={5}
-            placeholder={ui.hrCompanyTextPlaceholder}
-            className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-          />
+          {state.hrCompanyInputMode === "companyText" ? (
+            <div
+              id="hr-company-text-panel"
+              role="tabpanel"
+              className="flex flex-col gap-2"
+            >
+              <label
+                htmlFor="hr-company-text"
+                className="text-sm font-medium text-gray-700"
+              >
+                {ui.hrCompanyTextLabel}
+              </label>
+              <textarea
+                id="hr-company-text"
+                value={state.hrSetupForm.companyText}
+                onChange={(event) =>
+                  state.updateHrSetupField("companyText", event.target.value)
+                }
+                disabled={state.hrContextLoading}
+                maxLength={INPUT_LIMITS.companyText}
+                rows={5}
+                placeholder={ui.hrCompanyTextPlaceholder}
+                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              />
+            </div>
+          ) : (
+            <div
+              id="hr-company-url-panel"
+              role="tabpanel"
+              className="flex flex-col gap-2"
+            >
+              <label
+                htmlFor="hr-company-url"
+                className="text-sm font-medium text-gray-700"
+              >
+                {ui.hrCompanyUrlLabel}
+              </label>
+              <input
+                id="hr-company-url"
+                type="url"
+                value={state.hrSetupForm.companyUrl}
+                onChange={(event) =>
+                  state.updateHrSetupField("companyUrl", event.target.value)
+                }
+                disabled={state.hrContextLoading}
+                maxLength={INPUT_LIMITS.companyUrl}
+                placeholder="https://example.com/about"
+                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              />
+              <p className="text-sm text-gray-500">
+                {ui.hrCompanyUrlHint}
+              </p>
+            </div>
+          )}
           {state.hrSetupErrors.company && (
             <p className="text-sm text-red-600">{state.hrSetupErrors.company}</p>
           )}
