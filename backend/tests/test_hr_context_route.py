@@ -1,9 +1,23 @@
 import ipaddress
+import json
 import logging
 from email.message import Message
 
 from app import create_app
 from app.routes.hr import get_stored_hr_context
+
+
+class FakeLlmResponse:
+    def __init__(self, content: str):
+        self.content = content
+
+
+class FakeCompanyWebsiteLlm:
+    def __init__(self, content: str):
+        self.content = content
+
+    def invoke(self, _messages):
+        return FakeLlmResponse(self.content)
 
 
 class FakeResponse:
@@ -94,6 +108,15 @@ def payload_company_text():
     return _payload()["company_text"]
 
 
+def patch_company_website_llm(monkeypatch, markdown: str):
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._build_company_website_markdown_llm",
+        lambda *, model=None: FakeCompanyWebsiteLlm(
+            json.dumps({"company_markdown": markdown})
+        ),
+    )
+
+
 def test_hr_context_endpoint_accepts_extracted_profile_without_resume_text(monkeypatch, tmp_path):
     monkeypatch.setenv("PREPPER_SQLITE_PATH", str(tmp_path / "prepper.sqlite3"))
     app = create_app()
@@ -182,6 +205,7 @@ def test_hr_context_endpoint_fetches_company_url(monkeypatch):
         "prepper_cli.hr_tools._open_company_website_request",
         fake_open,
     )
+    patch_company_website_llm(monkeypatch, "HR analytics platform.")
     app = create_app()
     client = app.test_client()
 
@@ -346,6 +370,7 @@ def test_hr_context_endpoint_allows_private_company_url_with_env(monkeypatch):
             url="http://127.0.0.1/about",
         ),
     )
+    patch_company_website_llm(monkeypatch, "Local HR platform.")
     app = create_app()
     client = app.test_client()
 
