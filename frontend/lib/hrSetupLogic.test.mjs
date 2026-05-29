@@ -196,22 +196,22 @@ test("builds HR setup form from API fields", () => {
   );
 });
 
-test("builds HR setup form from demo API fields", () => {
+test("builds HR setup form from multiline API fields", () => {
   assert.deepEqual(
     buildHrSetupFormFromApi({
       company_url: "",
-      company_text: "# Company\nDemo company",
-      role_description: "# Role\nDemo role",
-      resume_text: "# Resume\nDemo resume",
-      profile_text: "# Profile\nDemo profile",
+      company_text: "# Company\nExample company",
+      role_description: "# Role\nExample role",
+      resume_text: "# Resume\nExample resume",
+      profile_text: "# Profile\nExample profile",
     }),
     {
       companyUrl: "",
-      companyText: "# Company\nDemo company",
-      roleDescription: "# Role\nDemo role",
+      companyText: "# Company\nExample company",
+      roleDescription: "# Role\nExample role",
       roleUrl: "",
-      resumeText: "# Resume\nDemo resume",
-      profileText: "# Profile\nDemo profile",
+      resumeText: "# Resume\nExample resume",
+      profileText: "# Profile\nExample profile",
     },
   );
 });

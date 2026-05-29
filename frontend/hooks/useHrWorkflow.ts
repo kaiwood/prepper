@@ -21,7 +21,6 @@ import type {
   HrCompanyInputMode,
   HrCompanyFetchResponse,
   HrContextResponse,
-  HrDemoSetupResponse,
   HrInterviewResponse,
   HrInterviewSource,
   HrLatestSetupResponse,
@@ -72,7 +71,6 @@ export function useHrWorkflow({
     useState<HrProfileInputMode>("profileText");
   const [hrSetupErrors, setHrSetupErrors] =
     useState<HrSetupValidationErrors>({});
-  const [hrDemoSetupLoading, setHrDemoSetupLoading] = useState(false);
   const [hrCompanyFetchLoading, setHrCompanyFetchLoading] = useState(false);
   const [hrRoleFetchLoading, setHrRoleFetchLoading] = useState(false);
   const [hrResumeExtractLoading, setHrResumeExtractLoading] = useState(false);
@@ -442,38 +440,6 @@ export function useHrWorkflow({
     }
   }
 
-  async function handleLoadHrDemoSetup() {
-    if (hrDemoSetupLoading || hrContextLoading) {
-      return;
-    }
-
-    setHrDemoSetupLoading(true);
-    setHrContextError(null);
-
-    try {
-      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/setup/demo"));
-      const data: HrDemoSetupResponse = await res.json();
-
-      if (!res.ok) {
-        setHrContextError(formatApiError(data, ui.errorFallback));
-        return;
-      }
-
-      if (!data.setup) {
-        setHrContextError(ui.errorFallback);
-        return;
-      }
-
-      setHrSetupForm(buildHrSetupFormFromApi(data.setup));
-      setHrCompanyInputMode(getCompanyInputModeFromSetup(data.setup));
-      setHrRoleInputMode(getRoleInputModeFromSetup(data.setup));
-      setHrSetupErrors({});
-    } catch {
-      setHrContextError(ui.errorBackendUnavailable);
-    } finally {
-      setHrDemoSetupLoading(false);
-    }
-  }
 
   function resetHrInterview() {
     setHrMessage("");
@@ -725,7 +691,6 @@ export function useHrWorkflow({
     handleFetchRoleUrl,
     handleFetchSocialProfile,
     handleGenerateHrCandidateAnswer,
-    handleLoadHrDemoSetup,
     handleStartHrInterview,
     handleSubmitHrInterview,
     hrCompanyFetchLoading,
@@ -734,7 +699,6 @@ export function useHrWorkflow({
     hrContextId,
     hrContextLoading,
     hrContextResult,
-    hrDemoSetupLoading,
     hrCandidateAnswerLoading,
     hrConversation,
     hrFinalResult,

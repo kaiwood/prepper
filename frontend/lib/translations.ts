@@ -63,8 +63,6 @@ type TranslationStrings = {
   interviewLockedPlaceholder: string;
   hrAdminTitle: string;
   hrAdminSubtitle: string;
-  hrLoadDemo: string;
-  hrLoadingDemo: string;
   hrCompanyUrlLabel: string;
   hrCompanyUrlHint: string;
   hrFetchCompany: string;
@@ -204,8 +202,6 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrAdminTitle: "Company HR setup",
     hrAdminSubtitle:
       "Build a candidate evaluation context from company, role, resume, and optional profile information.",
-    hrLoadDemo: "Load demo data",
-    hrLoadingDemo: "Loading demo...",
     hrCompanyUrlLabel: "Company URL",
     hrCompanyUrlHint: "Use either a public company URL or paste company text below.",
     hrFetchCompany: "Fetch company",
@@ -349,8 +345,6 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrAdminTitle: "Unternehmens-HR-Einrichtung",
     hrAdminSubtitle:
       "Erstelle einen Kontext zur Kandidatenbewertung aus Unternehmen, Rolle, Lebenslauf und optionalen Profilinformationen.",
-    hrLoadDemo: "Demo-Daten laden",
-    hrLoadingDemo: "Demo wird geladen...",
     hrCompanyUrlLabel: "Unternehmens-URL",
     hrCompanyUrlHint: "Nutze entweder eine öffentliche Unternehmens-URL oder füge unten Unternehmenstext ein.",
     hrFetchCompany: "Unternehmen abrufen",
@@ -492,8 +486,6 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrAdminTitle: "Configuration RH de l’entreprise",
     hrAdminSubtitle:
       "Créez un contexte d'évaluation du candidat à partir de l'entreprise, du rôle, du CV et d'informations de profil optionnelles.",
-    hrLoadDemo: "Charger les données de démo",
-    hrLoadingDemo: "Chargement de la démo...",
     hrCompanyUrlLabel: "URL de l'entreprise",
     hrCompanyUrlHint: "Utilisez soit une URL publique de l'entreprise, soit le texte de l'entreprise ci-dessous.",
     hrFetchCompany: "Récupérer l'entreprise",

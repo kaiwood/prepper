@@ -137,21 +137,6 @@ def test_latest_hr_setup_returns_empty_when_no_saved_setup(monkeypatch, tmp_path
     assert response.get_json() == {"setup": None, "context_result": None}
 
 
-def test_demo_hr_setup_returns_fixture_fields():
-    app = create_app()
-    client = app.test_client()
-
-    response = client.get("/api/hr/setup/demo")
-
-    assert response.status_code == 200
-    setup = response.get_json()["setup"]
-    assert setup["company_url"] == ""
-    assert setup["company_text"].startswith("# Northstar Analytics")
-    assert setup["role_description"].startswith("# Role: Customer Success Data Analyst")
-    assert setup["role_url"] == ""
-    assert setup["resume_text"].startswith("# Candidate Resume: Jordan Lee")
-    assert setup["profile_text"].startswith("# Candidate Profile Summary")
-
 
 def test_hr_context_endpoint_fetches_company_url(monkeypatch):
     def fake_open(request, *, timeout_seconds, allow_private_url_fetch):

@@ -184,11 +184,6 @@ export type HrSetupApiFields = {
   profile_text?: string;
 };
 
-export type HrDemoSetupResponse = {
-  setup?: HrSetupApiFields | null;
-  error?: string;
-};
-
 export type HrLatestSetupResponse = {
   setup?: HrSetupApiFields | null;
   context_result?: HrContextResponse | null;

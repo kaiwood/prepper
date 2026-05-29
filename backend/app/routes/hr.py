@@ -34,7 +34,6 @@ from prepper_cli import (
     run_interview_turn,
 )
 from prepper_cli.hr_assistant import run_hr_assistant
-from prepper_cli.hr_fixtures import load_hr_fixture
 from prepper_cli.hr_context import (
     HrContext,
     HrContextBuildResult,
@@ -113,32 +112,6 @@ _HR_TOOL_EVENT_LOG_PATH = os.path.join(
 def hr_context_options():
     return "", 204
 
-
-@hr_bp.get("/api/hr/setup/demo")
-@limiter.limit("30 per minute")
-@cross_origin(
-    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_headers=["Content-Type", "Authorization"],
-)
-def demo_hr_setup():
-    try:
-        fixture = load_hr_fixture("demo_hr")
-    except Exception as exc:  # pragma: no cover - fixture packaging safety net
-        _log_hr_route_failure("hr_setup_demo_load", exc)
-        return jsonify(_public_hr_error("Demo HR setup load failed")), 502
-
-    return jsonify(
-        {
-            "setup": {
-                "company_url": "",
-                "company_text": fixture.company_markdown,
-                "role_description": fixture.role_markdown,
-                "role_url": "",
-                "resume_text": fixture.resume_markdown,
-                "profile_text": fixture.profile_markdown,
-            }
-        }
-    )
 
 
 @hr_bp.get("/api/hr/setup/latest")
