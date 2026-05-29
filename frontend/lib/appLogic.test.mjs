@@ -12,6 +12,7 @@ import {
   formatAdvancedSettingValue,
   resolveApiBaseUrl,
   resolveDifficultySelection,
+  resolveInitialPromptId,
   resolvePresentationMode,
   resolveQuestionRoundtripLimit,
 } from "./appLogic.mjs";
@@ -76,6 +77,25 @@ test("resolves prompt defaults for interview controls", () => {
     resolveDifficultySelection({ difficulty_enabled: true, default_difficulty: "expert" }),
     "medium",
   );
+});
+
+test("prefers candidate fit as initial frontend prompt", () => {
+  const prompts = [
+    { id: "coding_focus" },
+    { id: "hr_candidate_fit" },
+    { id: "behavioral_focus" },
+  ];
+
+  assert.equal(
+    resolveInitialPromptId(prompts, "coding_focus", "hr_candidate_fit"),
+    "hr_candidate_fit",
+  );
+  assert.equal(
+    resolveInitialPromptId(prompts, "coding_focus", "missing"),
+    "coding_focus",
+  );
+  assert.equal(resolveInitialPromptId(prompts, "missing", "also_missing"), "coding_focus");
+  assert.equal(resolveInitialPromptId([], "coding_focus", "hr_candidate_fit"), "");
 });
 
 test("builds non-interview chat payload with history", () => {

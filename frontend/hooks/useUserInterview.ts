@@ -11,6 +11,7 @@ import {
   buildStartPayload,
   clampAdvancedSetting,
   resolveDifficultySelection,
+  resolveInitialPromptId,
   resolveQuestionRoundtripLimit,
 } from "../lib/appLogic.mjs";
 import {
@@ -238,10 +239,11 @@ export function useUserInterview({
           setAvailablePrompts(prompts);
 
           if (prompts.length > 0) {
-            const ids = prompts.map((p) => p.id);
-            const initialPrompt = ids.includes(defaultPrompt)
-              ? defaultPrompt
-              : ids[0];
+            const initialPrompt = resolveInitialPromptId(
+              prompts,
+              defaultPrompt,
+              HR_CANDIDATE_FIT_PROMPT,
+            );
             setDefaultPromptId(initialPrompt);
             setSelectedPrompt(initialPrompt);
             const selected = prompts.find(

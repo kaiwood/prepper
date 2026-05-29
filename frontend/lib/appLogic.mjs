@@ -61,6 +61,20 @@ export function resolveDifficultySelection(prompt) {
     : "medium";
 }
 
+export function resolveInitialPromptId(prompts, backendDefaultPrompt, preferredPrompt) {
+  const ids = prompts.map((prompt) => prompt.id);
+
+  if (preferredPrompt && ids.includes(preferredPrompt)) {
+    return preferredPrompt;
+  }
+
+  if (backendDefaultPrompt && ids.includes(backendDefaultPrompt)) {
+    return backendDefaultPrompt;
+  }
+
+  return ids[0] ?? "";
+}
+
 export function buildChatPayload({
   prompt,
   history,
