@@ -144,6 +144,8 @@ def test_load_prompt_descriptor_hr_candidate_fit():
     )
     assert "untrusted" in descriptor.content.lower()
     assert "company interest" in descriptor.content.lower()
+    assert "at least 1-2 questions" in descriptor.content.lower()
+    assert "specific resume/profile details" in descriptor.content.lower()
 
 
 def test_load_prompt_descriptor_rejects_unknown():

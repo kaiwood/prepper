@@ -251,7 +251,8 @@ def test_hr_interview_llm_uses_start_language(monkeypatch):
     assert captured["opener_language"] == "de"
     assert "Resume/profile skills" in captured["opener_system_prompt"]
     assert "SQL" in captured["opener_system_prompt"]
-    assert "broader experience questions" in captured["opener_system_prompt"]
+    assert "specific past-experience questions" in captured["opener_system_prompt"]
+    assert "You may reference specific resume/profile details" in captured["opener_system_prompt"]
 
     turn = client.post(
         "/api/hr/interview",
@@ -266,6 +267,7 @@ def test_hr_interview_llm_uses_start_language(monkeypatch):
     assert captured["turn_language"] == "de"
     assert "Resume/profile experience signals" in captured["turn_descriptor_content"]
     assert "representative examples" in captured["turn_descriptor_content"]
+    assert "at least 1-2 questions grounded in resume/profile" in captured["turn_descriptor_content"]
 
 
 def test_hr_interview_rejects_non_string_language():
