@@ -18,6 +18,13 @@ from app.helpers.validation import (
     input_length_error_payload,
     validate_string_length,
 )
+from app.helpers.state_cleanup import (
+    cleanup_state_metadata,
+    cleanup_state_store,
+    mark_state_created,
+    mark_state_seen,
+    state_timestamps,
+)
 from prepper_cli import (
     Conversation,
     get_interview_opener,
@@ -54,6 +61,7 @@ from prepper_cli.interview_prompts import build_interview_opener_system_prompt
 hr_bp = Blueprint("hr", __name__)
 
 _HR_CONTEXTS: dict[str, HrContext] = {}
+_HR_CONTEXT_METADATA: dict[str, dict[str, Any]] = {}
 _HR_INTERVIEW_SESSIONS: dict[str, dict[str, Any]] = {}
 _HR_INTERVIEW_STYLE = "hr_candidate_fit"
 _HR_FALLBACK_CLOSING_REPLY = "Thank you for your time today. The interview is now over."
@@ -94,6 +102,7 @@ def hr_context_options():
     allow_headers=["Content-Type", "Authorization"],
 )
 def build_hr_context():
+    _cleanup_hr_state()
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "JSON object body is required"}), 400
@@ -134,7 +143,7 @@ def build_hr_context():
         return jsonify(_public_hr_error("HR context build failed")), 502
 
     if result.context is not None:
-        _HR_CONTEXTS[result.context.context_id] = result.context
+        _store_hr_context(result.context)
 
     return jsonify(
         _build_response_payload(
@@ -178,6 +187,7 @@ def hr_assistant_options():
     allow_headers=["Content-Type", "Authorization"],
 )
 def start_hr_interview():
+    _cleanup_hr_state()
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "JSON object body is required"}), 400
@@ -257,7 +267,7 @@ def start_hr_interview():
     question_count = 1 if metadata.get("turn_type") == "QUESTION" else 0
     interview_complete = bool(metadata.get("interview_complete"))
 
-    _HR_INTERVIEW_SESSIONS[interview_id] = {
+    session = {
         "context_id": context.context_id,
         "context": context,
         "mode": mode,
@@ -273,6 +283,9 @@ def start_hr_interview():
         "closing_reply": parsed["reply"] if interview_complete else _HR_FALLBACK_CLOSING_REPLY,
         "final_result": None,
     }
+    mark_state_created(session)
+    _HR_INTERVIEW_SESSIONS[interview_id] = session
+    _cleanup_hr_state()
 
     payload = _build_hr_interview_response_payload(
         interview_id=interview_id,
@@ -298,6 +311,7 @@ def start_hr_interview():
     allow_headers=["Content-Type", "Authorization"],
 )
 def continue_hr_interview():
+    _cleanup_hr_state()
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "JSON object body is required"}), 400
@@ -318,6 +332,7 @@ def continue_hr_interview():
         return jsonify({"error": "invalid interview_id"}), 400
     if session["context_id"] != context.context_id:
         return jsonify({"error": "interview_id does not match context_id"}), 400
+    mark_state_seen(session)
 
     try:
         tool_event_recorder = _build_tool_event_recorder("hr_interview_turn")
@@ -414,6 +429,7 @@ def continue_hr_interview():
     allow_headers=["Content-Type", "Authorization"],
 )
 def hr_assistant():
+    _cleanup_hr_state()
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "JSON object body is required"}), 400
@@ -460,6 +476,28 @@ def _build_tool_event_recorder(flow: str) -> HrToolEventRecorder:
     return HrToolEventRecorder(flow=flow, log_path=_HR_TOOL_EVENT_LOG_PATH)
 
 
+def _cleanup_hr_state() -> None:
+    for context_id in list(_HR_CONTEXT_METADATA):
+        if context_id not in _HR_CONTEXTS:
+            _HR_CONTEXT_METADATA.pop(context_id, None)
+
+    removed_context_ids = cleanup_state_metadata(_HR_CONTEXT_METADATA)
+    for context_id in removed_context_ids:
+        _HR_CONTEXTS.pop(context_id, None)
+
+    cleanup_state_store(_HR_INTERVIEW_SESSIONS)
+    if removed_context_ids:
+        for interview_id, session in list(_HR_INTERVIEW_SESSIONS.items()):
+            if session.get("context_id") in removed_context_ids:
+                _HR_INTERVIEW_SESSIONS.pop(interview_id, None)
+
+
+def _store_hr_context(context: HrContext) -> None:
+    _HR_CONTEXTS[context.context_id] = context
+    _HR_CONTEXT_METADATA[context.context_id] = state_timestamps()
+    _cleanup_hr_state()
+
+
 def get_stored_hr_context(context_id: str) -> HrContext | None:
     return _HR_CONTEXTS.get(context_id)
 
@@ -468,6 +506,11 @@ def _require_stored_context(context_id: str) -> HrContext:
     context = get_stored_hr_context(context_id)
     if context is None:
         raise ValueError("invalid context_id")
+    metadata = _HR_CONTEXT_METADATA.get(context_id)
+    if metadata is None:
+        _HR_CONTEXT_METADATA[context_id] = state_timestamps()
+    else:
+        mark_state_seen(metadata)
     return context
 
 

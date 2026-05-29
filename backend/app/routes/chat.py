@@ -18,6 +18,11 @@ from app.helpers.validation import (
     input_length_error_payload,
     validate_string_length,
 )
+from app.helpers.state_cleanup import (
+    cleanup_state_store,
+    mark_state_created,
+    mark_state_seen,
+)
 from prepper_cli import (
     Conversation,
     get_chat_reply,
@@ -46,6 +51,10 @@ _CHAT_TEXT_LIMITS = {
     "interview_id": 128,
 }
 _INTERVIEW_SESSIONS: dict[str, dict[str, Any]] = {}
+
+
+def _cleanup_interview_sessions() -> None:
+    cleanup_state_store(_INTERVIEW_SESSIONS)
 
 
 def _presentation_mode_enabled() -> bool:
@@ -266,6 +275,7 @@ def presentation_candidate_answer():
     allow_headers=["Content-Type", "Authorization"],
 )
 def chat():
+    _cleanup_interview_sessions()
     data = request.get_json(silent=True) or {}
     debug_mode = debug_enabled()
 
@@ -366,6 +376,8 @@ def chat():
                     "error": "interview_id does not match the selected system prompt"
                 }
             ), 400
+
+        mark_state_seen(session)
 
         if session["interview_complete"]:
             turn_result = {
@@ -498,6 +510,7 @@ def chat():
     allow_headers=["Content-Type", "Authorization"],
 )
 def chat_start():
+    _cleanup_interview_sessions()
     data = request.get_json(silent=True) or {}
     debug_mode = debug_enabled()
     system_prompt_name = data.get("system_prompt_name")
@@ -618,7 +631,7 @@ def chat_start():
         metadata_complete = metadata.get("interview_complete")
         interview_complete = bool(metadata_complete) if isinstance(metadata_complete, bool) else False
 
-        _INTERVIEW_SESSIONS[interview_id] = {
+        session = {
             "descriptor": descriptor,
             "conversation": session_conversation,
             "language": language,
@@ -631,6 +644,9 @@ def chat_start():
             "closing_reply": parsed["reply"] if interview_complete else _FALLBACK_CLOSING_REPLY,
             "final_result": None,
         }
+        mark_state_created(session)
+        _INTERVIEW_SESSIONS[interview_id] = session
+        _cleanup_interview_sessions()
 
         response_payload = {
             "reply": parsed["reply"],
