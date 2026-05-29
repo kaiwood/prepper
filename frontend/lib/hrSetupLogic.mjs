@@ -1,8 +1,22 @@
-import { INPUT_LIMITS, validateMaxLength } from "./inputLimits.mjs";
+import { INPUT_LIMITS } from "./inputLimits.mjs";
 
 export const DEFAULT_HR_CONTEXT_MODE = "llm";
 
-export function validateHrSetupForm(form) {
+const DEFAULT_VALIDATION_MESSAGES = {
+  companyEither: "Enter either a company URL or company text, not both.",
+  companyRequired: "Enter a company URL or paste company text.",
+  roleRequired: "Role description is required.",
+  resumeRequired: "Resume text is required.",
+  companyUrlLabel: "Company URL",
+  companyTextLabel: "Company text",
+  roleDescriptionLabel: "Role description",
+  resumeTextLabel: "Resume text",
+  profileTextLabel: "Profile text",
+  tooLong: (label, maxLength) =>
+    `${label} must be ${maxLength} characters or fewer.`,
+};
+
+export function validateHrSetupForm(form, messages = DEFAULT_VALIDATION_MESSAGES) {
   const companyUrl = normalizeText(form?.companyUrl);
   const companyText = normalizeText(form?.companyText);
   const roleDescription = normalizeText(form?.roleDescription);
@@ -10,53 +24,58 @@ export function validateHrSetupForm(form) {
   const errors = {};
 
   if (companyUrl && companyText) {
-    errors.company = "Enter either a company URL or company text, not both.";
+    errors.company = messages.companyEither;
   } else if (!companyUrl && !companyText) {
-    errors.company = "Enter a company URL or paste company text.";
+    errors.company = messages.companyRequired;
   }
 
   if (!roleDescription) {
-    errors.roleDescription = "Role description is required.";
+    errors.roleDescription = messages.roleRequired;
   }
 
   if (!resumeText) {
-    errors.resumeText = "Resume text is required.";
+    errors.resumeText = messages.resumeRequired;
   }
 
-  validateMaxLength(
+  validateHrMaxLength(
     errors,
     "company",
-    "Company URL",
+    messages.companyUrlLabel,
     companyUrl,
     INPUT_LIMITS.companyUrl,
+    messages,
   );
-  validateMaxLength(
+  validateHrMaxLength(
     errors,
     "company",
-    "Company text",
+    messages.companyTextLabel,
     companyText,
     INPUT_LIMITS.companyText,
+    messages,
   );
-  validateMaxLength(
+  validateHrMaxLength(
     errors,
     "roleDescription",
-    "Role description",
+    messages.roleDescriptionLabel,
     roleDescription,
     INPUT_LIMITS.roleDescription,
+    messages,
   );
-  validateMaxLength(
+  validateHrMaxLength(
     errors,
     "resumeText",
-    "Resume text",
+    messages.resumeTextLabel,
     resumeText,
     INPUT_LIMITS.resumeText,
+    messages,
   );
-  validateMaxLength(
+  validateHrMaxLength(
     errors,
     "profileText",
-    "Profile text",
+    messages.profileTextLabel,
     normalizeText(form?.profileText),
     INPUT_LIMITS.profileText,
+    messages,
   );
 
   return errors;
@@ -100,6 +119,12 @@ export function buildHrContextPayload(form, options = {}) {
   }
 
   return payload;
+}
+
+function validateHrMaxLength(errors, field, label, value, maxLength, messages) {
+  if (typeof value === "string" && value.length > maxLength) {
+    errors[field] = messages.tooLong(label, maxLength);
+  }
 }
 
 function normalizeText(value) {

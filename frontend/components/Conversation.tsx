@@ -12,6 +12,10 @@ type ConversationWindowProps = {
   loading: boolean;
   emptyStateText: string;
   thinkingText: string;
+  copyToClipboardText: string;
+  copyAllMessagesText: string;
+  copiedUserLabel: string;
+  copiedAssistantLabel: string;
 };
 
 export default function ConversationWindow({
@@ -19,6 +23,10 @@ export default function ConversationWindow({
   loading,
   emptyStateText,
   thinkingText,
+  copyToClipboardText,
+  copyAllMessagesText,
+  copiedUserLabel,
+  copiedAssistantLabel,
 }: ConversationWindowProps) {
   const conversationRef = useRef<HTMLElement>(null);
   const [pressedCopyButton, setPressedCopyButton] = useState<string | null>(
@@ -44,7 +52,7 @@ export default function ConversationWindow({
   const getConversationMarkdown = () => {
     return conversation
       .map((item) => {
-        const roleLabel = item.role === "user" ? "User" : "Assistant";
+        const roleLabel = item.role === "user" ? copiedUserLabel : copiedAssistantLabel;
         return `**${roleLabel}:**\n${item.content}`;
       })
       .join("\n\n");
@@ -94,8 +102,8 @@ export default function ConversationWindow({
                       setPressedCopyButton(`${item.role}-${index}`);
                       handleCopyMessage(item.content);
                     }}
-                    label="Copy to clipboard"
-                    title="Copy to clipboard"
+                    label={copyToClipboardText}
+                    title={copyToClipboardText}
                     pressed={pressedCopyButton === `${item.role}-${index}`}
                     buttonClassName="pointer-events-none opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:pointer-events-auto rounded-2xl bg-white/95 p-2 text-gray-900 shadow-sm hover:text-black active:shadow-inner active:bg-gray-200"
                   />
@@ -123,8 +131,8 @@ export default function ConversationWindow({
                 setPressedCopyButton("all");
                 handleCopyAllMessages();
               }}
-              label="Copy all messages"
-              title="Copy all messages"
+              label={copyAllMessagesText}
+              title={copyAllMessagesText}
               pressed={pressedCopyButton === "all"}
               buttonClassName={`rounded-2xl bg-white/95 p-2 text-gray-900 shadow-sm hover:text-black active:shadow-inner active:bg-gray-200 transition-all duration-200 ${
                 showCopyAllButton

@@ -8,12 +8,14 @@ export const LANGUAGE_DISPLAY: Record<
 > = {
   en: { flag: "🇬🇧", label: "English" },
   de: { flag: "🇩🇪", label: "Deutsch" },
-  fr: { flag: "🇫🇷", label: "Francais" },
+  fr: { flag: "🇫🇷", label: "Français" },
 };
 
 type TranslationStrings = {
   appTitle: string;
   appSubtitle: string;
+  navUser: string;
+  navAdmin: string;
   promptLabel: string;
   promptLoading: string;
   promptUnavailable: string;
@@ -27,6 +29,10 @@ type TranslationStrings = {
   presencePenaltyLabel: string;
   conversationEmpty: string;
   thinking: string;
+  copyToClipboard: string;
+  copyAllMessages: string;
+  copiedUserLabel: string;
+  copiedAssistantLabel: string;
   inputPlaceholderStarted: string;
   inputPlaceholderNotStarted: string;
   startInterview: string;
@@ -52,14 +58,76 @@ type TranslationStrings = {
   strengthsLabel: string;
   improvementsLabel: string;
   rubricLabel: string;
-  interviewLockedPlaceholder: string;
+  notAvailable: string;
   injectionWarning: string;
+  interviewLockedPlaceholder: string;
+  hrAdminTitle: string;
+  hrAdminSubtitle: string;
+  hrLoadDemo: string;
+  hrLoadingDemo: string;
+  hrCompanyUrlLabel: string;
+  hrCompanyUrlHint: string;
+  hrCompanyTextLabel: string;
+  hrCompanyTextPlaceholder: string;
+  hrRoleDescriptionLabel: string;
+  hrRoleDescriptionPlaceholder: string;
+  hrResumeTextLabel: string;
+  hrResumeTextPlaceholder: string;
+  hrProfileTextLabel: string;
+  hrProfileTextPlaceholder: string;
+  hrBuildContext: string;
+  hrBuildingContext: string;
+  hrContextSummary: string;
+  hrStatusLabel: string;
+  hrContextIdLabel: string;
+  hrNoContextId: string;
+  hrCompanyLabel: string;
+  hrRoleLabel: string;
+  hrCandidateLabel: string;
+  hrSourcesLabel: string;
+  hrSourceFallback: string;
+  hrToolResultsLabel: string;
+  hrToolFallback: string;
+  hrUnknownStatus: string;
+  hrToolCallEventsLabel: string;
+  hrContextWarningsLabel: string;
+  hrUnknownError: string;
+  hrInterviewTitle: string;
+  hrInterviewSubtitle: string;
+  hrQuestionsLabel: string;
+  hrFinalScoreLabel: string;
+  hrScoreLabel: string;
+  hrPassedLabel: string;
+  hrNeedsReviewLabel: string;
+  hrInterviewEmpty: string;
+  hrPreparingResponse: string;
+  hrInterviewCompletePlaceholder: string;
+  hrAnswerPlaceholder: string;
+  hrStartFirstPlaceholder: string;
+  hrStartInterview: string;
+  hrStartingInterview: string;
+  hrResetInterview: string;
+  hrSendAnswer: string;
+  hrRetrievedSourcesLabel: string;
+  hrActiveToolResultsLabel: string;
+  hrValidationCompanyRequired: string;
+  hrValidationCompanyEither: string;
+  hrValidationRoleRequired: string;
+  hrValidationResumeRequired: string;
+  hrValidationCompanyUrlLabel: string;
+  hrValidationCompanyTextLabel: string;
+  hrValidationRoleDescriptionLabel: string;
+  hrValidationResumeTextLabel: string;
+  hrValidationProfileTextLabel: string;
+  hrValidationTooLong: (label: string, maxLength: number) => string;
 };
 
 export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
   en: {
     appTitle: "Prepper",
     appSubtitle: "Interview preparation, powered by AI.",
+    navUser: "User",
+    navAdmin: "Admin",
     promptLabel: "Interview type",
     promptLoading: "Loading prompts...",
     promptUnavailable: "Prompt list unavailable",
@@ -75,6 +143,10 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     conversationEmpty:
       "Choose an interview type, then start the interview to receive the first question.",
     thinking: "Thinking...",
+    copyToClipboard: "Copy to clipboard",
+    copyAllMessages: "Copy all messages",
+    copiedUserLabel: "User",
+    copiedAssistantLabel: "Assistant",
     inputPlaceholderStarted: "Respond to the interviewer...",
     inputPlaceholderNotStarted:
       "Choose an interview and start to enable your response box...",
@@ -103,49 +175,120 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     strengthsLabel: "Strengths",
     improvementsLabel: "Improvements",
     rubricLabel: "Rubric scores",
+    notAvailable: "Not available",
     interviewLockedPlaceholder:
       "Interview completed. Reset the conversation to start a new run.",
     injectionWarning:
       "This message contains patterns often used in prompt-injection attempts. It will still be sent, but treat results with caution.",
+    hrAdminTitle: "Admin HR setup",
+    hrAdminSubtitle:
+      "Build a candidate evaluation context from company, role, resume, and optional profile information.",
+    hrLoadDemo: "Load demo data",
+    hrLoadingDemo: "Loading demo...",
+    hrCompanyUrlLabel: "Company URL",
+    hrCompanyUrlHint: "Use either a public company URL or paste company text below.",
+    hrCompanyTextLabel: "Company text",
+    hrCompanyTextPlaceholder:
+      "Paste company overview, values, and interview-relevant facts.",
+    hrRoleDescriptionLabel: "Role description",
+    hrRoleDescriptionPlaceholder:
+      "Paste responsibilities, required skills, and success signals.",
+    hrResumeTextLabel: "Resume text",
+    hrResumeTextPlaceholder: "Paste candidate resume content.",
+    hrProfileTextLabel: "Profile text optional",
+    hrProfileTextPlaceholder: "Paste public profile or LinkedIn summary notes.",
+    hrBuildContext: "Build context",
+    hrBuildingContext: "Building context...",
+    hrContextSummary: "Context summary",
+    hrStatusLabel: "Status",
+    hrContextIdLabel: "Context ID",
+    hrNoContextId: "No context ID was returned. Review tool errors before continuing.",
+    hrCompanyLabel: "Company",
+    hrRoleLabel: "Role",
+    hrCandidateLabel: "Candidate",
+    hrSourcesLabel: "Sources",
+    hrSourceFallback: "Source",
+    hrToolResultsLabel: "Tool results",
+    hrToolFallback: "tool",
+    hrUnknownStatus: "unknown",
+    hrToolCallEventsLabel: "Tool-call events",
+    hrContextWarningsLabel: "Context build warnings",
+    hrUnknownError: "Unknown error",
+    hrInterviewTitle: "HR candidate-fit interview",
+    hrInterviewSubtitle:
+      "Start a live HR interview using the built company, role, and candidate context.",
+    hrQuestionsLabel: "Questions",
+    hrFinalScoreLabel: "Final score",
+    hrScoreLabel: "Score",
+    hrPassedLabel: "Passed",
+    hrNeedsReviewLabel: "Needs review",
+    hrInterviewEmpty: "Start the HR interview to see candidate-fit questions.",
+    hrPreparingResponse: "Preparing HR response...",
+    hrInterviewCompletePlaceholder: "The HR interview is complete.",
+    hrAnswerPlaceholder: "Type the candidate answer...",
+    hrStartFirstPlaceholder: "Start the HR interview first.",
+    hrStartInterview: "Start HR interview",
+    hrStartingInterview: "Starting HR interview...",
+    hrResetInterview: "Reset HR interview",
+    hrSendAnswer: "Send answer",
+    hrRetrievedSourcesLabel: "Retrieved sources",
+    hrActiveToolResultsLabel: "Active tool results",
+    hrValidationCompanyRequired: "Enter a company URL or paste company text.",
+    hrValidationCompanyEither: "Enter either a company URL or company text, not both.",
+    hrValidationRoleRequired: "Role description is required.",
+    hrValidationResumeRequired: "Resume text is required.",
+    hrValidationCompanyUrlLabel: "Company URL",
+    hrValidationCompanyTextLabel: "Company text",
+    hrValidationRoleDescriptionLabel: "Role description",
+    hrValidationResumeTextLabel: "Resume text",
+    hrValidationProfileTextLabel: "Profile text",
+    hrValidationTooLong: (label, maxLength) =>
+      `${label} must be ${maxLength} characters or fewer.`,
   },
   de: {
     appTitle: "Prepper",
-    appSubtitle: "Interviewvorbereitung mit KI-Unterstuetzung.",
+    appSubtitle: "Interviewvorbereitung mit KI-Unterstützung.",
+    navUser: "Nutzer",
+    navAdmin: "Admin",
     promptLabel: "Interviewtyp",
     promptLoading: "Prompts werden geladen...",
-    promptUnavailable: "Prompt-Liste nicht verfuegbar",
+    promptUnavailable: "Prompt-Liste nicht verfügbar",
     promptLockedHint:
-      "Setze das Gespraech zurueck, um ein anderes Interview zu waehlen.",
+      "Setze das Gespräch zurück, um ein anderes Interview zu wählen.",
     settingsLabel: "Einstellungen",
     advancedSettingsLabel: "Erweiterte Einstellungen",
     advancedSettingsHint:
-      "Diese Regler ueberschreiben die Standardwerte des ausgewaehlten Prompts fuer diesen Durchlauf.",
-    temperatureLabel: "Temperature",
+      "Diese Regler überschreiben die Standardwerte des ausgewählten Prompts für diesen Durchlauf.",
+    temperatureLabel: "Temperatur",
     topPLabel: "Top P",
-    frequencyPenaltyLabel: "Frequency Penalty",
-    presencePenaltyLabel: "Presence Penalty",
+    frequencyPenaltyLabel: "Frequenzstrafe",
+    presencePenaltyLabel: "Präsenzstrafe",
     conversationEmpty:
-      "Waehle zuerst einen Interviewtyp und starte dann das Interview, um die erste Frage zu erhalten.",
+      "Wähle zuerst einen Interviewtyp und starte dann das Interview, um die erste Frage zu erhalten.",
     thinking: "Denke nach...",
+    copyToClipboard: "In die Zwischenablage kopieren",
+    copyAllMessages: "Alle Nachrichten kopieren",
+    copiedUserLabel: "Nutzer",
+    copiedAssistantLabel: "Assistent",
     inputPlaceholderStarted:
       "Antworte der Interviewerin oder dem Interviewer...",
     inputPlaceholderNotStarted:
-      "Waehle ein Interview und starte es, um das Antwortfeld zu aktivieren...",
+      "Wähle ein Interview und starte es, um das Antwortfeld zu aktivieren...",
     startInterview: "Interview starten",
     starting: "Startet...",
-    resetConversation: "Gespraech zuruecksetzen",
+    resetConversation: "Gespräch zurücksetzen",
     generateCandidateAnswer: "Entwurf",
     generatingCandidateAnswer: "Entwirft...",
     send: "Senden",
     errorLoadPrompts: "System-Prompts konnten nicht geladen werden.",
     errorFallback: "Etwas ist schiefgelaufen.",
     errorBackendUnavailable: "Backend konnte nicht erreicht werden.",
-    questionLimitLabel: "Limit fuer bewertete Fragen",
+    questionLimitLabel: "Limit für bewertete Fragen",
     questionLimitHint:
-      "Nur neue Interviewfragen zaehlen. Rueckfragen zaehlen nicht.",
+      "Nur neue Interviewfragen zählen. Rückfragen zählen nicht.",
     difficultyLabel: "Interview-Level",
     difficultyHint:
-      "Junior = klarer Umfang und mehr Hinweise. Principal = mehr Ambiguitaet und strengere Bewertung.",
+      "Junior = klarer Umfang und mehr Hinweise. Principal = mehr Ambiguität und strengere Bewertung.",
     difficultyJunior: "Junior",
     difficultySenior: "Senior",
     difficultyPrincipal: "Principal",
@@ -153,63 +296,199 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     scoreLabel: "Gesamtpunktzahl",
     passLabel: "Bestanden",
     failLabel: "Nicht bestanden",
-    strengthsLabel: "Staerken",
+    strengthsLabel: "Stärken",
     improvementsLabel: "Verbesserungen",
     rubricLabel: "Rubrik-Bewertungen",
+    notAvailable: "Nicht verfügbar",
     interviewLockedPlaceholder:
-      "Interview ist abgeschlossen. Setze das Gespraech zurueck, um neu zu starten.",
+      "Interview ist abgeschlossen. Setze das Gespräch zurück, um neu zu starten.",
     injectionWarning:
-      "Diese Nachricht enthaelt Muster, die oft bei Prompt-Injection-Versuchen genutzt werden. Sie wird trotzdem gesendet, aber bewerte die Antwort mit Vorsicht.",
+      "Diese Nachricht enthält Muster, die oft bei Prompt-Injection-Versuchen genutzt werden. Sie wird trotzdem gesendet, aber bewerte die Antwort mit Vorsicht.",
+    hrAdminTitle: "Admin-HR-Einrichtung",
+    hrAdminSubtitle:
+      "Erstelle einen Kontext zur Kandidatenbewertung aus Unternehmen, Rolle, Lebenslauf und optionalen Profilinformationen.",
+    hrLoadDemo: "Demo-Daten laden",
+    hrLoadingDemo: "Demo wird geladen...",
+    hrCompanyUrlLabel: "Unternehmens-URL",
+    hrCompanyUrlHint: "Nutze entweder eine öffentliche Unternehmens-URL oder füge unten Unternehmenstext ein.",
+    hrCompanyTextLabel: "Unternehmenstext",
+    hrCompanyTextPlaceholder:
+      "Füge Unternehmensüberblick, Werte und interviewrelevante Fakten ein.",
+    hrRoleDescriptionLabel: "Rollenbeschreibung",
+    hrRoleDescriptionPlaceholder:
+      "Füge Aufgaben, erforderliche Fähigkeiten und Erfolgssignale ein.",
+    hrResumeTextLabel: "Lebenslauftext",
+    hrResumeTextPlaceholder: "Füge den Lebenslauf der Kandidatin oder des Kandidaten ein.",
+    hrProfileTextLabel: "Profiltext optional",
+    hrProfileTextPlaceholder: "Füge öffentliches Profil oder LinkedIn-Zusammenfassung ein.",
+    hrBuildContext: "Kontext erstellen",
+    hrBuildingContext: "Kontext wird erstellt...",
+    hrContextSummary: "Kontextzusammenfassung",
+    hrStatusLabel: "Status",
+    hrContextIdLabel: "Kontext-ID",
+    hrNoContextId: "Es wurde keine Kontext-ID zurückgegeben. Prüfe Tool-Fehler, bevor du fortfährst.",
+    hrCompanyLabel: "Unternehmen",
+    hrRoleLabel: "Rolle",
+    hrCandidateLabel: "Kandidat",
+    hrSourcesLabel: "Quellen",
+    hrSourceFallback: "Quelle",
+    hrToolResultsLabel: "Tool-Ergebnisse",
+    hrToolFallback: "Tool",
+    hrUnknownStatus: "unbekannt",
+    hrToolCallEventsLabel: "Tool-Aufrufereignisse",
+    hrContextWarningsLabel: "Warnungen beim Kontextaufbau",
+    hrUnknownError: "Unbekannter Fehler",
+    hrInterviewTitle: "HR-Interview zur Kandidateneignung",
+    hrInterviewSubtitle:
+      "Starte ein Live-HR-Interview mit dem erstellten Kontext zu Unternehmen, Rolle und Kandidat.",
+    hrQuestionsLabel: "Fragen",
+    hrFinalScoreLabel: "Endbewertung",
+    hrScoreLabel: "Punktzahl",
+    hrPassedLabel: "Bestanden",
+    hrNeedsReviewLabel: "Prüfung nötig",
+    hrInterviewEmpty: "Starte das HR-Interview, um Fragen zur Kandidateneignung zu sehen.",
+    hrPreparingResponse: "HR-Antwort wird vorbereitet...",
+    hrInterviewCompletePlaceholder: "Das HR-Interview ist abgeschlossen.",
+    hrAnswerPlaceholder: "Antwort der Kandidatin oder des Kandidaten eingeben...",
+    hrStartFirstPlaceholder: "Starte zuerst das HR-Interview.",
+    hrStartInterview: "HR-Interview starten",
+    hrStartingInterview: "HR-Interview startet...",
+    hrResetInterview: "HR-Interview zurücksetzen",
+    hrSendAnswer: "Antwort senden",
+    hrRetrievedSourcesLabel: "Abgerufene Quellen",
+    hrActiveToolResultsLabel: "Aktive Tool-Ergebnisse",
+    hrValidationCompanyRequired: "Gib eine Unternehmens-URL ein oder füge Unternehmenstext ein.",
+    hrValidationCompanyEither: "Gib entweder eine Unternehmens-URL oder Unternehmenstext ein, nicht beides.",
+    hrValidationRoleRequired: "Rollenbeschreibung ist erforderlich.",
+    hrValidationResumeRequired: "Lebenslauftext ist erforderlich.",
+    hrValidationCompanyUrlLabel: "Unternehmens-URL",
+    hrValidationCompanyTextLabel: "Unternehmenstext",
+    hrValidationRoleDescriptionLabel: "Rollenbeschreibung",
+    hrValidationResumeTextLabel: "Lebenslauftext",
+    hrValidationProfileTextLabel: "Profiltext",
+    hrValidationTooLong: (label, maxLength) =>
+      `${label} darf höchstens ${maxLength} Zeichen lang sein.`,
   },
   fr: {
     appTitle: "Prepper",
-    appSubtitle: "Preparation aux entretiens techniques, avec IA.",
+    appSubtitle: "Préparation aux entretiens techniques, avec IA.",
+    navUser: "Utilisateur",
+    navAdmin: "Admin",
     promptLabel: "Type d'entretien",
     promptLoading: "Chargement des prompts...",
     promptUnavailable: "Liste des prompts indisponible",
-    promptLockedHint: "Reinitialisez la conversation pour choisir un autre entretien.",
-    settingsLabel: "Parametres",
-    advancedSettingsLabel: "Parametres avances",
+    promptLockedHint: "Réinitialisez la conversation pour choisir un autre entretien.",
+    settingsLabel: "Paramètres",
+    advancedSettingsLabel: "Paramètres avancés",
     advancedSettingsHint:
-      "Ces controles remplacent les parametres par defaut du prompt selectionne pour cette session.",
-    temperatureLabel: "Temperature",
+      "Ces contrôles remplacent les paramètres par défaut du prompt sélectionné pour cette session.",
+    temperatureLabel: "Température",
     topPLabel: "Top P",
-    frequencyPenaltyLabel: "Penalite de frequence",
-    presencePenaltyLabel: "Penalite de presence",
+    frequencyPenaltyLabel: "Pénalité de fréquence",
+    presencePenaltyLabel: "Pénalité de présence",
     conversationEmpty:
-      "Choisissez un type d'entretien, puis demarrez pour recevoir la premiere question.",
+      "Choisissez un type d'entretien, puis démarrez pour recevoir la première question.",
     thinking: "Analyse...",
-    inputPlaceholderStarted: "Repondez a l'intervieweur...",
+    copyToClipboard: "Copier dans le presse-papiers",
+    copyAllMessages: "Copier tous les messages",
+    copiedUserLabel: "Utilisateur",
+    copiedAssistantLabel: "Assistant",
+    inputPlaceholderStarted: "Répondez à l'intervieweur...",
     inputPlaceholderNotStarted:
-      "Choisissez un entretien et demarrez pour activer le champ de reponse...",
-    startInterview: "Demarrer l'entretien",
-    starting: "Demarrage...",
-    resetConversation: "Reinitialiser la conversation",
+      "Choisissez un entretien et démarrez pour activer le champ de réponse...",
+    startInterview: "Démarrer l'entretien",
+    starting: "Démarrage...",
+    resetConversation: "Réinitialiser la conversation",
     generateCandidateAnswer: "Brouillon",
-    generatingCandidateAnswer: "Redaction...",
+    generatingCandidateAnswer: "Rédaction...",
     send: "Envoyer",
-    errorLoadPrompts: "Impossible de charger les prompts systeme.",
+    errorLoadPrompts: "Impossible de charger les prompts système.",
     errorFallback: "Une erreur s'est produite.",
     errorBackendUnavailable: "Impossible de contacter le backend.",
-    questionLimitLabel: "Limite de questions evaluees",
+    questionLimitLabel: "Limite de questions évaluées",
     questionLimitHint:
-      "Seules les nouvelles questions de l'entretien sont comptees. Les clarifications ne le sont pas.",
+      "Seules les nouvelles questions de l'entretien sont comptées. Les clarifications ne le sont pas.",
     difficultyLabel: "Niveau d'entretien",
     difficultyHint:
-      "Junior = champ plus simple et plus d'indices. Principal = ambiguite plus forte et evaluation plus rigoureuse.",
+      "Junior = champ plus simple et plus d'indices. Principal = ambiguïté plus forte et évaluation plus rigoureuse.",
     difficultyJunior: "Junior",
     difficultySenior: "Senior",
     difficultyPrincipal: "Principal",
-    interviewComplete: "Entretien termine",
+    interviewComplete: "Entretien terminé",
     scoreLabel: "Score global",
-    passLabel: "Reussi",
-    failLabel: "Echoue",
+    passLabel: "Réussi",
+    failLabel: "Échoué",
     strengthsLabel: "Points forts",
-    improvementsLabel: "Ameliorations",
-    rubricLabel: "Notes par criteres",
+    improvementsLabel: "Améliorations",
+    rubricLabel: "Notes par critères",
+    notAvailable: "Non disponible",
     interviewLockedPlaceholder:
-      "Entretien termine. Reinitialisez la conversation pour demarrer un nouveau.",
+      "Entretien terminé. Réinitialisez la conversation pour démarrer un nouveau.",
     injectionWarning:
-      "Ce message contient des motifs utilises souvent pour des tentatives d'injection. Il sera envoye, mais analysez la reponse avec prudence.",
+      "Ce message contient des motifs souvent utilisés pour des tentatives d'injection. Il sera envoyé, mais analysez la réponse avec prudence.",
+    hrAdminTitle: "Configuration RH admin",
+    hrAdminSubtitle:
+      "Créez un contexte d'évaluation du candidat à partir de l'entreprise, du rôle, du CV et d'informations de profil optionnelles.",
+    hrLoadDemo: "Charger les données de démo",
+    hrLoadingDemo: "Chargement de la démo...",
+    hrCompanyUrlLabel: "URL de l'entreprise",
+    hrCompanyUrlHint: "Utilisez soit une URL publique de l'entreprise, soit le texte de l'entreprise ci-dessous.",
+    hrCompanyTextLabel: "Texte de l'entreprise",
+    hrCompanyTextPlaceholder:
+      "Collez la présentation de l'entreprise, ses valeurs et les faits utiles pour l'entretien.",
+    hrRoleDescriptionLabel: "Description du rôle",
+    hrRoleDescriptionPlaceholder:
+      "Collez les responsabilités, les compétences requises et les signaux de réussite.",
+    hrResumeTextLabel: "Texte du CV",
+    hrResumeTextPlaceholder: "Collez le contenu du CV du candidat.",
+    hrProfileTextLabel: "Texte de profil optionnel",
+    hrProfileTextPlaceholder: "Collez un profil public ou des notes de résumé LinkedIn.",
+    hrBuildContext: "Créer le contexte",
+    hrBuildingContext: "Création du contexte...",
+    hrContextSummary: "Résumé du contexte",
+    hrStatusLabel: "Statut",
+    hrContextIdLabel: "ID du contexte",
+    hrNoContextId: "Aucun ID de contexte n'a été renvoyé. Vérifiez les erreurs d'outil avant de continuer.",
+    hrCompanyLabel: "Entreprise",
+    hrRoleLabel: "Rôle",
+    hrCandidateLabel: "Candidat",
+    hrSourcesLabel: "Sources",
+    hrSourceFallback: "Source",
+    hrToolResultsLabel: "Résultats des outils",
+    hrToolFallback: "outil",
+    hrUnknownStatus: "inconnu",
+    hrToolCallEventsLabel: "Événements d'appel d'outil",
+    hrContextWarningsLabel: "Avertissements de création du contexte",
+    hrUnknownError: "Erreur inconnue",
+    hrInterviewTitle: "Entretien RH d'adéquation candidat",
+    hrInterviewSubtitle:
+      "Démarrez un entretien RH en direct avec le contexte créé pour l'entreprise, le rôle et le candidat.",
+    hrQuestionsLabel: "Questions",
+    hrFinalScoreLabel: "Score final",
+    hrScoreLabel: "Score",
+    hrPassedLabel: "Réussi",
+    hrNeedsReviewLabel: "À examiner",
+    hrInterviewEmpty: "Démarrez l'entretien RH pour voir les questions d'adéquation candidat.",
+    hrPreparingResponse: "Préparation de la réponse RH...",
+    hrInterviewCompletePlaceholder: "L'entretien RH est terminé.",
+    hrAnswerPlaceholder: "Saisissez la réponse du candidat...",
+    hrStartFirstPlaceholder: "Démarrez d'abord l'entretien RH.",
+    hrStartInterview: "Démarrer l'entretien RH",
+    hrStartingInterview: "Démarrage de l'entretien RH...",
+    hrResetInterview: "Réinitialiser l'entretien RH",
+    hrSendAnswer: "Envoyer la réponse",
+    hrRetrievedSourcesLabel: "Sources récupérées",
+    hrActiveToolResultsLabel: "Résultats d'outils actifs",
+    hrValidationCompanyRequired: "Saisissez une URL d'entreprise ou collez le texte de l'entreprise.",
+    hrValidationCompanyEither: "Saisissez soit une URL d'entreprise, soit le texte de l'entreprise, pas les deux.",
+    hrValidationRoleRequired: "La description du rôle est obligatoire.",
+    hrValidationResumeRequired: "Le texte du CV est obligatoire.",
+    hrValidationCompanyUrlLabel: "URL de l'entreprise",
+    hrValidationCompanyTextLabel: "Texte de l'entreprise",
+    hrValidationRoleDescriptionLabel: "Description du rôle",
+    hrValidationResumeTextLabel: "Texte du CV",
+    hrValidationProfileTextLabel: "Texte de profil",
+    hrValidationTooLong: (label, maxLength) =>
+      `${label} doit contenir ${maxLength} caractères ou moins.`,
   },
 };

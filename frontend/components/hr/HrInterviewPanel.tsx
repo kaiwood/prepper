@@ -3,12 +3,14 @@ import MessageForm from "../MessageForm";
 import { INPUT_LIMITS } from "../../lib/inputLimits.mjs";
 import { summarizeHrToolResult } from "../../lib/hrInterviewLogic.mjs";
 import type { HrWorkflowState } from "../../hooks/useHrWorkflow";
+import type { TranslationStrings } from "../../types/app";
 
 type HrInterviewPanelProps = {
   state: HrWorkflowState;
+  ui: TranslationStrings;
 };
 
-export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
+export default function HrInterviewPanel({ state, ui }: HrInterviewPanelProps) {
   if (!state.hrContextId) {
     return null;
   }
@@ -17,14 +19,14 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
     <section className="mt-6 flex flex-col gap-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-semibold text-gray-900">
-          HR candidate-fit interview
+          {ui.hrInterviewTitle}
         </h2>
         <p className="text-sm text-gray-600">
-          Start a live HR interview using the built company, role, and candidate context.
+          {ui.hrInterviewSubtitle}
         </p>
         {state.hrInterviewStatus && (
           <p className="text-sm text-gray-600">
-            Questions: {state.hrInterviewStatus.counted_question_roundtrips} / {state.hrInterviewStatus.question_roundtrips_limit}
+            {ui.hrQuestionsLabel}: {state.hrInterviewStatus.counted_question_roundtrips} / {state.hrInterviewStatus.question_roundtrips_limit}
           </p>
         )}
       </div>
@@ -37,19 +39,19 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
               : "border-red-200 bg-red-50 text-red-900"
           }`}
         >
-          <h3 className="text-lg font-semibold">Final score</h3>
+          <h3 className="text-lg font-semibold">{ui.hrFinalScoreLabel}</h3>
           <p>
-            Score: {typeof state.hrFinalResult.overall_score === "number"
+            {ui.hrScoreLabel}: {typeof state.hrFinalResult.overall_score === "number"
               ? `${state.hrFinalResult.overall_score.toFixed(1)} / 10`
-              : "Not available"}
+              : ui.notAvailable}
           </p>
           {typeof state.hrFinalResult.passed === "boolean" && (
-            <p>{state.hrFinalResult.passed ? "Passed" : "Needs review"}</p>
+            <p>{state.hrFinalResult.passed ? ui.hrPassedLabel : ui.hrNeedsReviewLabel}</p>
           )}
 
           {(state.hrFinalResult.criterion_scores?.length ?? 0) > 0 && (
             <div>
-              <h4 className="font-medium">Rubric</h4>
+              <h4 className="font-medium">{ui.rubricLabel}</h4>
               <ul className="list-disc list-inside">
                 {state.hrFinalResult.criterion_scores?.map((criterion) => (
                   <li key={criterion.criterion}>
@@ -62,7 +64,7 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
 
           {(state.hrFinalResult.strengths?.length ?? 0) > 0 && (
             <div>
-              <h4 className="font-medium">Strengths</h4>
+              <h4 className="font-medium">{ui.strengthsLabel}</h4>
               <ul className="list-disc list-inside">
                 {state.hrFinalResult.strengths?.map((item) => (
                   <li key={item}>{item}</li>
@@ -73,7 +75,7 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
 
           {(state.hrFinalResult.improvements?.length ?? 0) > 0 && (
             <div>
-              <h4 className="font-medium">Improvements</h4>
+              <h4 className="font-medium">{ui.improvementsLabel}</h4>
               <ul className="list-disc list-inside">
                 {state.hrFinalResult.improvements?.map((item) => (
                   <li key={item}>{item}</li>
@@ -87,8 +89,12 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
       <Conversation
         conversation={state.hrConversation}
         loading={state.hrInterviewLoading}
-        emptyStateText="Start the HR interview to see candidate-fit questions."
-        thinkingText="Preparing HR response..."
+        emptyStateText={ui.hrInterviewEmpty}
+        thinkingText={ui.hrPreparingResponse}
+        copyToClipboardText={ui.copyToClipboard}
+        copyAllMessagesText={ui.copyAllMessages}
+        copiedUserLabel={ui.copiedUserLabel}
+        copiedAssistantLabel={ui.copiedAssistantLabel}
       />
 
       <MessageForm
@@ -105,15 +111,15 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
         error={state.hrInterviewError}
         placeholderStarted={
           state.hrInterviewCompleted
-            ? "The HR interview is complete."
-            : "Type the candidate answer..."
+            ? ui.hrInterviewCompletePlaceholder
+            : ui.hrAnswerPlaceholder
         }
-        placeholderNotStarted="Start the HR interview first."
-        startInterviewText="Start HR interview"
-        startingText="Starting HR interview..."
-        resetConversationText="Reset HR interview"
-        sendText="Send answer"
-        thinkingText="Thinking..."
+        placeholderNotStarted={ui.hrStartFirstPlaceholder}
+        startInterviewText={ui.hrStartInterview}
+        startingText={ui.hrStartingInterview}
+        resetConversationText={ui.hrResetInterview}
+        sendText={ui.hrSendAnswer}
+        thinkingText={ui.thinking}
         maxLength={INPUT_LIMITS.chatMessage}
       />
 
@@ -121,7 +127,7 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
         <div className="grid gap-4 rounded-xl border border-blue-100 bg-white p-4">
           {state.hrInterviewSources.length > 0 && (
             <div>
-              <h3 className="font-medium text-gray-900">Retrieved sources</h3>
+              <h3 className="font-medium text-gray-900">{ui.hrRetrievedSourcesLabel}</h3>
               <ul className="mt-2 flex flex-col gap-2 text-sm text-gray-700">
                 {state.hrInterviewSources.map((source, index) => (
                   <li
@@ -139,7 +145,7 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
                           {source.title ?? source.url}
                         </a>
                       ) : (
-                        source.title ?? source.url ?? "Source"
+                        source.title ?? source.url ?? ui.hrSourceFallback
                       )}
                     </div>
                     {source.url && !source.url.startsWith("http") && (
@@ -156,7 +162,7 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
 
           {state.hrInterviewToolResults.length > 0 && (
             <div>
-              <h3 className="font-medium text-gray-900">Active tool results</h3>
+              <h3 className="font-medium text-gray-900">{ui.hrActiveToolResultsLabel}</h3>
               <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
                 {state.hrInterviewToolResults.map((tool, index) => (
                   <li key={`${tool.tool_name ?? "tool"}-${index}`}>
@@ -169,11 +175,11 @@ export default function HrInterviewPanel({ state }: HrInterviewPanelProps) {
 
           {state.hrInterviewToolCallEvents.length > 0 && (
             <div>
-              <h3 className="font-medium text-gray-900">Tool-call events</h3>
+              <h3 className="font-medium text-gray-900">{ui.hrToolCallEventsLabel}</h3>
               <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
                 {state.hrInterviewToolCallEvents.map((event, index) => (
                   <li key={`${event.event_id ?? "event"}-${index}`}>
-                    #{event.sequence ?? index + 1} {event.tool_name ?? "tool"}: {event.status ?? "unknown"}
+                    #{event.sequence ?? index + 1} {event.tool_name ?? ui.hrToolFallback}: {event.status ?? ui.hrUnknownStatus}
                     {typeof event.duration_ms === "number" ? ` (${event.duration_ms}ms)` : ""}
                   </li>
                 ))}

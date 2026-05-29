@@ -292,6 +292,10 @@ export default function UserInterviewPanel({
         loading={state.loading}
         emptyStateText={ui.conversationEmpty}
         thinkingText={ui.thinking}
+        copyToClipboardText={ui.copyToClipboard}
+        copyAllMessagesText={ui.copyAllMessages}
+        copiedUserLabel={ui.copiedUserLabel}
+        copiedAssistantLabel={ui.copiedAssistantLabel}
       />
 
       <MessageForm

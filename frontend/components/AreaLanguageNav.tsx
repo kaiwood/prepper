@@ -2,6 +2,7 @@ import {
   LANGUAGE_DISPLAY,
   type LanguageCode,
 } from "../lib/translations";
+import type { TranslationStrings } from "../types/app";
 
 type Area = "user" | "admin";
 
@@ -10,6 +11,7 @@ type AreaLanguageNavProps = {
   selectedArea: Area;
   onAreaChange: (area: Area) => void;
   onLanguageChange: (language: LanguageCode) => void;
+  ui: TranslationStrings;
 };
 
 export default function AreaLanguageNav({
@@ -17,13 +19,14 @@ export default function AreaLanguageNav({
   selectedArea,
   onAreaChange,
   onLanguageChange,
+  ui,
 }: AreaLanguageNavProps) {
   return (
     <div className="w-full max-w-3xl flex items-center justify-between gap-4">
       <nav aria-label="Area navigation" className="flex gap-2">
         {([
-          ["user", "User"],
-          ["admin", "Admin"],
+          ["user", ui.navUser],
+          ["admin", ui.navAdmin],
         ] as const).map(([area, label]) => {
           const isActive = selectedArea === area;
 

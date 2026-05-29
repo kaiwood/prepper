@@ -43,10 +43,11 @@ export default function Home() {
         selectedArea={selectedArea}
         onAreaChange={setSelectedArea}
         onLanguageChange={updateLanguage}
+        ui={ui}
       />
 
       {selectedArea === "admin" ? (
-        <HrSetupPanel state={hrWorkflow} />
+        <HrSetupPanel state={hrWorkflow} ui={ui} />
       ) : (
         <UserInterviewPanel
           state={userInterview}

@@ -1,21 +1,20 @@
 import { INPUT_LIMITS } from "../../lib/inputLimits.mjs";
 import type { HrWorkflowState } from "../../hooks/useHrWorkflow";
+import type { TranslationStrings } from "../../types/app";
 import HrInterviewPanel from "./HrInterviewPanel";
 
 type HrSetupPanelProps = {
   state: HrWorkflowState;
+  ui: TranslationStrings;
 };
 
-export default function HrSetupPanel({ state }: HrSetupPanelProps) {
+export default function HrSetupPanel({ state, ui }: HrSetupPanelProps) {
   return (
     <section className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold">Admin HR setup</h1>
-          <p className="text-gray-500">
-            Build a candidate evaluation context from company, role, resume,
-            and optional profile information.
-          </p>
+          <h1 className="text-3xl font-bold">{ui.hrAdminTitle}</h1>
+          <p className="text-gray-500">{ui.hrAdminSubtitle}</p>
         </div>
         <button
           type="button"
@@ -23,7 +22,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
           disabled={state.hrContextLoading || state.hrDemoSetupLoading}
           className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-400"
         >
-          {state.hrDemoSetupLoading ? "Loading demo..." : "Load demo data"}
+          {state.hrDemoSetupLoading ? ui.hrLoadingDemo : ui.hrLoadDemo}
         </button>
       </div>
 
@@ -33,7 +32,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             htmlFor="hr-company-url"
             className="text-sm font-medium text-gray-700"
           >
-            Company URL
+            {ui.hrCompanyUrlLabel}
           </label>
           <input
             id="hr-company-url"
@@ -48,7 +47,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
           />
           <p className="text-sm text-gray-500">
-            Use either a public company URL or paste company text below.
+            {ui.hrCompanyUrlHint}
           </p>
         </section>
 
@@ -57,7 +56,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             htmlFor="hr-company-text"
             className="text-sm font-medium text-gray-700"
           >
-            Company text
+            {ui.hrCompanyTextLabel}
           </label>
           <textarea
             id="hr-company-text"
@@ -68,7 +67,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             disabled={state.hrContextLoading}
             maxLength={INPUT_LIMITS.companyText}
             rows={5}
-            placeholder="Paste company overview, values, and interview-relevant facts."
+            placeholder={ui.hrCompanyTextPlaceholder}
             className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
           />
           {state.hrSetupErrors.company && (
@@ -81,7 +80,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             htmlFor="hr-role-description"
             className="text-sm font-medium text-gray-700"
           >
-            Role description
+            {ui.hrRoleDescriptionLabel}
           </label>
           <textarea
             id="hr-role-description"
@@ -92,7 +91,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             disabled={state.hrContextLoading}
             maxLength={INPUT_LIMITS.roleDescription}
             rows={6}
-            placeholder="Paste responsibilities, required skills, and success signals."
+            placeholder={ui.hrRoleDescriptionPlaceholder}
             className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
           />
           {state.hrSetupErrors.roleDescription && (
@@ -107,7 +106,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             htmlFor="hr-resume-text"
             className="text-sm font-medium text-gray-700"
           >
-            Resume text
+            {ui.hrResumeTextLabel}
           </label>
           <textarea
             id="hr-resume-text"
@@ -118,7 +117,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             disabled={state.hrContextLoading}
             maxLength={INPUT_LIMITS.resumeText}
             rows={6}
-            placeholder="Paste candidate resume content."
+            placeholder={ui.hrResumeTextPlaceholder}
             className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
           />
           {state.hrSetupErrors.resumeText && (
@@ -133,7 +132,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             htmlFor="hr-profile-text"
             className="text-sm font-medium text-gray-700"
           >
-            Profile text optional
+            {ui.hrProfileTextLabel}
           </label>
           <textarea
             id="hr-profile-text"
@@ -144,7 +143,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
             disabled={state.hrContextLoading}
             maxLength={INPUT_LIMITS.profileText}
             rows={4}
-            placeholder="Paste public profile or LinkedIn summary notes."
+            placeholder={ui.hrProfileTextPlaceholder}
             className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
           />
           {state.hrSetupErrors.profileText && (
@@ -159,7 +158,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
           disabled={state.hrContextLoading}
           className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-300"
         >
-          {state.hrContextLoading ? "Building context..." : "Build context"}
+          {state.hrContextLoading ? ui.hrBuildingContext : ui.hrBuildContext}
         </button>
       </form>
 
@@ -172,17 +171,17 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
       {state.hrContextResult && (
         <section className="mt-6 flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
           <div className="flex flex-col gap-1">
-            <h2 className="text-xl font-semibold">Context summary</h2>
+            <h2 className="text-xl font-semibold">{ui.hrContextSummary}</h2>
             <p className="text-sm text-gray-600">
-              Status: <span className="font-medium">{state.hrContextResult.status}</span>
+              {ui.hrStatusLabel}: <span className="font-medium">{state.hrContextResult.status}</span>
             </p>
             {state.hrContextId ? (
               <p className="text-sm text-gray-600">
-                Context ID: <span className="font-mono">{state.hrContextId}</span>
+                {ui.hrContextIdLabel}: <span className="font-mono">{state.hrContextId}</span>
               </p>
             ) : (
               <p className="text-sm text-amber-700">
-                No context ID was returned. Review tool errors before continuing.
+                {ui.hrNoContextId}
               </p>
             )}
           </div>
@@ -190,9 +189,9 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
           {state.hrContextResult.summaries && (
             <div className="grid gap-3">
               {([
-                ["Company", state.hrContextResult.summaries.company],
-                ["Role", state.hrContextResult.summaries.role],
-                ["Candidate", state.hrContextResult.summaries.candidate],
+                [ui.hrCompanyLabel, state.hrContextResult.summaries.company],
+                [ui.hrRoleLabel, state.hrContextResult.summaries.role],
+                [ui.hrCandidateLabel, state.hrContextResult.summaries.candidate],
               ] as const).map(([label, value]) =>
                 value ? (
                   <article
@@ -209,11 +208,11 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
 
           {(state.hrContextResult.sources?.length ?? 0) > 0 && (
             <div>
-              <h3 className="font-medium text-gray-900">Sources</h3>
+              <h3 className="font-medium text-gray-900">{ui.hrSourcesLabel}</h3>
               <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
                 {state.hrContextResult.sources?.map((source, index) => (
                   <li key={`${source.id ?? source.uri ?? "source"}-${index}`}>
-                    {source.title ?? source.id ?? "Source"}
+                    {source.title ?? source.id ?? ui.hrSourceFallback}
                     {source.uri ? ` — ${source.uri}` : ""}
                   </li>
                 ))}
@@ -223,11 +222,11 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
 
           {(state.hrContextResult.tool_results?.length ?? 0) > 0 && (
             <div>
-              <h3 className="font-medium text-gray-900">Tool results</h3>
+              <h3 className="font-medium text-gray-900">{ui.hrToolResultsLabel}</h3>
               <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
                 {state.hrContextResult.tool_results?.map((tool, index) => (
                   <li key={`${tool.tool_name ?? "tool"}-${index}`}>
-                    {tool.tool_name ?? "tool"}: {tool.status ?? "unknown"}
+                    {tool.tool_name ?? ui.hrToolFallback}: {tool.status ?? ui.hrUnknownStatus}
                   </li>
                 ))}
               </ul>
@@ -236,11 +235,11 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
 
           {(state.hrContextResult.tool_call_events?.length ?? 0) > 0 && (
             <div>
-              <h3 className="font-medium text-gray-900">Tool-call events</h3>
+              <h3 className="font-medium text-gray-900">{ui.hrToolCallEventsLabel}</h3>
               <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
                 {state.hrContextResult.tool_call_events?.map((event, index) => (
                   <li key={`${event.event_id ?? "event"}-${index}`}>
-                    #{event.sequence ?? index + 1} {event.tool_name ?? "tool"}: {event.status ?? "unknown"}
+                    #{event.sequence ?? index + 1} {event.tool_name ?? ui.hrToolFallback}: {event.status ?? ui.hrUnknownStatus}
                     {typeof event.duration_ms === "number" ? ` (${event.duration_ms}ms)` : ""}
                   </li>
                 ))}
@@ -250,12 +249,12 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
 
           {(state.hrContextResult.errors?.length ?? 0) > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <h3 className="font-medium">Context build warnings</h3>
+              <h3 className="font-medium">{ui.hrContextWarningsLabel}</h3>
               <ul className="mt-1 list-disc list-inside">
                 {state.hrContextResult.errors?.map((item, index) => (
                   <li key={`${item.tool_name ?? "error"}-${index}`}>
                     {item.tool_name ? `${item.tool_name}: ` : ""}
-                    {item.message ?? "Unknown error"}
+                    {item.message ?? ui.hrUnknownError}
                   </li>
                 ))}
               </ul>
@@ -264,7 +263,7 @@ export default function HrSetupPanel({ state }: HrSetupPanelProps) {
         </section>
       )}
 
-      <HrInterviewPanel state={state} />
+      <HrInterviewPanel state={state} ui={ui} />
     </section>
   );
 }

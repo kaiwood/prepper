@@ -74,6 +74,18 @@ export function useHrWorkflow({
   const hrInterviewCompleted = Boolean(hrInterviewStatus?.interview_complete);
   const hrFinalResult = hrInterviewStatus?.final_result;
   const hrResultPassed = hrFinalResult?.passed ?? false;
+  const hrSetupValidationMessages = {
+    companyEither: ui.hrValidationCompanyEither,
+    companyRequired: ui.hrValidationCompanyRequired,
+    roleRequired: ui.hrValidationRoleRequired,
+    resumeRequired: ui.hrValidationResumeRequired,
+    companyUrlLabel: ui.hrValidationCompanyUrlLabel,
+    companyTextLabel: ui.hrValidationCompanyTextLabel,
+    roleDescriptionLabel: ui.hrValidationRoleDescriptionLabel,
+    resumeTextLabel: ui.hrValidationResumeTextLabel,
+    profileTextLabel: ui.hrValidationProfileTextLabel,
+    tooLong: ui.hrValidationTooLong,
+  };
   const hrHasStarted = hrConversation.length > 0;
 
   useEffect(() => {
@@ -131,7 +143,10 @@ export function useHrWorkflow({
       if (Object.keys(prev).length === 0) {
         return prev;
       }
-      return validateHrSetupForm({ ...hrSetupForm, [field]: value });
+      return validateHrSetupForm(
+        { ...hrSetupForm, [field]: value },
+        hrSetupValidationMessages,
+      );
     });
   };
 
@@ -208,6 +223,7 @@ export function useHrWorkflow({
 
     const validationErrors = validateHrSetupForm(
       hrSetupForm,
+      hrSetupValidationMessages,
     ) as HrSetupValidationErrors;
     setHrSetupErrors(validationErrors);
     if (hasHrSetupValidationErrors(validationErrors)) {
