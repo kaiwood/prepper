@@ -64,6 +64,7 @@ type TranslationStrings = {
   hrAdminTitle: string;
   hrAdminSubtitle: string;
   hrCompanyUrlLabel: string;
+  hrCompanyUrlPlaceholder: string;
   hrCompanyUrlHint: string;
   hrFetchCompany: string;
   hrFetchingCompany: string;
@@ -72,6 +73,7 @@ type TranslationStrings = {
   hrRoleDescriptionLabel: string;
   hrRoleDescriptionPlaceholder: string;
   hrRoleUrlLabel: string;
+  hrRoleUrlPlaceholder: string;
   hrRoleUrlHint: string;
   hrFetchRole: string;
   hrFetchingRole: string;
