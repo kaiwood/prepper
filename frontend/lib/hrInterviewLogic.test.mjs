@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   buildHrInterviewStartPayload,
   buildHrInterviewTurnPayload,
+  summarizeHrToolCatalogItem,
   summarizeHrToolResult,
 } from "./hrInterviewLogic.mjs";
 
@@ -57,6 +58,46 @@ test("builds HR interview turn payload", () => {
       interview_id: "interview_456",
       message: "Candidate answer.",
     },
+  );
+});
+
+test("summarizes HR tool catalog item details", () => {
+  assert.equal(
+    summarizeHrToolCatalogItem(
+      {
+        name: "fetch_company_website",
+        label: "Fetch company website",
+        phase: "context",
+        description: "Fetch readable public company website content.",
+      },
+      {
+        tool_name: "fetch_company_website",
+        status: "success",
+        output: {
+          mode: "llm",
+          sources: [{ uri: "https://example.com" }],
+        },
+      },
+      { status: "success", duration_ms: 42 },
+      "not used",
+    ),
+    "Fetch company website: success (phase: context, mode: llm, sources: 1, duration: 42ms, Fetch readable public company website content.)",
+  );
+});
+
+test("summarizes unused HR tool catalog item", () => {
+  assert.equal(
+    summarizeHrToolCatalogItem(
+      {
+        name: "retrieve_company_context",
+        label: "Retrieve company context",
+        phase: "interview",
+      },
+      undefined,
+      undefined,
+      "not used",
+    ),
+    "Retrieve company context: not used (phase: interview)",
   );
 });
 

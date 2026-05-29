@@ -60,6 +60,14 @@ def test_hr_context_endpoint_builds_and_stores_context_from_text(monkeypatch, tm
     assert "candidate_profile" not in data["context"]
     assert "chunks" not in data["context"]
     assert data["summaries"]["company"].startswith("Example Co")
+    assert {tool["name"] for tool in data["tools"]} >= {
+        "fetch_company_website",
+        "fetch_role_description",
+        "fetch_social_profile",
+        "extract_resume_pdf_profile",
+        "extract_candidate_profile",
+        "retrieve_company_context",
+    }
     assert data["tool_results"][0]["tool_name"] == "extract_candidate_profile"
     assert "profile" not in data["tool_results"][0]["output"]
     assert data["tool_call_events"][0]["tool_name"] == "extract_candidate_profile"

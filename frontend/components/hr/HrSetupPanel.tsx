@@ -1,3 +1,4 @@
+import { summarizeHrToolCatalogItem } from "../../lib/hrInterviewLogic.mjs";
 import { INPUT_LIMITS } from "../../lib/inputLimits.mjs";
 import type { HrWorkflowState } from "../../hooks/useHrWorkflow";
 import type { TranslationStrings } from "../../types/app";
@@ -539,7 +540,26 @@ export default function HrSetupPanel({
             </div>
           )}
 
-          {(state.hrContextResult.tool_results?.length ?? 0) > 0 && (
+          {(state.hrContextResult.tools?.length ?? 0) > 0 ? (
+            <div>
+              <h3 className="font-medium text-gray-900">{ui.hrToolCatalogLabel}</h3>
+              <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
+                {state.hrContextResult.tools?.map((metadata, index) => {
+                  const tool = state.hrContextResult?.tool_results?.find(
+                    (item) => item.tool_name === metadata.name,
+                  );
+                  const event = state.hrContextResult?.tool_call_events?.find(
+                    (item) => item.tool_name === metadata.name,
+                  );
+                  return (
+                    <li key={`${metadata.name ?? "tool"}-${index}`}>
+                      {summarizeHrToolCatalogItem(metadata, tool, event, ui.hrToolNotUsed)}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : (state.hrContextResult.tool_results?.length ?? 0) > 0 && (
             <div>
               <h3 className="font-medium text-gray-900">{ui.hrToolResultsLabel}</h3>
               <ul className="mt-2 list-disc list-inside text-sm text-gray-700">

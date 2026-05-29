@@ -104,7 +104,9 @@ type TranslationStrings = {
   hrSourcesLabel: string;
   hrSourceFallback: string;
   hrToolResultsLabel: string;
+  hrToolCatalogLabel: string;
   hrToolFallback: string;
+  hrToolNotUsed: string;
   hrUnknownStatus: string;
   hrToolCallEventsLabel: string;
   hrContextWarningsLabel: string;
@@ -248,7 +250,9 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrSourcesLabel: "Sources",
     hrSourceFallback: "Source",
     hrToolResultsLabel: "Tool results",
+    hrToolCatalogLabel: "Available tools",
     hrToolFallback: "tool",
+    hrToolNotUsed: "not used",
     hrUnknownStatus: "unknown",
     hrToolCallEventsLabel: "Tool-call events",
     hrContextWarningsLabel: "Context build warnings",
@@ -394,7 +398,9 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrSourcesLabel: "Quellen",
     hrSourceFallback: "Quelle",
     hrToolResultsLabel: "Tool-Ergebnisse",
+    hrToolCatalogLabel: "Verfügbare Tools",
     hrToolFallback: "Tool",
+    hrToolNotUsed: "nicht genutzt",
     hrUnknownStatus: "unbekannt",
     hrToolCallEventsLabel: "Tool-Aufrufereignisse",
     hrContextWarningsLabel: "Warnungen beim Kontextaufbau",
@@ -538,7 +544,9 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrSourcesLabel: "Sources",
     hrSourceFallback: "Source",
     hrToolResultsLabel: "Résultats des outils",
+    hrToolCatalogLabel: "Outils disponibles",
     hrToolFallback: "outil",
+    hrToolNotUsed: "non utilisé",
     hrUnknownStatus: "inconnu",
     hrToolCallEventsLabel: "Événements d'appel d'outil",
     hrContextWarningsLabel: "Avertissements de création du contexte",

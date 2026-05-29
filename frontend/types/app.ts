@@ -160,6 +160,13 @@ export type HrProfileFetchResponse = {
   error?: string;
 };
 
+export type HrToolMetadata = {
+  name: string;
+  label?: string;
+  phase?: string;
+  description?: string;
+};
+
 export type HrToolCallEvent = {
   event_id?: string;
   timestamp?: string;
@@ -202,6 +209,7 @@ export type HrContextResponse = {
   resolved_setup?: HrResolvedSetupFields | null;
   summaries?: HrContextSummaries | null;
   sources?: HrContextSource[];
+  tools?: HrToolMetadata[];
   tool_results?: HrToolResult[];
   tool_call_events?: HrToolCallEvent[];
   errors?: HrContextError[];

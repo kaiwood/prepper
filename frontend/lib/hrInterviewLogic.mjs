@@ -66,7 +66,44 @@ export function buildHrInterviewTurnPayload({ contextId, interviewId, message } 
 export function summarizeHrToolResult(tool) {
   const name = normalizeText(tool?.tool_name) || "tool";
   const status = normalizeText(tool?.status) || "unknown";
-  const output = tool?.output && typeof tool.output === "object" ? tool.output : {};
+  const details = summarizeHrToolOutputDetails(tool?.output);
+
+  return details.length > 0
+    ? `${name}: ${status} (${details.join(", ")})`
+    : `${name}: ${status}`;
+}
+
+/**
+ * @param {{ name?: string, label?: string, description?: string, phase?: string }} metadata
+ * @param {{ tool_name?: string, status?: string, output?: Record<string, unknown> }} [tool]
+ * @param {{ status?: string, duration_ms?: number }} [event]
+ * @param {string} [notUsedLabel]
+ */
+export function summarizeHrToolCatalogItem(metadata, tool, event, notUsedLabel = "not used") {
+  const name = normalizeText(metadata?.label) || normalizeText(metadata?.name) || "tool";
+  const status = normalizeText(tool?.status) || normalizeText(event?.status) || notUsedLabel;
+  const details = [];
+  const phase = normalizeText(metadata?.phase);
+  const description = normalizeText(metadata?.description);
+
+  if (phase) {
+    details.push(`phase: ${phase}`);
+  }
+  details.push(...summarizeHrToolOutputDetails(tool?.output));
+  if (typeof event?.duration_ms === "number" && Number.isFinite(event.duration_ms)) {
+    details.push(`duration: ${event.duration_ms}ms`);
+  }
+  if (description) {
+    details.push(description);
+  }
+
+  return details.length > 0
+    ? `${name}: ${status} (${details.join(", ")})`
+    : `${name}: ${status}`;
+}
+
+function summarizeHrToolOutputDetails(outputValue) {
+  const output = outputValue && typeof outputValue === "object" ? outputValue : {};
   const details = [];
 
   if (typeof output.mode === "string" && output.mode.trim()) {
@@ -81,14 +118,28 @@ export function summarizeHrToolResult(tool) {
     details.push(`query: ${output.query.trim()}`);
   }
 
+  if (typeof output.summary === "string" && output.summary.trim()) {
+    details.push(`summary: ${output.summary.trim()}`);
+  }
+
+  const sourceCount = countPublicSources(output.sources);
+  if (sourceCount > 0) {
+    details.push(`sources: ${sourceCount}`);
+  }
+
   const relevanceSummary = summarizeRetrievalRelevance(output.snippets);
   if (relevanceSummary) {
     details.push(`relevance: ${relevanceSummary}`);
   }
 
-  return details.length > 0
-    ? `${name}: ${status} (${details.join(", ")})`
-    : `${name}: ${status}`;
+  return details;
+}
+
+function countPublicSources(sources) {
+  if (!Array.isArray(sources)) {
+    return 0;
+  }
+  return sources.filter((source) => source && typeof source === "object").length;
 }
 
 function summarizeRetrievalRelevance(snippets) {

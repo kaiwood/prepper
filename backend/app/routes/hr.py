@@ -59,6 +59,11 @@ from prepper_cli.structured_logging import (
     log_structured_event,
 )
 from prepper_cli.hr_tools import (
+    EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
+    FETCH_COMPANY_WEBSITE_TOOL_NAME,
+    FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+    FETCH_SOCIAL_PROFILE_TOOL_NAME,
+    RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
     hr_tool_result_to_dict,
     run_fetch_company_website_tool,
     run_fetch_role_description_tool,
@@ -103,6 +108,44 @@ _HR_TOOL_EVENT_LOG_PATH = os.path.join(
     "logs",
     "hr_tool_events.jsonl",
 )
+_HR_TOOL_METADATA = [
+    {
+        "name": FETCH_COMPANY_WEBSITE_TOOL_NAME,
+        "label": "Fetch company website",
+        "phase": "context",
+        "description": "Fetch readable public company website content from a URL.",
+    },
+    {
+        "name": FETCH_ROLE_DESCRIPTION_TOOL_NAME,
+        "label": "Fetch role description",
+        "phase": "context",
+        "description": "Fetch a public job-ad URL and extract a clean role description.",
+    },
+    {
+        "name": FETCH_SOCIAL_PROFILE_TOOL_NAME,
+        "label": "Fetch social profile",
+        "phase": "context",
+        "description": "Fetch public candidate profile text using the provided profile URL and token.",
+    },
+    {
+        "name": "extract_resume_pdf_profile",
+        "label": "Extract resume PDF profile",
+        "phase": "context",
+        "description": "Extract resume text from an uploaded PDF and enrich it for candidate profiling.",
+    },
+    {
+        "name": EXTRACT_CANDIDATE_PROFILE_TOOL_NAME,
+        "label": "Extract candidate profile",
+        "phase": "context",
+        "description": "Extract structured candidate facts, risks, and interview focus areas.",
+    },
+    {
+        "name": RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
+        "label": "Retrieve company context",
+        "phase": "interview",
+        "description": "Retrieve relevant company and role context snippets during the HR interview.",
+    },
+]
 
 
 @hr_bp.route("/api/hr/context", methods=["OPTIONS"])
@@ -1201,6 +1244,7 @@ def _build_response_payload(
         "resolved_setup": _resolved_setup_fields(result.context),
         "summaries": context_payload["summaries"] if context_payload else None,
         "sources": context_payload["sources"] if context_payload else [],
+        "tools": deepcopy(_HR_TOOL_METADATA),
         "tool_results": [
             _sanitize_public_tool_result(hr_tool_result_to_dict(tool_result))
             for tool_result in result.tool_results
@@ -1327,7 +1371,7 @@ def _sanitize_public_tool_result(tool_result: dict[str, Any]) -> dict[str, Any]:
 
 def _sanitize_public_tool_output(output: dict[str, Any]) -> dict[str, Any]:
     public_output: dict[str, Any] = {}
-    for key in ("mode", "result_count", "decision", "summary"):
+    for key in ("mode", "query", "result_count", "decision", "summary"):
         value = output.get(key)
         if _is_public_scalar(value):
             public_output[key] = value
@@ -1343,6 +1387,12 @@ def _sanitize_public_tool_output(output: dict[str, Any]) -> dict[str, Any]:
         public_sources = _public_sources_from_context_sources(sources)
         if public_sources:
             public_output["sources"] = public_sources
+
+    snippets = output.get("snippets")
+    if isinstance(snippets, list):
+        public_snippets = _public_sources_from_context_sources(snippets)
+        if public_snippets:
+            public_output["snippets"] = public_snippets
 
     document = output.get("document")
     if isinstance(document, dict):
