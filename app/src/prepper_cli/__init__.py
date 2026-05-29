@@ -1,5 +1,11 @@
 """Shared OpenRouter client utilities and CLI for Prepper."""
 
+from .admin_persistence import (
+    AdminHrSetupRecord,
+    default_sqlite_path,
+    load_latest_admin_hr_setup,
+    save_admin_hr_setup,
+)
 from .chat import get_chat_reply, get_interview_opener
 from .conversation import Conversation
 from .hr_context import (
@@ -127,6 +133,10 @@ from .system_prompts import (
 )
 
 __all__ = [
+    "AdminHrSetupRecord",
+    "default_sqlite_path",
+    "load_latest_admin_hr_setup",
+    "save_admin_hr_setup",
     "get_chat_reply",
     "get_interview_opener",
     "Conversation",

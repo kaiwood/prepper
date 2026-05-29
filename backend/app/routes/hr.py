@@ -34,12 +34,18 @@ from prepper_cli import (
     run_interview_turn,
 )
 from prepper_cli.hr_assistant import run_hr_assistant
+from prepper_cli.hr_fixtures import load_hr_fixture
 from prepper_cli.hr_context import (
     HrContext,
     HrContextBuildResult,
     HrContextValidationError,
     build_hr_context_from_inputs,
+    hr_context_from_dict,
     hr_context_to_dict,
+)
+from prepper_cli.admin_persistence import (
+    load_latest_admin_hr_setup,
+    save_admin_hr_setup,
 )
 from prepper_cli.client import build_chat_model
 from prepper_cli.hr_langchain_tools import (
@@ -95,6 +101,65 @@ def hr_context_options():
     return "", 204
 
 
+@hr_bp.get("/api/hr/setup/demo")
+@limiter.limit("30 per minute")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def demo_hr_setup():
+    try:
+        fixture = load_hr_fixture("demo_hr")
+    except Exception as exc:  # pragma: no cover - fixture packaging safety net
+        _log_hr_route_failure("hr_setup_demo_load", exc)
+        return jsonify(_public_hr_error("Demo HR setup load failed")), 502
+
+    return jsonify(
+        {
+            "setup": {
+                "company_url": "",
+                "company_text": fixture.company_markdown,
+                "role_description": fixture.role_markdown,
+                "resume_text": fixture.resume_markdown,
+                "profile_text": fixture.profile_markdown,
+            }
+        }
+    )
+
+
+@hr_bp.get("/api/hr/setup/latest")
+@limiter.limit("30 per minute")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def latest_hr_setup():
+    try:
+        record = load_latest_admin_hr_setup()
+    except Exception as exc:  # pragma: no cover - filesystem/sqlite safety net
+        _log_hr_route_failure("hr_setup_latest_load", exc)
+        return jsonify(_public_hr_error("Saved HR setup load failed")), 502
+    if record is None:
+        return jsonify({"setup": None, "context_result": None})
+
+    context_result = deepcopy(record.response_payload)
+    if record.context_payload is not None:
+        try:
+            context = hr_context_from_dict(record.context_payload)
+            _store_hr_context(context)
+        except ValueError as exc:
+            _log_hr_route_failure("hr_setup_latest_restore", exc)
+            context_result = None
+
+    payload: dict[str, Any] = {
+        "setup": record.setup_fields,
+        "context_result": context_result,
+    }
+    if context_result is None and record.context_payload is not None:
+        payload["error"] = "Saved HR context could not be restored"
+    return jsonify(payload)
+
+
 @hr_bp.post("/api/hr/context")
 @limiter.limit("10 per minute")
 @cross_origin(
@@ -145,12 +210,22 @@ def build_hr_context():
     if result.context is not None:
         _store_hr_context(result.context)
 
-    return jsonify(
-        _build_response_payload(
-            result,
-            include_debug_context=include_debug_context,
-        )
+    response_payload = _build_response_payload(
+        result,
+        include_debug_context=include_debug_context,
     )
+    if result.context is not None:
+        try:
+            _save_admin_hr_setup(
+                data=data,
+                response_payload=response_payload,
+                context=result.context,
+            )
+        except Exception as exc:  # pragma: no cover - filesystem/sqlite safety net
+            _log_hr_route_failure("hr_context_persist", exc)
+            return jsonify(_public_hr_error("HR context persistence failed")), 502
+
+    return jsonify(response_payload)
 
 
 @hr_bp.route("/api/hr/interview/start", methods=["OPTIONS"])
@@ -474,6 +549,28 @@ def hr_assistant():
 
 def _build_tool_event_recorder(flow: str) -> HrToolEventRecorder:
     return HrToolEventRecorder(flow=flow, log_path=_HR_TOOL_EVENT_LOG_PATH)
+
+
+def _save_admin_hr_setup(
+    *, data: dict[str, Any], response_payload: dict[str, Any], context: HrContext
+) -> None:
+    persisted_response = deepcopy(response_payload)
+    persisted_response.pop("debug_context", None)
+    save_admin_hr_setup(
+        setup_fields={
+            "company_url": _string_or_none(data.get("company_url")),
+            "company_text": _string_or_none(data.get("company_text")),
+            "role_description": _string_or_none(data.get("role_description")),
+            "resume_text": _string_or_none(data.get("resume_text")),
+            "profile_text": _string_or_none(data.get("profile_text")),
+        },
+        response_payload=persisted_response,
+        context_payload=hr_context_to_dict(context),
+    )
+
+
+def _string_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def _cleanup_hr_state() -> None:

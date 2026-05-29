@@ -66,6 +66,16 @@ export function hasHrSetupValidationErrors(errors) {
   return Boolean(errors && Object.keys(errors).length > 0);
 }
 
+export function buildHrSetupFormFromApi(setup) {
+  return {
+    companyUrl: normalizeText(setup?.company_url),
+    companyText: normalizeText(setup?.company_text),
+    roleDescription: normalizeText(setup?.role_description),
+    resumeText: normalizeText(setup?.resume_text),
+    profileText: normalizeText(setup?.profile_text),
+  };
+}
+
 export function buildHrContextPayload(form, options = {}) {
   const payload = {
     mode: options.mode ?? DEFAULT_HR_CONTEXT_MODE,

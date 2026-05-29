@@ -41,5 +41,7 @@ Thumbs.db
 *.swo
 tmp/
 backend/data/
+.prepper/
+backend/.prepper/
 TODO.md
 PLAN.md

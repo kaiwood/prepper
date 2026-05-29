@@ -30,7 +30,11 @@ export default function Home() {
     language,
     ui,
   });
-  const hrWorkflow = useHrWorkflow({ apiBaseUrl: API_BASE_URL, ui });
+  const hrWorkflow = useHrWorkflow({
+    apiBaseUrl: API_BASE_URL,
+    ui,
+    enabled: selectedArea === "admin",
+  });
 
   return (
     <main className="min-h-screen flex flex-col items-center p-8 gap-6">

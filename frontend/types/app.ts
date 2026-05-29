@@ -136,6 +136,25 @@ export type HrContextError = {
   message?: string;
 };
 
+export type HrSetupApiFields = {
+  company_url?: string;
+  company_text?: string;
+  role_description?: string;
+  resume_text?: string;
+  profile_text?: string;
+};
+
+export type HrDemoSetupResponse = {
+  setup?: HrSetupApiFields | null;
+  error?: string;
+};
+
+export type HrLatestSetupResponse = {
+  setup?: HrSetupApiFields | null;
+  context_result?: HrContextResponse | null;
+  error?: string;
+};
+
 export type HrContextResponse = {
   schema_version?: string;
   status?: string;

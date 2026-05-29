@@ -35,7 +35,8 @@ def _payload(**overrides):
     return payload
 
 
-def test_hr_context_endpoint_builds_and_stores_context_from_text():
+def test_hr_context_endpoint_builds_and_stores_context_from_text(monkeypatch, tmp_path):
+    monkeypatch.setenv("PREPPER_SQLITE_PATH", str(tmp_path / "prepper.sqlite3"))
     app = create_app()
     client = app.test_client()
 
@@ -61,6 +62,71 @@ def test_hr_context_endpoint_builds_and_stores_context_from_text():
     assert data["tool_call_events"][0]["status"] == "success"
     assert data["errors"] == []
     assert get_stored_hr_context(data["context_id"]).context_id == data["context_id"]
+
+    latest_response = client.get("/api/hr/setup/latest")
+    assert latest_response.status_code == 200
+    latest = latest_response.get_json()
+    assert latest["setup"] == {
+        "company_url": "",
+        "company_text": payload_company_text(),
+        "role_description": _payload()["role_description"],
+        "resume_text": _payload()["resume_text"],
+        "profile_text": _payload()["profile_text"],
+    }
+    assert latest["context_result"]["context_id"] == data["context_id"]
+
+
+def payload_company_text():
+    return _payload()["company_text"]
+
+
+def test_latest_hr_setup_rehydrates_saved_context(monkeypatch, tmp_path):
+    monkeypatch.setenv("PREPPER_SQLITE_PATH", str(tmp_path / "prepper.sqlite3"))
+    app = create_app()
+    client = app.test_client()
+
+    response = client.post("/api/hr/context", json=_payload())
+    assert response.status_code == 200
+    context_id = response.get_json()["context_id"]
+
+    from app.routes import hr as hr_routes
+
+    hr_routes._HR_CONTEXTS.pop(context_id, None)
+    hr_routes._HR_CONTEXT_METADATA.pop(context_id, None)
+    assert get_stored_hr_context(context_id) is None
+
+    latest_response = client.get("/api/hr/setup/latest")
+
+    assert latest_response.status_code == 200
+    latest = latest_response.get_json()
+    assert latest["context_result"]["context_id"] == context_id
+    assert get_stored_hr_context(context_id).context_id == context_id
+
+
+def test_latest_hr_setup_returns_empty_when_no_saved_setup(monkeypatch, tmp_path):
+    monkeypatch.setenv("PREPPER_SQLITE_PATH", str(tmp_path / "prepper.sqlite3"))
+    app = create_app()
+    client = app.test_client()
+
+    response = client.get("/api/hr/setup/latest")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"setup": None, "context_result": None}
+
+
+def test_demo_hr_setup_returns_fixture_fields():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.get("/api/hr/setup/demo")
+
+    assert response.status_code == 200
+    setup = response.get_json()["setup"]
+    assert setup["company_url"] == ""
+    assert setup["company_text"].startswith("# Northstar Analytics")
+    assert setup["role_description"].startswith("# Role: Customer Success Data Analyst")
+    assert setup["resume_text"].startswith("# Candidate Resume: Jordan Lee")
+    assert setup["profile_text"].startswith("# Candidate Profile Summary")
 
 
 def test_hr_context_endpoint_fetches_company_url(monkeypatch):

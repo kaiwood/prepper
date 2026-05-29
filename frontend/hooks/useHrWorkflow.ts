@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { ConversationMessage } from "../components/Conversation";
 import { formatApiError } from "../lib/inputLimits.mjs";
 import { buildApiUrl } from "../lib/appLogic.mjs";
 import {
   buildHrContextPayload,
+  buildHrSetupFormFromApi,
   hasHrSetupValidationErrors,
   validateHrSetupForm,
 } from "../lib/hrSetupLogic.mjs";
@@ -13,8 +14,10 @@ import {
 } from "../lib/hrInterviewLogic.mjs";
 import type {
   HrContextResponse,
+  HrDemoSetupResponse,
   HrInterviewResponse,
   HrInterviewSource,
+  HrLatestSetupResponse,
   HrInterviewStatus,
   HrSetupFormState,
   HrSetupValidationErrors,
@@ -26,9 +29,14 @@ import type {
 type UseHrWorkflowOptions = {
   apiBaseUrl: string;
   ui: TranslationStrings;
+  enabled?: boolean;
 };
 
-export function useHrWorkflow({ apiBaseUrl, ui }: UseHrWorkflowOptions) {
+export function useHrWorkflow({
+  apiBaseUrl,
+  ui,
+  enabled = true,
+}: UseHrWorkflowOptions) {
   const [hrSetupForm, setHrSetupForm] = useState<HrSetupFormState>({
     companyUrl: "",
     companyText: "",
@@ -38,6 +46,7 @@ export function useHrWorkflow({ apiBaseUrl, ui }: UseHrWorkflowOptions) {
   });
   const [hrSetupErrors, setHrSetupErrors] =
     useState<HrSetupValidationErrors>({});
+  const [hrDemoSetupLoading, setHrDemoSetupLoading] = useState(false);
   const [hrContextResult, setHrContextResult] =
     useState<HrContextResponse | null>(null);
   const [hrContextId, setHrContextId] = useState<string | null>(null);
@@ -67,6 +76,52 @@ export function useHrWorkflow({ apiBaseUrl, ui }: UseHrWorkflowOptions) {
   const hrResultPassed = hrFinalResult?.passed ?? false;
   const hrHasStarted = hrConversation.length > 0;
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLatestHrSetup() {
+      try {
+        const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/setup/latest"));
+        const data: HrLatestSetupResponse = await res.json();
+        if (cancelled) {
+          return;
+        }
+        if (!res.ok) {
+          setHrContextError(formatApiError(data, ui.errorFallback));
+          return;
+        }
+        if (data.setup) {
+          setHrSetupForm(buildHrSetupFormFromApi(data.setup));
+          setHrSetupErrors({});
+        }
+        if (data.context_result) {
+          setHrContextResult(data.context_result);
+          setHrContextId(
+            typeof data.context_result.context_id === "string" &&
+              data.context_result.context_id
+              ? data.context_result.context_id
+              : null,
+          );
+        }
+        if (data.error) {
+          setHrContextError(data.error);
+        }
+      } catch {
+        if (!cancelled) {
+          setHrContextError(ui.errorBackendUnavailable);
+        }
+      }
+    }
+
+    if (enabled) {
+      loadLatestHrSetup();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, enabled, ui.errorBackendUnavailable, ui.errorFallback]);
+
   const updateHrSetupField = (
     field: keyof HrSetupFormState,
     value: string,
@@ -79,6 +134,37 @@ export function useHrWorkflow({ apiBaseUrl, ui }: UseHrWorkflowOptions) {
       return validateHrSetupForm({ ...hrSetupForm, [field]: value });
     });
   };
+
+  async function handleLoadHrDemoSetup() {
+    if (hrDemoSetupLoading || hrContextLoading) {
+      return;
+    }
+
+    setHrDemoSetupLoading(true);
+    setHrContextError(null);
+
+    try {
+      const res = await fetch(buildApiUrl(apiBaseUrl, "/api/hr/setup/demo"));
+      const data: HrDemoSetupResponse = await res.json();
+
+      if (!res.ok) {
+        setHrContextError(formatApiError(data, ui.errorFallback));
+        return;
+      }
+
+      if (!data.setup) {
+        setHrContextError(ui.errorFallback);
+        return;
+      }
+
+      setHrSetupForm(buildHrSetupFormFromApi(data.setup));
+      setHrSetupErrors({});
+    } catch {
+      setHrContextError(ui.errorBackendUnavailable);
+    } finally {
+      setHrDemoSetupLoading(false);
+    }
+  }
 
   function resetHrInterview() {
     setHrMessage("");
@@ -262,12 +348,14 @@ export function useHrWorkflow({ apiBaseUrl, ui }: UseHrWorkflowOptions) {
 
   return {
     handleBuildHrContext,
+    handleLoadHrDemoSetup,
     handleStartHrInterview,
     handleSubmitHrInterview,
     hrContextError,
     hrContextId,
     hrContextLoading,
     hrContextResult,
+    hrDemoSetupLoading,
     hrConversation,
     hrFinalResult,
     hrHasStarted,

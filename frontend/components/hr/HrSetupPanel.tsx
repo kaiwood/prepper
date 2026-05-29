@@ -9,12 +9,22 @@ type HrSetupPanelProps = {
 export default function HrSetupPanel({ state }: HrSetupPanelProps) {
   return (
     <section className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">Admin HR setup</h1>
-        <p className="text-gray-500">
-          Build a candidate evaluation context from company, role, resume,
-          and optional profile information.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold">Admin HR setup</h1>
+          <p className="text-gray-500">
+            Build a candidate evaluation context from company, role, resume,
+            and optional profile information.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={state.handleLoadHrDemoSetup}
+          disabled={state.hrContextLoading || state.hrDemoSetupLoading}
+          className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-400"
+        >
+          {state.hrDemoSetupLoading ? "Loading demo..." : "Load demo data"}
+        </button>
       </div>
 
       <form className="mt-6 flex flex-col gap-5" onSubmit={state.handleBuildHrContext}>
