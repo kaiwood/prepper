@@ -105,6 +105,13 @@ def build_test_suites(backend_python: str, enable_color: bool = False) -> List[S
             cwd=FRONTEND_DIR,
             env=color_env(os.environ.copy(), enable_color),
         ),
+        SuiteConfig(
+            key="frontend",
+            name="frontend-typecheck",
+            cmd=["npm", "run", "typecheck"],
+            cwd=FRONTEND_DIR,
+            env=color_env(os.environ.copy(), enable_color),
+        ),
     ]
 
 

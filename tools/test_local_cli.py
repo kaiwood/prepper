@@ -422,12 +422,14 @@ def test_select_test_suites_defaults_to_all_in_order():
         "prepper-cli-test",
         "tools-test",
         "frontend-test",
+        "frontend-typecheck",
     ]
     assert suites[0].cmd == ["python", "-m", "pytest", "tests", "-q"]
     assert suites[1].cwd == suite_runner.CLI_DIR
     assert suites[2].cmd == ["python", "-m", "pytest", "tools", "-q"]
     assert suites[2].cwd == suite_runner.PROJECT_ROOT
     assert suites[3].cmd == ["npm", "run", "test:unit"]
+    assert suites[4].cmd == ["npm", "run", "typecheck"]
     assert suites[0].env is not None
     assert suites[0].env["PYTHONUNBUFFERED"] == "1"
     assert "FORCE_COLOR" not in suites[0].env
@@ -442,13 +444,15 @@ def test_select_test_suites_can_enable_color(monkeypatch):
     assert suites[1].cmd == ["python", "-m", "pytest", "tests", "-q", "--color=yes"]
     assert suites[2].cmd == ["python", "-m", "pytest", "tools", "-q", "--color=yes"]
     assert suites[3].cmd == ["npm", "run", "test:unit"]
+    assert suites[4].cmd == ["npm", "run", "typecheck"]
     for suite in suites[:3]:
         assert suite.env is not None
         assert "FORCE_COLOR" not in suite.env
         assert suite.env["NO_COLOR"] == "1"
-    assert suites[3].env is not None
-    assert suites[3].env["FORCE_COLOR"] == "1"
-    assert "NO_COLOR" not in suites[3].env
+    for suite in suites[3:]:
+        assert suite.env is not None
+        assert suite.env["FORCE_COLOR"] == "1"
+        assert "NO_COLOR" not in suite.env
 
 
 @pytest.mark.parametrize(
@@ -463,7 +467,10 @@ def test_select_test_suites_can_enable_color(monkeypatch):
 def test_select_test_suites_can_select_one_suite(selector, expected_name):
     suites = suite_runner.select_test_suites("python", selector)
 
-    assert [suite.name for suite in suites] == [expected_name]
+    expected_names = [expected_name]
+    if selector == "frontend":
+        expected_names.append("frontend-typecheck")
+    assert [suite.name for suite in suites] == expected_names
 
 
 def test_run_test_mode_runs_all_suites_in_order(monkeypatch):
@@ -481,6 +488,7 @@ def test_run_test_mode_runs_all_suites_in_order(monkeypatch):
         "prepper-cli-test",
         "tools-test",
         "frontend-test",
+        "frontend-typecheck",
     ]
 
 
@@ -499,6 +507,7 @@ def test_run_test_mode_passes_color_to_commands(monkeypatch):
         ("prepper-cli-test", True),
         ("tools-test", True),
         ("frontend-test", True),
+        ("frontend-typecheck", True),
     ]
 
 
@@ -512,7 +521,7 @@ def test_run_test_mode_runs_one_suite(monkeypatch):
     monkeypatch.setattr(suite_runner, "run_command", fake_run_command)
 
     assert suite_runner.run_test_mode("python", "frontend", lambda _message: None) == 0
-    assert calls == ["frontend-test"]
+    assert calls == ["frontend-test", "frontend-typecheck"]
 
 
 def test_run_test_mode_stops_on_first_failure(monkeypatch):
