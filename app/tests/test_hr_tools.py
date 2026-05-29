@@ -61,6 +61,12 @@ def isolated_vector_store(monkeypatch, tmp_path):
         "prepper_cli.hr_tools._resolve_company_website_host_ips",
         fake_resolve,
     )
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._build_company_website_markdown_llm",
+        lambda *, model=None: FakeCandidateProfileLlm(
+            '{"company_markdown":"# Example Careers\\n\\nWe build useful HR software.\\n\\n- Privacy-first analytics for hiring teams."}'
+        ),
+    )
 
 
 class FakeResponse:
@@ -418,6 +424,58 @@ def test_role_description_tool_result_converts_to_context_entries():
     assert source.uri == "fixture://role.md"
     assert document.source_id == "role_job_ad"
     assert chunks[0].source_id == "role_job_ad"
+
+
+
+def test_fetch_company_website_llm_fetches_and_extracts_markdown(monkeypatch):
+    html = b"""
+    <html><head><title>Example Careers</title></head><body>
+      <nav>ignore menu</nav>
+      <h1>Example Company</h1>
+      <p>We build useful HR software.</p>
+      <p>Privacy-first analytics for hiring teams.</p>
+    </body></html>
+    """
+
+    def fake_open(request, *, timeout_seconds, allow_private_url_fetch):
+        assert request.full_url == "https://example.com/about"
+        assert "company website fetcher" in request.headers["User-agent"]
+        return FakeResponse(html)
+
+    fake_llm = FakeCandidateProfileLlm(
+        '{"company_markdown":"# Example Company\\n\\n- Builds useful HR software.\\n- Privacy-first analytics for hiring teams."}'
+    )
+    monkeypatch.setattr("prepper_cli.hr_tools._open_company_website_request", fake_open)
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._build_company_website_markdown_llm",
+        lambda model: fake_llm,
+    )
+
+    result = run_fetch_company_website_tool(
+        mode="llm", url="https://example.com/about"
+    )
+    payload = hr_tool_result_to_dict(result)
+
+    assert payload["tool_name"] == FETCH_COMPANY_WEBSITE_TOOL_NAME
+    assert payload["output"]["document"]["markdown"].startswith("# Example Company")
+    assert payload["output"]["source"]["title"] == "Example Company"
+    assert fake_llm.messages[0][0] == "system"
+    assert "ignore menu" not in fake_llm.messages[1][1]
+
+
+
+def test_fetch_company_website_llm_reports_invalid_json(monkeypatch):
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._open_company_website_request",
+        lambda _request, **_kwargs: FakeResponse(b"<html><body>Company text</body></html>"),
+    )
+    monkeypatch.setattr(
+        "prepper_cli.hr_tools._build_company_website_markdown_llm",
+        lambda model: FakeCandidateProfileLlm("not json"),
+    )
+
+    with pytest.raises(HrToolError, match="invalid JSON"):
+        run_fetch_company_website_tool(mode="llm", url="https://example.com/about")
 
 
 
