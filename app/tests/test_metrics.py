@@ -41,4 +41,8 @@ def test_metrics_snapshot_aggregates_sanitized_events(tmp_path):
     assert snapshot["rag"]["avg_top_relevance_percent"] == 75
     assert snapshot["safety"]["blocked_url_attempts"] == 1
     assert snapshot["tools"][0]["name"] == "fetch_company_website"
+    tool_event = next(
+        event for event in snapshot["recent_events"] if event["label"] == "fetch_company_website"
+    )
+    assert tool_event["error_message"] == "Company website URL resolves to blocked address: 127.0.0.1"
     assert all("secret resume" not in str(event) for event in snapshot["recent_events"])

@@ -36,6 +36,8 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedErrorEvent, setSelectedErrorEvent] =
+    useState<MetricsRecentEvent | null>(null);
 
   const loadMetrics = useCallback(async () => {
     setLoading(true);
@@ -229,9 +231,19 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
 
       <div className="rounded-b-[1.35rem] bg-slate-100 px-4 pb-4">
         <DashboardCard title="Recent activity" subtitle="Sanitized operational event timeline">
-          <EventTimeline events={recentEvents} />
+          <EventTimeline
+            events={recentEvents}
+            onSelectError={setSelectedErrorEvent}
+          />
         </DashboardCard>
       </div>
+
+      {selectedErrorEvent && (
+        <ErrorDetailsOverlay
+          event={selectedErrorEvent}
+          onClose={() => setSelectedErrorEvent(null)}
+        />
+      )}
     </section>
   );
 }
@@ -341,32 +353,118 @@ function ToolTable({ tools }: { tools: MetricsToolSummary[] }) {
   );
 }
 
-function EventTimeline({ events }: { events: MetricsRecentEvent[] }) {
+function EventTimeline({
+  events,
+  onSelectError,
+}: {
+  events: MetricsRecentEvent[];
+  onSelectError: (event: MetricsRecentEvent) => void;
+}) {
   if (events.length === 0) {
     return <p className="text-sm text-slate-500">No operational events recorded yet.</p>;
   }
   return (
     <ol className="relative border-l border-slate-200 pl-5">
-      {events.map((event, index) => (
-        <li key={`${event.timestamp}-${event.event}-${index}`} className="mb-4 last:mb-0">
-          <span className={`absolute -left-2 mt-1 h-4 w-4 rounded-full border-2 border-white ${event.status === "success" ? "bg-green-500" : "bg-red-500"}`} />
-          <div className="flex flex-col gap-1 rounded-xl bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium text-slate-900">{event.label}</p>
-              <p className="text-xs text-slate-500">
-                {event.event} · {event.status} · {formatDateTime(event.timestamp)}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs">
-              {typeof event.duration_ms === "number" && <Badge>{event.duration_ms}ms</Badge>}
-              {event.mode && <Badge>{event.mode}</Badge>}
-              {event.model && <Badge>{event.model}</Badge>}
-              {event.error_type && <Badge tone="red">{event.error_type}</Badge>}
-            </div>
-          </div>
-        </li>
-      ))}
+      {events.map((event, index) => {
+        const hasErrorDetails = isErrorEvent(event);
+        const CardElement = hasErrorDetails ? "button" : "div";
+        return (
+          <li key={`${event.timestamp}-${event.event}-${index}`} className="mb-4 last:mb-0">
+            <span className={`absolute -left-2 mt-1 h-4 w-4 rounded-full border-2 border-white ${event.status === "success" ? "bg-green-500" : "bg-red-500"}`} />
+            <CardElement
+              type={hasErrorDetails ? "button" : undefined}
+              onClick={hasErrorDetails ? () => onSelectError(event) : undefined}
+              className={`flex w-full flex-col gap-1 rounded-xl bg-slate-50 p-3 text-left sm:flex-row sm:items-center sm:justify-between ${
+                hasErrorDetails ? "cursor-pointer ring-1 ring-red-100 transition hover:bg-red-50 hover:ring-red-200" : ""
+              }`}
+            >
+              <div>
+                <p className="font-medium text-slate-900">{event.label}</p>
+                <p className="text-xs text-slate-500">
+                  {event.event} · {event.status} · {formatDateTime(event.timestamp)}
+                  {hasErrorDetails ? " · click for details" : ""}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {typeof event.duration_ms === "number" && <Badge>{event.duration_ms}ms</Badge>}
+                {event.mode && <Badge>{event.mode}</Badge>}
+                {event.model && <Badge>{event.model}</Badge>}
+                {event.error_type && <Badge tone="red">{event.error_type}</Badge>}
+              </div>
+            </CardElement>
+          </li>
+        );
+      })}
     </ol>
+  );
+}
+
+function ErrorDetailsOverlay({
+  event,
+  onClose,
+}: {
+  event: MetricsRecentEvent;
+  onClose: () => void;
+}) {
+  const details = [
+    ["Event", event.event],
+    ["Status", event.status],
+    ["Label", event.label],
+    ["Time", formatDateTime(event.timestamp)],
+    ["Route", [event.method, event.route].filter(Boolean).join(" ")],
+    ["Operation", event.operation],
+    ["Tool", event.tool_name],
+    ["Mode", event.mode],
+    ["Model", event.model],
+    ["Status code", event.status_code?.toString()],
+    ["Duration", typeof event.duration_ms === "number" ? `${event.duration_ms}ms` : ""],
+    ["Error type", event.error_type],
+  ].filter(([, value]) => value);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+      <section className="w-full max-w-2xl rounded-2xl border border-red-100 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-red-600">Error details</p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-900">{event.label}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Sanitized server error metadata. Sensitive input content is not stored.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-200 px-3 py-1 text-sm text-slate-700 transition hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+        <div className="grid gap-3 p-5">
+          {details.map(([label, value]) => (
+            <div key={label} className="grid gap-1 rounded-xl bg-slate-50 p-3 sm:grid-cols-[130px_1fr]">
+              <dt className="text-sm font-medium text-slate-500">{label}</dt>
+              <dd className="break-words text-sm text-slate-900">{value}</dd>
+            </div>
+          ))}
+          <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+            <h3 className="text-sm font-semibold text-red-800">Message</h3>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm text-red-900">
+              {event.error_message || "No error message was recorded for this event."}
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function isErrorEvent(event: MetricsRecentEvent): boolean {
+  return (
+    event.status === "error" ||
+    Boolean(event.error_type) ||
+    Boolean(event.error_message) ||
+    (typeof event.status_code === "number" && event.status_code >= 400)
   );
 }
 

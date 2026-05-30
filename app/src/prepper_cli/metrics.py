@@ -360,6 +360,9 @@ def _build_recent_events(rows: list[MetricEvent], *, limit: int) -> list[dict[st
     for row in rows:
         if row.event not in visible_events:
             continue
+        error_message = _normalize_text(row.metadata.get("error_message"), max_length=500)
+        if row.event == "rate_limit" and not error_message:
+            error_message = "Rate limit exceeded for this route."
         result.append(
             {
                 "timestamp": row.timestamp,
@@ -369,7 +372,12 @@ def _build_recent_events(rows: list[MetricEvent], *, limit: int) -> list[dict[st
                 "duration_ms": row.duration_ms,
                 "model": row.model,
                 "mode": row.mode,
+                "operation": row.operation,
+                "tool_name": row.tool_name,
+                "route": row.route,
+                "method": row.method,
                 "error_type": row.error_type,
+                "error_message": error_message,
                 "status_code": row.status_code,
             }
         )

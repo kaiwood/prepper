@@ -346,7 +346,12 @@ export type MetricsRecentEvent = {
   duration_ms?: number | null;
   model?: string;
   mode?: string;
+  operation?: string;
+  tool_name?: string;
+  route?: string;
+  method?: string;
   error_type?: string;
+  error_message?: string;
   status_code?: number | null;
 };
 
