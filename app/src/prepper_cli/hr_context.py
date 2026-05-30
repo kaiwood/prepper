@@ -573,14 +573,18 @@ def _invoke_context_langchain_tool(*, tool: Any, args: dict[str, Any], model: st
     from .client import build_chat_model
     from .hr_langchain_tools import build_tool_result_from_payload
 
-    selected_args = args
-    messages = [
-        (
-            "system",
-            "You orchestrate HR context-building tools. If a tool is needed, call exactly one supplied tool with the provided data. Do not invent data.",
-        ),
-        ("human", f"{instruction}\n\nTool arguments:\n{json.dumps(args)}"),
-    ]
+    try:
+        from langchain.agents import create_agent
+    except ImportError as exc:  # pragma: no cover - depends on env install
+        raise RuntimeError("langchain is required for HR agent tool orchestration") from exc
+
+    tool_name = str(getattr(tool, "name", "HR tool"))
+    system_prompt = (
+        "You orchestrate HR context-building tools. Call exactly one supplied tool "
+        "using only the provided arguments. Do not answer directly. Do not invent data."
+    )
+    user_message = f"{instruction}\n\nTool arguments:\n{json.dumps(args)}"
+    messages = [{"role": "user", "content": user_message}]
     started_at = time.monotonic()
     try:
         llm = build_chat_model(
@@ -588,44 +592,140 @@ def _invoke_context_langchain_tool(*, tool: Any, args: dict[str, Any], model: st
             temperature=0,
             timeout=30,
             max_retries=1,
-        ).bind_tools([tool])
-        response = llm.invoke(messages)
-        tool_calls = getattr(response, "tool_calls", None) or []
-        log_structured_event(
-            "llm_call",
-            status="success",
-            duration_ms=duration_ms(started_at),
-            operation="hr_context_tool_selection",
-            model=model,
-            message_count=len(messages),
-            input_char_count=sum(len(content) for _, content in messages),
-            tool_call_count=len(tool_calls),
         )
-        if tool_calls:
-            first_call = tool_calls[0]
-            call_args = first_call.get("args") if isinstance(first_call, dict) else None
-            if isinstance(call_args, dict):
-                selected_args = {**args, **call_args}
+        agent = create_agent(model=llm, tools=[tool], system_prompt=system_prompt)
+        agent_response = agent.invoke({"messages": messages})
     except Exception as exc:
         log_structured_event(
             "llm_call",
             status="error",
             level=logging.WARNING,
             duration_ms=duration_ms(started_at),
-            operation="hr_context_tool_selection",
+            operation="hr_context_tool_agent",
             model=model,
             message_count=len(messages),
-            input_char_count=sum(len(content) for _, content in messages),
+            input_char_count=len(user_message),
             **exception_log_fields(exc),
         )
-        # Fall back to deterministic invocation; the tool call itself will still be recorded.
-        selected_args = args
+        raise
 
-    payload = tool.invoke(selected_args)
+    tool_call_count = _count_agent_tool_calls(agent_response)
+    log_structured_event(
+        "llm_call",
+        status="success",
+        duration_ms=duration_ms(started_at),
+        operation="hr_context_tool_agent",
+        model=model,
+        message_count=len(messages),
+        input_char_count=len(user_message),
+        tool_call_count=tool_call_count,
+    )
+
+    payload = _extract_agent_tool_payload(agent_response, expected_tool_name=tool_name)
     result = build_tool_result_from_payload(payload)
     if result is None:
-        raise HrContextValidationError("LangChain HR tool returned an invalid payload")
+        raise HrContextValidationError("LangChain HR agent returned an invalid tool payload")
+    if result.tool_name != tool_name:
+        raise HrContextValidationError(
+            f"LangChain HR agent called unexpected tool '{result.tool_name}'"
+        )
     return result
+
+
+def _count_agent_tool_calls(agent_response: Any) -> int:
+    messages = _agent_response_messages(agent_response)
+    count = 0
+    for message in messages:
+        tool_calls = _message_attr(message, "tool_calls")
+        if isinstance(tool_calls, list):
+            count += len(tool_calls)
+    return count
+
+
+def _extract_agent_tool_payload(agent_response: Any, *, expected_tool_name: str) -> dict[str, Any]:
+    messages = _agent_response_messages(agent_response)
+    payloads: list[dict[str, Any]] = []
+    saw_expected_tool_message = False
+    for message in messages:
+        if _message_type(message) != "tool":
+            continue
+        message_name = _message_attr(message, "name")
+        if isinstance(message_name, str) and message_name != expected_tool_name:
+            continue
+        saw_expected_tool_message = True
+        payload = _tool_message_payload(message)
+        if payload is not None:
+            payloads.append(payload)
+
+    if not payloads:
+        if saw_expected_tool_message:
+            raise HrContextValidationError(
+                "LangChain HR agent returned an invalid tool payload"
+            )
+        raise HrContextValidationError(
+            f"LangChain HR agent did not call expected tool '{expected_tool_name}'"
+        )
+    if len(payloads) > 1:
+        raise HrContextValidationError(
+            f"LangChain HR agent returned multiple '{expected_tool_name}' tool payloads"
+        )
+    return payloads[0]
+
+
+def _agent_response_messages(agent_response: Any) -> list[Any]:
+    if isinstance(agent_response, dict):
+        messages = agent_response.get("messages")
+    else:
+        messages = getattr(agent_response, "messages", None)
+    if not isinstance(messages, list):
+        raise HrContextValidationError("LangChain HR agent returned invalid messages")
+    return messages
+
+
+def _message_type(message: Any) -> str | None:
+    message_type = _message_attr(message, "type")
+    if isinstance(message_type, str):
+        return message_type
+    if isinstance(message, dict):
+        role = message.get("role")
+        if isinstance(role, str):
+            return role
+    return None
+
+
+def _message_attr(message: Any, key: str) -> Any:
+    if isinstance(message, dict):
+        return message.get(key)
+    return getattr(message, key, None)
+
+
+def _tool_message_payload(message: Any) -> dict[str, Any] | None:
+    artifact = _message_attr(message, "artifact")
+    if isinstance(artifact, dict):
+        return artifact
+    return _content_payload(_message_attr(message, "content"))
+
+
+def _content_payload(content: Any) -> dict[str, Any] | None:
+    if isinstance(content, dict):
+        return content
+    if isinstance(content, str):
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            return None
+        return payload if isinstance(payload, dict) else None
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict) and {"tool_name", "status", "output"}.issubset(item):
+                return item
+            if isinstance(item, dict):
+                text = item.get("text") or item.get("content")
+                if isinstance(text, str):
+                    payload = _content_payload(text)
+                    if payload is not None:
+                        return payload
+    return None
 
 
 def build_mock_hr_context(fixture: HrFixture) -> HrContext:

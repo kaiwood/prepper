@@ -3,6 +3,7 @@ faiss-cpu
 flask
 flask-cors
 flask-limiter
+langchain
 langchain-community
 langchain-openai
 langchain-text-splitters

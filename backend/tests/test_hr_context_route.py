@@ -1,6 +1,8 @@
 import ipaddress
 import json
 import logging
+import sys
+import types
 from email.message import Message
 
 from app import create_app
@@ -115,6 +117,53 @@ def patch_company_website_llm(monkeypatch, markdown: str):
             json.dumps({"company_markdown": markdown})
         ),
     )
+
+
+def patch_langchain_agent(monkeypatch):
+    class FakeToolMessage:
+        type = "tool"
+
+        def __init__(self, content, *, name):
+            self.content = content
+            self.name = name
+            self.tool_call_id = "call_1"
+            self.artifact = None
+
+    class FakeAiMessage:
+        type = "ai"
+
+        def __init__(self, tool_name=None, args=None):
+            self.content = ""
+            self.tool_calls = []
+            if tool_name is not None:
+                self.tool_calls.append({"name": tool_name, "args": args or {}, "id": "call_1"})
+
+    class FakeAgent:
+        def __init__(self, tool):
+            self.tool = tool
+
+        def invoke(self, payload):
+            user_message = payload["messages"][0]["content"]
+            args = json.loads(user_message.split("Tool arguments:\n", 1)[1])
+            result = self.tool.invoke(args)
+            return {
+                "messages": [
+                    FakeAiMessage(self.tool.name, args),
+                    FakeToolMessage(json.dumps(result), name=self.tool.name),
+                    FakeAiMessage(),
+                ]
+            }
+
+    def fake_create_agent(*, model, tools, system_prompt):
+        return FakeAgent(tools[0])
+
+    langchain_module = types.ModuleType("langchain")
+    agents_module = types.ModuleType("langchain.agents")
+    agents_module.create_agent = fake_create_agent
+    langchain_module.agents = agents_module
+    monkeypatch.setitem(sys.modules, "langchain", langchain_module)
+    monkeypatch.setitem(sys.modules, "langchain.agents", agents_module)
+    monkeypatch.setattr("prepper_cli.client.build_chat_model", lambda **_kwargs: object())
 
 
 def test_hr_context_endpoint_accepts_extracted_profile_without_resume_text(monkeypatch, tmp_path):
@@ -288,6 +337,7 @@ def test_hr_context_endpoint_fetches_role_url(monkeypatch):
     )
     monkeypatch.setattr("prepper_cli.hr_langchain_tools.run_fetch_role_description_tool", fake_role_tool)
     monkeypatch.setattr("prepper_cli.hr_langchain_tools.run_extract_candidate_profile_tool", fake_candidate_tool)
+    patch_langchain_agent(monkeypatch)
     app = create_app()
     client = app.test_client()
 
