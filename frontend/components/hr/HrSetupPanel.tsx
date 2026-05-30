@@ -12,7 +12,7 @@ type HrSetupPanelProps = {
 type SetupSection = "company" | "role" | "resume" | "profile";
 
 const cardBase =
-  "rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md";
+  "cursor-pointer rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-colors hover:border-blue-200";
 const inputBase =
   "rounded-lg border border-slate-200 bg-white px-3 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400";
 const textareaBase = `${inputBase} min-h-40 font-mono text-sm`;
