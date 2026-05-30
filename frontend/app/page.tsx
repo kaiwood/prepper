@@ -30,6 +30,7 @@ export default function Home() {
     presentationModeEnabled: PRESENTATION_MODE_ENABLED,
     language,
     ui,
+    active: selectedArea === "user",
   });
   const hrWorkflow = useHrWorkflow({
     apiBaseUrl: API_BASE_URL,
@@ -45,7 +46,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center p-8 gap-6">
+    <main className="min-h-screen bg-[#f8fafc] text-slate-950">
       <AreaLanguageNav
         language={language}
         selectedArea={selectedArea}
@@ -54,21 +55,24 @@ export default function Home() {
         ui={ui}
       />
 
-      {selectedArea === "admin" ? (
-        <HrSetupPanel
-          state={hrWorkflow}
-          ui={ui}
-          onClearAllData={handleClearAllData}
-        />
-      ) : selectedArea === "dashboard" ? (
-        <DashboardPanel apiBaseUrl={API_BASE_URL} />
-      ) : (
-        <UserInterviewPanel
-          state={userInterview}
-          ui={ui}
-          presentationModeEnabled={PRESENTATION_MODE_ENABLED}
-        />
-      )}
+      <div className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-8">
+        {selectedArea === "admin" ? (
+          <HrSetupPanel
+            state={hrWorkflow}
+            ui={ui}
+            onClearAllData={handleClearAllData}
+          />
+        ) : selectedArea === "dashboard" ? (
+          <DashboardPanel apiBaseUrl={API_BASE_URL} ui={ui} />
+        ) : (
+          <UserInterviewPanel
+            state={userInterview}
+            ui={ui}
+            presentationModeEnabled={PRESENTATION_MODE_ENABLED}
+            onEditContext={() => setSelectedArea("admin")}
+          />
+        )}
+      </div>
     </main>
   );
 }

@@ -128,6 +128,17 @@ export function continueHrInterview(
   );
 }
 
+export function endHrInterview(
+  apiBaseUrl: string,
+  contextId: string,
+  interviewId: string,
+): Promise<ApiResult<HrInterviewResponse>> {
+  return postJson<HrInterviewResponse>(apiBaseUrl, "/api/hr/interview/end", {
+    context_id: contextId,
+    interview_id: interviewId,
+  });
+}
+
 export function generateHrCandidateAnswer(
   apiBaseUrl: string,
   currentQuestion: string,

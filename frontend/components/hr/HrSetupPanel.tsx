@@ -1,4 +1,4 @@
-import { summarizeHrToolCatalogItem } from "../../lib/hrInterviewLogic.mjs";
+import { useState } from "react";
 import { INPUT_LIMITS } from "../../lib/inputLimits.mjs";
 import type { HrWorkflowState } from "../../hooks/useHrWorkflow";
 import type { TranslationStrings } from "../../types/app";
@@ -9,601 +9,687 @@ type HrSetupPanelProps = {
   onClearAllData: () => void;
 };
 
+type SetupSection = "company" | "role" | "resume" | "profile";
+
+const cardBase =
+  "rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md";
+const inputBase =
+  "rounded-lg border border-slate-200 bg-white px-3 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400";
+const textareaBase = `${inputBase} min-h-40 font-mono text-sm`;
+const primaryButton =
+  "rounded-lg bg-blue-600 px-5 py-3 font-medium text-white shadow-md transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300";
+const secondaryButton =
+  "rounded-lg border border-blue-200 bg-white px-4 py-3 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400";
+
 export default function HrSetupPanel({
   state,
   ui,
   onClearAllData,
 }: HrSetupPanelProps) {
+  const [activeSection, setActiveSection] = useState<SetupSection | null>(null);
+  const [resumeModalOpen, setResumeModalOpen] = useState(false);
+
+  if (activeSection) {
+    return (
+      <section className="mx-auto w-full max-w-[980px]">
+        <button
+          type="button"
+          onClick={() => setActiveSection(null)}
+          className="mb-4 text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          ‹ {ui.hrBackToOverview}
+        </button>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          {activeSection === "company" && <CompanyDetail state={state} ui={ui} />}
+          {activeSection === "role" && <RoleDetail state={state} ui={ui} />}
+          {activeSection === "resume" && (
+            <ResumeDetail
+              state={state}
+              ui={ui}
+              onOpenUpload={() => setResumeModalOpen(true)}
+            />
+          )}
+          {activeSection === "profile" && <ProfileDetail state={state} ui={ui} />}
+        </div>
+
+        {state.hrContextError && (
+          <ErrorBox message={state.hrContextError} />
+        )}
+        {resumeModalOpen && (
+          <ResumeUploadModal
+            state={state}
+            ui={ui}
+            onClose={() => setResumeModalOpen(false)}
+          />
+        )}
+      </section>
+    );
+  }
+
+  const cards = [
+    {
+      section: "company" as const,
+      icon: "▥",
+      title: ui.hrCompanyLabel,
+      description: ui.hrSetupCompanyDescription,
+      action: state.hrSetupForm.companyText || state.hrSetupForm.companyUrl ? ui.hrEditCompany : ui.hrAddCompany,
+      complete: Boolean(state.hrSetupForm.companyText || state.hrSetupForm.companyUrl),
+    },
+    {
+      section: "role" as const,
+      icon: "▣",
+      title: ui.hrRoleLabel,
+      description: ui.hrSetupRoleDescription,
+      action: state.hrSetupForm.roleDescription || state.hrSetupForm.roleUrl ? ui.hrEditRole : ui.hrAddRole,
+      complete: Boolean(state.hrSetupForm.roleDescription || state.hrSetupForm.roleUrl),
+    },
+    {
+      section: "resume" as const,
+      icon: "▤",
+      title: ui.hrResumeLabel,
+      description: ui.hrSetupResumeDescription,
+      action: state.hrSetupForm.resumeText ? ui.hrEditResume : ui.hrAddResume,
+      complete: Boolean(state.hrSetupForm.resumeText),
+    },
+    {
+      section: "profile" as const,
+      icon: "♙",
+      title: ui.hrProfileLabel,
+      description: ui.hrSetupProfileDescription,
+      action: state.hrSetupForm.profileText ? ui.hrEditProfile : ui.hrAddProfile,
+      complete: Boolean(state.hrSetupForm.profileText),
+      optional: true,
+    },
+  ];
+
   return (
-    <section className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-6">
+    <section className="mx-auto w-full max-w-[1180px] rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">{ui.hrAdminTitle}</h1>
-        <p className="text-gray-500">{ui.hrAdminSubtitle}</p>
+        <h1 className="text-2xl font-bold text-slate-950">{ui.hrAdminTitle}</h1>
+        <p className="text-sm text-slate-500">{ui.hrAdminSubtitle}</p>
       </div>
 
-      <form className="mt-6 flex flex-col gap-5" onSubmit={state.handleBuildHrContext}>
-        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50/70 p-4 shadow-sm">
-          <div
-            className="inline-flex w-fit rounded-lg border border-gray-200 bg-white p-1"
-            role="tablist"
-            aria-label={ui.hrCompanyLabel}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={state.hrCompanyInputMode === "companyText"}
-              aria-controls="hr-company-text-panel"
-              disabled={state.hrContextLoading}
-              onClick={() => state.updateHrCompanyInputMode("companyText")}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
-                state.hrCompanyInputMode === "companyText"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {ui.hrCompanyTextLabel}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={state.hrCompanyInputMode === "companyUrl"}
-              aria-controls="hr-company-url-panel"
-              disabled={state.hrContextLoading}
-              onClick={() => state.updateHrCompanyInputMode("companyUrl")}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
-                state.hrCompanyInputMode === "companyUrl"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {ui.hrCompanyUrlLabel}
-            </button>
-          </div>
-
-          {state.hrCompanyInputMode === "companyText" ? (
-            <div
-              id="hr-company-text-panel"
-              role="tabpanel"
-              className="flex flex-col gap-2"
-            >
-              <label
-                htmlFor="hr-company-text"
-                className="text-sm font-medium text-gray-700"
-              >
-                {ui.hrCompanyTextLabel}
-              </label>
-              <textarea
-                id="hr-company-text"
-                value={state.hrSetupForm.companyText}
-                onChange={(event) =>
-                  state.updateHrSetupField("companyText", event.target.value)
-                }
-                disabled={state.hrContextLoading}
-                maxLength={INPUT_LIMITS.companyText}
-                rows={5}
-                placeholder={ui.hrCompanyTextPlaceholder}
-                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-              />
-            </div>
-          ) : (
-            <div
-              id="hr-company-url-panel"
-              role="tabpanel"
-              className="flex flex-col gap-2"
-            >
-              <label
-                htmlFor="hr-company-url"
-                className="text-sm font-medium text-gray-700"
-              >
-                {ui.hrCompanyUrlLabel}
-              </label>
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                <input
-                  id="hr-company-url"
-                  type="url"
-                  value={state.hrSetupForm.companyUrl}
-                  onChange={(event) =>
-                    state.updateHrSetupField("companyUrl", event.target.value)
-                  }
-                  disabled={state.hrContextLoading || state.hrCompanyFetchLoading}
-                  maxLength={INPUT_LIMITS.companyUrl}
-                  placeholder={ui.hrCompanyUrlPlaceholder}
-                  className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                />
-                <button
-                  type="button"
-                  onClick={state.handleFetchCompanyUrl}
-                  disabled={state.hrContextLoading || state.hrCompanyFetchLoading}
-                  className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-400"
-                >
-                  {state.hrCompanyFetchLoading ? ui.hrFetchingCompany : ui.hrFetchCompany}
-                </button>
-              </div>
-              <p className="text-sm text-gray-500">
-                {ui.hrCompanyUrlHint}
-              </p>
-            </div>
-          )}
-          {state.hrSetupErrors.company && (
-            <p className="text-sm text-red-600">{state.hrSetupErrors.company}</p>
-          )}
-        </section>
-
-        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50/70 p-4 shadow-sm">
-          <div
-            className="inline-flex w-fit rounded-lg border border-gray-200 bg-white p-1"
-            role="tablist"
-            aria-label={ui.hrRoleLabel}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={state.hrRoleInputMode === "roleDescription"}
-              aria-controls="hr-role-description-panel"
-              disabled={state.hrContextLoading}
-              onClick={() => state.updateHrRoleInputMode("roleDescription")}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
-                state.hrRoleInputMode === "roleDescription"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {ui.hrRoleDescriptionLabel}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={state.hrRoleInputMode === "roleUrl"}
-              aria-controls="hr-role-url-panel"
-              disabled={state.hrContextLoading}
-              onClick={() => state.updateHrRoleInputMode("roleUrl")}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
-                state.hrRoleInputMode === "roleUrl"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {ui.hrRoleUrlLabel}
-            </button>
-          </div>
-
-          {state.hrRoleInputMode === "roleDescription" ? (
-            <div
-              id="hr-role-description-panel"
-              role="tabpanel"
-              className="flex flex-col gap-2"
-            >
-              <label
-                htmlFor="hr-role-description"
-                className="text-sm font-medium text-gray-700"
-              >
-                {ui.hrRoleDescriptionLabel}
-              </label>
-              <textarea
-                id="hr-role-description"
-                value={state.hrSetupForm.roleDescription}
-                onChange={(event) =>
-                  state.updateHrSetupField("roleDescription", event.target.value)
-                }
-                disabled={state.hrContextLoading}
-                maxLength={INPUT_LIMITS.roleDescription}
-                rows={6}
-                placeholder={ui.hrRoleDescriptionPlaceholder}
-                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-              />
-            </div>
-          ) : (
-            <div
-              id="hr-role-url-panel"
-              role="tabpanel"
-              className="flex flex-col gap-2"
-            >
-              <label
-                htmlFor="hr-role-url"
-                className="text-sm font-medium text-gray-700"
-              >
-                {ui.hrRoleUrlLabel}
-              </label>
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                <input
-                  id="hr-role-url"
-                  type="url"
-                  value={state.hrSetupForm.roleUrl}
-                  onChange={(event) =>
-                    state.updateHrSetupField("roleUrl", event.target.value)
-                  }
-                  disabled={state.hrContextLoading || state.hrRoleFetchLoading}
-                  maxLength={INPUT_LIMITS.roleUrl}
-                  placeholder={ui.hrRoleUrlPlaceholder}
-                  className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                />
-                <button
-                  type="button"
-                  onClick={state.handleFetchRoleUrl}
-                  disabled={state.hrContextLoading || state.hrRoleFetchLoading}
-                  className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-400"
-                >
-                  {state.hrRoleFetchLoading ? ui.hrFetchingRole : ui.hrFetchRole}
-                </button>
-              </div>
-              <p className="text-sm text-gray-500">{ui.hrRoleUrlHint}</p>
-            </div>
-          )}
-          {state.hrSetupErrors.roleDescription && (
-            <p className="text-sm text-red-600">
-              {state.hrSetupErrors.roleDescription}
-            </p>
-          )}
-        </section>
-
-        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50/70 p-4 shadow-sm">
-          <div
-            className="inline-flex w-fit rounded-lg border border-gray-200 bg-white p-1"
-            role="tablist"
-            aria-label={ui.hrResumeTextLabel}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={state.hrResumeInputMode === "resumeText"}
-              aria-controls="hr-resume-text-panel"
-              disabled={state.hrContextLoading}
-              onClick={() => state.updateHrResumeInputMode("resumeText")}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
-                state.hrResumeInputMode === "resumeText"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {ui.hrResumeTextLabel}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={state.hrResumeInputMode === "resumePdf"}
-              aria-controls="hr-resume-pdf-panel"
-              disabled={state.hrContextLoading}
-              onClick={() => state.updateHrResumeInputMode("resumePdf")}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
-                state.hrResumeInputMode === "resumePdf"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {ui.hrResumePdfLabel}
-            </button>
-          </div>
-
-          {state.hrResumeInputMode === "resumeText" ? (
-            <div
-              id="hr-resume-text-panel"
-              role="tabpanel"
-              className="flex flex-col gap-2"
-            >
-              <label
-                htmlFor="hr-resume-text"
-                className="text-sm font-medium text-gray-700"
-              >
-                {ui.hrResumeTextLabel}
-              </label>
-              <textarea
-                id="hr-resume-text"
-                value={state.hrSetupForm.resumeText}
-                onChange={(event) =>
-                  state.updateHrSetupField("resumeText", event.target.value)
-                }
-                disabled={state.hrContextLoading}
-                maxLength={INPUT_LIMITS.resumeText}
-                rows={6}
-                placeholder={ui.hrResumeTextPlaceholder}
-                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-              />
-            </div>
-          ) : (
-            <div
-              id="hr-resume-pdf-panel"
-              role="tabpanel"
-              className="flex flex-col gap-2"
-            >
-              <span className="text-sm font-medium text-gray-700">
-                {ui.hrResumePdfLabel}
-              </span>
-              <label
-                className={`inline-flex w-fit items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                  state.hrContextLoading || state.hrResumeExtractLoading
-                    ? "cursor-not-allowed border-gray-200 text-gray-400"
-                    : "cursor-pointer border-blue-200 text-blue-700 hover:bg-blue-50"
-                }`}
-              >
-                {state.hrResumeExtractLoading
-                  ? ui.hrExtractingResumePdf
-                  : ui.hrExtractResumePdf}
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  disabled={state.hrContextLoading || state.hrResumeExtractLoading}
-                  onChange={state.handleExtractResumePdf}
-                  className="sr-only"
-                />
-              </label>
-              <p className="text-sm text-gray-500">{ui.hrResumePdfHint}</p>
-            </div>
-          )}
-          {state.hrSetupErrors.resumeText && (
-            <p className="text-sm text-red-600">
-              {state.hrSetupErrors.resumeText}
-            </p>
-          )}
-        </section>
-
-        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50/70 p-4 shadow-sm">
-          <div
-            className="inline-flex w-fit rounded-lg border border-gray-200 bg-white p-1"
-            role="tablist"
-            aria-label={ui.hrProfileTextLabel}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={state.hrProfileInputMode === "profileText"}
-              aria-controls="hr-profile-text-panel"
-              disabled={state.hrContextLoading}
-              onClick={() => state.updateHrProfileInputMode("profileText")}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
-                state.hrProfileInputMode === "profileText"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {ui.hrProfileTextLabel}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={state.hrProfileInputMode === "profileUrl"}
-              aria-controls="hr-profile-url-panel"
-              disabled={state.hrContextLoading}
-              onClick={() => state.updateHrProfileInputMode("profileUrl")}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:text-gray-400 ${
-                state.hrProfileInputMode === "profileUrl"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {ui.hrProfileUrlLabel}
-            </button>
-          </div>
-
-          {state.hrProfileInputMode === "profileText" ? (
-            <div
-              id="hr-profile-text-panel"
-              role="tabpanel"
-              className="flex flex-col gap-2"
-            >
-              <label
-                htmlFor="hr-profile-text"
-                className="text-sm font-medium text-gray-700"
-              >
-                {ui.hrProfileTextLabel}
-              </label>
-              <textarea
-                id="hr-profile-text"
-                value={state.hrSetupForm.profileText}
-                onChange={(event) =>
-                  state.updateHrSetupField("profileText", event.target.value)
-                }
-                disabled={state.hrContextLoading}
-                maxLength={INPUT_LIMITS.profileText}
-                rows={4}
-                placeholder={ui.hrProfileTextPlaceholder}
-                className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-              />
-            </div>
-          ) : (
-            <div
-              id="hr-profile-url-panel"
-              role="tabpanel"
-              className="flex flex-col gap-2"
-            >
-              <label
-                htmlFor="hr-profile-url"
-                className="text-sm font-medium text-gray-700"
-              >
-                {ui.hrProfileUrlLabel}
-              </label>
-              <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                <input
-                  id="hr-profile-url"
-                  type="url"
-                  value={state.hrProfileUrl}
-                  onChange={(event) => state.setHrProfileUrl(event.target.value)}
-                  disabled={state.hrContextLoading || state.hrProfileFetchLoading}
-                  maxLength={INPUT_LIMITS.profileUrl}
-                  placeholder={ui.hrProfileUrlPlaceholder}
-                  className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                />
-                <input
-                  type="password"
-                  value={state.hrProfileOauthToken}
-                  onChange={(event) => state.setHrProfileOauthToken(event.target.value)}
-                  disabled={state.hrContextLoading || state.hrProfileFetchLoading}
-                  maxLength={INPUT_LIMITS.oauthToken}
-                  placeholder={ui.hrProfileTokenPlaceholder}
-                  aria-label={ui.hrProfileTokenLabel}
-                  autoComplete="off"
-                  className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                />
-                <button
-                  type="button"
-                  onClick={state.handleFetchSocialProfile}
-                  disabled={state.hrContextLoading || state.hrProfileFetchLoading}
-                  className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-400"
-                >
-                  {state.hrProfileFetchLoading ? ui.hrFetchingProfile : ui.hrFetchProfile}
-                </button>
-              </div>
-              <p className="text-sm text-gray-500">
-                {ui.hrProfileFetchHint}
-              </p>
-            </div>
-          )}
-          {state.hrSetupErrors.profileText && (
-            <p className="text-sm text-red-600">
-              {state.hrSetupErrors.profileText}
-            </p>
-          )}
-        </section>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
           <button
-            type="submit"
-            disabled={state.hrContextLoading || state.hrClearLoading}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-300"
-          >
-            {state.hrContextLoading ? ui.hrBuildingContext : ui.hrBuildContext}
-          </button>
-          <button
+            key={card.section}
             type="button"
-            onClick={onClearAllData}
-            disabled={
-              state.hrContextLoading ||
-              state.hrClearLoading ||
-              state.hrCompanyFetchLoading ||
-              state.hrRoleFetchLoading ||
-              state.hrResumeExtractLoading ||
-              state.hrProfileFetchLoading ||
-              state.hrInterviewLoading ||
-              state.hrCandidateAnswerLoading
-            }
-            className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700 disabled:bg-red-300"
+            onClick={() => setActiveSection(card.section)}
+            className={`${cardBase} text-left`}
           >
-            {ui.hrClearContext}
+            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50 text-2xl text-blue-600">
+              {card.icon}
+            </div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-slate-950">{card.title}</h2>
+              {card.optional && <span className="text-sm text-slate-500">({ui.hrOptionalLabel})</span>}
+              {card.complete && <span className="ml-auto text-green-600">✓</span>}
+            </div>
+            <p className="mt-3 min-h-12 text-sm leading-6 text-slate-500">
+              {card.description}
+            </p>
+            <div className="mt-6 rounded-lg border border-blue-100 px-4 py-3 text-center text-sm font-medium text-blue-700">
+              {card.action}
+            </div>
           </button>
+        ))}
+      </div>
+
+      <form className="mt-7" onSubmit={state.handleBuildHrContext}>
+        <div className="flex flex-col gap-4 rounded-xl border border-blue-100 bg-blue-50/60 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4 text-sm text-slate-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-200 bg-white text-blue-600">
+              ✧
+            </div>
+            <span>
+              {ui.hrSetupCompleteHint}
+            </span>
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClearAllData}
+              disabled={isBusy(state)}
+              className="rounded-lg border border-slate-200 bg-white px-5 py-3 font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {ui.hrClearContext}
+            </button>
+            <button
+              type="submit"
+              disabled={state.hrContextLoading || state.hrClearLoading}
+              className={primaryButton}
+            >
+              {state.hrContextLoading ? ui.hrBuildingContext : ui.hrCreateContext}
+            </button>
+          </div>
         </div>
       </form>
 
-      {state.hrContextError && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {state.hrContextError}
+      <ValidationSummary state={state} />
+      {state.hrContextError && <ErrorBox message={state.hrContextError} />}
+      {state.hrContextResult && <ContextStatus state={state} ui={ui} />}
+    </section>
+  );
+}
+
+function CompanyDetail({
+  state,
+  ui,
+}: {
+  state: HrWorkflowState;
+  ui: TranslationStrings;
+}) {
+  return (
+    <DetailFrame
+      title={ui.hrCompanyInfoTitle}
+      subtitle={ui.hrCompanyInfoSubtitle}
+      tabs={[
+        {
+          id: "companyText",
+          label: ui.hrCompanyTextLabel,
+          active: state.hrCompanyInputMode === "companyText",
+          onClick: () => state.updateHrCompanyInputMode("companyText"),
+        },
+        {
+          id: "companyUrl",
+          label: ui.hrCompanyUrlLabel,
+          active: state.hrCompanyInputMode === "companyUrl",
+          onClick: () => state.updateHrCompanyInputMode("companyUrl"),
+        },
+      ]}
+    >
+      {state.hrCompanyInputMode === "companyText" ? (
+        <Field label={`${ui.hrCompanyTextLabel} (${ui.hrMarkdownSupportedSuffix})`} htmlFor="hr-company-text">
+          <textarea
+            id="hr-company-text"
+            value={state.hrSetupForm.companyText}
+            onChange={(event) => state.updateHrSetupField("companyText", event.target.value)}
+            disabled={state.hrContextLoading}
+            maxLength={INPUT_LIMITS.companyText}
+            rows={8}
+            placeholder={ui.hrCompanyTextPlaceholder}
+            className={textareaBase}
+          />
+        </Field>
+      ) : (
+        <div className="grid gap-4">
+          <Field label={ui.hrCompanyUrlLabel} htmlFor="hr-company-url">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+              <input
+                id="hr-company-url"
+                type="url"
+                value={state.hrSetupForm.companyUrl}
+                onChange={(event) => state.updateHrSetupField("companyUrl", event.target.value)}
+                disabled={state.hrContextLoading || state.hrCompanyFetchLoading}
+                maxLength={INPUT_LIMITS.companyUrl}
+                placeholder={ui.hrCompanyUrlPlaceholder}
+                className={inputBase}
+              />
+              <button
+                type="button"
+                onClick={state.handleFetchCompanyUrl}
+                disabled={state.hrContextLoading || state.hrCompanyFetchLoading}
+                className={secondaryButton}
+              >
+                {state.hrCompanyFetchLoading ? ui.hrFetchingCompany : ui.hrFetchCompany}
+              </button>
+            </div>
+          </Field>
+          <InfoBox>{ui.hrCompanyUrlHint}</InfoBox>
         </div>
       )}
+      {state.hrSetupErrors.company && <InlineError message={state.hrSetupErrors.company} />}
+    </DetailFrame>
+  );
+}
 
-      {state.hrContextResult && (
-        <section className="mt-6 flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-xl font-semibold">{ui.hrContextSummary}</h2>
-            <p className="text-sm text-gray-600">
-              {ui.hrStatusLabel}: <span className="font-medium">{state.hrContextResult.status}</span>
-            </p>
-            {state.hrContextId ? (
-              <p className="text-sm text-gray-600">
-                {ui.hrContextIdLabel}: <span className="font-mono">{state.hrContextId}</span>
-              </p>
-            ) : (
-              <p className="text-sm text-amber-700">
-                {ui.hrNoContextId}
-              </p>
-            )}
-          </div>
+function RoleDetail({
+  state,
+  ui,
+}: {
+  state: HrWorkflowState;
+  ui: TranslationStrings;
+}) {
+  return (
+    <DetailFrame
+      title={ui.hrRoleInfoTitle}
+      subtitle={ui.hrRoleInfoSubtitle}
+      tabs={[
+        {
+          id: "roleDescription",
+          label: ui.hrRoleDescriptionLabel,
+          active: state.hrRoleInputMode === "roleDescription",
+          onClick: () => state.updateHrRoleInputMode("roleDescription"),
+        },
+        {
+          id: "roleUrl",
+          label: ui.hrRoleUrlLabel,
+          active: state.hrRoleInputMode === "roleUrl",
+          onClick: () => state.updateHrRoleInputMode("roleUrl"),
+        },
+      ]}
+    >
+      {state.hrRoleInputMode === "roleDescription" ? (
+        <Field label={`${ui.hrRoleDescriptionLabel} (${ui.hrMarkdownSupportedSuffix})`} htmlFor="hr-role-description">
+          <textarea
+            id="hr-role-description"
+            value={state.hrSetupForm.roleDescription}
+            onChange={(event) => state.updateHrSetupField("roleDescription", event.target.value)}
+            disabled={state.hrContextLoading}
+            maxLength={INPUT_LIMITS.roleDescription}
+            rows={8}
+            placeholder={ui.hrRoleDescriptionPlaceholder}
+            className={textareaBase}
+          />
+        </Field>
+      ) : (
+        <div className="grid gap-4">
+          <Field label={ui.hrRoleUrlLabel} htmlFor="hr-role-url">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+              <input
+                id="hr-role-url"
+                type="url"
+                value={state.hrSetupForm.roleUrl}
+                onChange={(event) => state.updateHrSetupField("roleUrl", event.target.value)}
+                disabled={state.hrContextLoading || state.hrRoleFetchLoading}
+                maxLength={INPUT_LIMITS.roleUrl}
+                placeholder={ui.hrRoleUrlPlaceholder}
+                className={inputBase}
+              />
+              <button
+                type="button"
+                onClick={state.handleFetchRoleUrl}
+                disabled={state.hrContextLoading || state.hrRoleFetchLoading}
+                className={secondaryButton}
+              >
+                {state.hrRoleFetchLoading ? ui.hrFetchingRole : ui.hrFetchRole}
+              </button>
+            </div>
+          </Field>
+          <InfoBox>{ui.hrRoleUrlHint}</InfoBox>
+        </div>
+      )}
+      {state.hrSetupErrors.roleDescription && <InlineError message={state.hrSetupErrors.roleDescription} />}
+    </DetailFrame>
+  );
+}
 
-          {state.hrContextResult.summaries && (
-            <div className="grid gap-3">
-              {([
-                [ui.hrCompanyLabel, state.hrContextResult.summaries.company],
-                [ui.hrRoleLabel, state.hrContextResult.summaries.role],
-                [ui.hrCandidateLabel, state.hrContextResult.summaries.candidate],
-              ] as const).map(([label, value]) =>
-                value ? (
-                  <article
-                    key={label}
-                    className="rounded-lg border border-gray-200 bg-white p-3"
-                  >
-                    <h3 className="font-medium text-gray-900">{label}</h3>
-                    <p className="mt-1 text-sm text-gray-700">{value}</p>
-                  </article>
-                ) : null,
-              )}
+function ResumeDetail({
+  state,
+  ui,
+  onOpenUpload,
+}: {
+  state: HrWorkflowState;
+  ui: TranslationStrings;
+  onOpenUpload: () => void;
+}) {
+  return (
+    <DetailFrame
+      title={ui.hrResumeInfoTitle}
+      subtitle={ui.hrResumeInfoSubtitle}
+      tabs={[
+        {
+          id: "resumeText",
+          label: ui.hrResumeTextLabel,
+          active: state.hrResumeInputMode === "resumeText",
+          onClick: () => state.updateHrResumeInputMode("resumeText"),
+        },
+        {
+          id: "resumePdf",
+          label: ui.hrResumePdfLabel,
+          active: state.hrResumeInputMode === "resumePdf",
+          onClick: () => state.updateHrResumeInputMode("resumePdf"),
+        },
+      ]}
+    >
+      {state.hrResumeInputMode === "resumeText" ? (
+        <Field label={`${ui.hrResumeTextLabel} (${ui.hrMarkdownSupportedSuffix})`} htmlFor="hr-resume-text">
+          <textarea
+            id="hr-resume-text"
+            value={state.hrSetupForm.resumeText}
+            onChange={(event) => state.updateHrSetupField("resumeText", event.target.value)}
+            disabled={state.hrContextLoading}
+            maxLength={INPUT_LIMITS.resumeText}
+            rows={8}
+            placeholder={ui.hrResumeTextPlaceholder}
+            className={textareaBase}
+          />
+        </Field>
+      ) : (
+        <div className="grid gap-4">
+          <button
+            type="button"
+            onClick={onOpenUpload}
+            disabled={state.hrContextLoading || state.hrResumeExtractLoading}
+            className={secondaryButton}
+          >
+            ⇧ {state.hrResumeExtractLoading ? ui.hrExtractingResumePdf : ui.hrExtractResumePdf}
+          </button>
+          <p className="text-sm text-slate-500">{ui.hrResumePdfHint}</p>
+          {state.hrSetupForm.resumeText && (
+            <div className="rounded-lg border border-green-100 bg-green-50 p-4 text-sm text-green-800">
+              <div className="font-medium">✓ {ui.hrResumeExtractSuccessTitle}</div>
+              <div>{ui.hrResumeExtractSuccessText}</div>
             </div>
           )}
+          <Field label={`${ui.hrExtractedResumeTextLabel} (${ui.hrMarkdownSupportedSuffix})`} htmlFor="hr-resume-pdf-text">
+            <textarea
+              id="hr-resume-pdf-text"
+              value={state.hrSetupForm.resumeText}
+              onChange={(event) => state.updateHrSetupField("resumeText", event.target.value)}
+              disabled={state.hrContextLoading}
+              maxLength={INPUT_LIMITS.resumeText}
+              rows={7}
+              placeholder={ui.hrResumeTextPlaceholder}
+              className={textareaBase}
+            />
+          </Field>
+        </div>
+      )}
+      {state.hrSetupErrors.resumeText && <InlineError message={state.hrSetupErrors.resumeText} />}
+    </DetailFrame>
+  );
+}
 
-          {(state.hrContextResult.sources?.length ?? 0) > 0 && (
-            <div>
-              <h3 className="font-medium text-gray-900">{ui.hrSourcesLabel}</h3>
-              <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
-                {state.hrContextResult.sources?.map((source, index) => (
-                  <li key={`${source.id ?? source.uri ?? "source"}-${index}`}>
-                    {source.title ?? source.id ?? ui.hrSourceFallback}
-                    {source.uri ? ` — ${source.uri}` : ""}
-                  </li>
-                ))}
-              </ul>
+function ProfileDetail({
+  state,
+  ui,
+}: {
+  state: HrWorkflowState;
+  ui: TranslationStrings;
+}) {
+  return (
+    <DetailFrame
+      title={ui.hrProfileInfoTitle}
+      subtitle={ui.hrProfileInfoSubtitle}
+      tabs={[
+        {
+          id: "profileText",
+          label: ui.hrProfileTextLabel,
+          active: state.hrProfileInputMode === "profileText",
+          onClick: () => state.updateHrProfileInputMode("profileText"),
+        },
+        {
+          id: "profileUrl",
+          label: ui.hrProfileUrlLabel,
+          active: state.hrProfileInputMode === "profileUrl",
+          onClick: () => state.updateHrProfileInputMode("profileUrl"),
+        },
+      ]}
+    >
+      {state.hrProfileInputMode === "profileText" ? (
+        <Field label={`${ui.hrProfileTextLabel} (${ui.hrMarkdownSupportedSuffix})`} htmlFor="hr-profile-text">
+          <textarea
+            id="hr-profile-text"
+            value={state.hrSetupForm.profileText}
+            onChange={(event) => state.updateHrSetupField("profileText", event.target.value)}
+            disabled={state.hrContextLoading}
+            maxLength={INPUT_LIMITS.profileText}
+            rows={6}
+            placeholder={ui.hrProfileTextPlaceholder}
+            className={textareaBase}
+          />
+        </Field>
+      ) : (
+        <div className="grid gap-4">
+          <Field label={ui.hrProfileUrlLabel} htmlFor="hr-profile-url">
+            <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
+              <input
+                id="hr-profile-url"
+                type="url"
+                value={state.hrProfileUrl}
+                onChange={(event) => state.setHrProfileUrl(event.target.value)}
+                disabled={state.hrContextLoading || state.hrProfileFetchLoading}
+                maxLength={INPUT_LIMITS.profileUrl}
+                placeholder={ui.hrProfileUrlPlaceholder}
+                className={inputBase}
+              />
+              <input
+                type="password"
+                value={state.hrProfileOauthToken}
+                onChange={(event) => state.setHrProfileOauthToken(event.target.value)}
+                disabled={state.hrContextLoading || state.hrProfileFetchLoading}
+                maxLength={INPUT_LIMITS.oauthToken}
+                placeholder={ui.hrProfileTokenPlaceholder}
+                aria-label={ui.hrProfileTokenLabel}
+                autoComplete="off"
+                className={inputBase}
+              />
+              <button
+                type="button"
+                onClick={state.handleFetchSocialProfile}
+                disabled={state.hrContextLoading || state.hrProfileFetchLoading}
+                className={secondaryButton}
+              >
+                {state.hrProfileFetchLoading ? ui.hrFetchingProfile : ui.hrFetchProfile}
+              </button>
             </div>
-          )}
+          </Field>
+          <InfoBox>{ui.hrProfileFetchHint}</InfoBox>
+        </div>
+      )}
+      {state.hrSetupErrors.profileText && <InlineError message={state.hrSetupErrors.profileText} />}
+    </DetailFrame>
+  );
+}
 
-          {(state.hrContextResult.tools?.length ?? 0) > 0 ? (
-            <div>
-              <h3 className="font-medium text-gray-900">{ui.hrToolCatalogLabel}</h3>
-              <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
-                {state.hrContextResult.tools?.map((metadata, index) => {
-                  const tool = state.hrContextResult?.tool_results?.find(
-                    (item) => item.tool_name === metadata.name,
-                  );
-                  const event = state.hrContextResult?.tool_call_events?.find(
-                    (item) => item.tool_name === metadata.name,
-                  );
-                  const setupTool = state.hrSetupToolResults.find(
-                    (item) => item.tool_name === metadata.name,
-                  );
-                  return (
-                    <li key={`${metadata.name ?? "tool"}-${index}`}>
-                      {summarizeHrToolCatalogItem(metadata, tool ?? setupTool, event, ui.hrToolNotUsed)}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ) : (state.hrContextResult.tool_results?.length ?? 0) > 0 && (
-            <div>
-              <h3 className="font-medium text-gray-900">{ui.hrToolResultsLabel}</h3>
-              <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
-                {state.hrContextResult.tool_results?.map((tool, index) => (
-                  <li key={`${tool.tool_name ?? "tool"}-${index}`}>
-                    {tool.tool_name ?? ui.hrToolFallback}: {tool.status ?? ui.hrUnknownStatus}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+function DetailFrame({
+  title,
+  subtitle,
+  tabs,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  tabs: { id: string; label: string; active: boolean; onClick: () => void }[];
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-slate-950">{title}</h1>
+      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      <div className="mt-6 border-b border-slate-200">
+        <div className="flex w-fit rounded-lg border border-slate-200 bg-slate-50 p-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={tab.onClick}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                tab.active
+                  ? "border border-blue-200 bg-white text-blue-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-950"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-5 grid gap-4">{children}</div>
+    </div>
+  );
+}
 
-          {(state.hrContextResult.tool_call_events?.length ?? 0) > 0 && (
-            <div>
-              <h3 className="font-medium text-gray-900">{ui.hrToolCallEventsLabel}</h3>
-              <ul className="mt-2 list-disc list-inside text-sm text-gray-700">
-                {state.hrContextResult.tool_call_events?.map((event, index) => (
-                  <li key={`${event.event_id ?? "event"}-${index}`}>
-                    #{event.sequence ?? index + 1} {event.tool_name ?? ui.hrToolFallback}: {event.status ?? ui.hrUnknownStatus}
-                    {typeof event.duration_ms === "number" ? ` (${event.duration_ms}ms)` : ""}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-2">
+      <label htmlFor={htmlFor} className="text-sm font-medium text-slate-700">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
 
-          {(state.hrContextResult.errors?.length ?? 0) > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <h3 className="font-medium">{ui.hrContextWarningsLabel}</h3>
-              <ul className="mt-1 list-disc list-inside">
-                {state.hrContextResult.errors?.map((item, index) => (
-                  <li key={`${item.tool_name ?? "error"}-${index}`}>
-                    {item.tool_name ? `${item.tool_name}: ` : ""}
-                    {item.message ?? ui.hrUnknownError}
-                  </li>
-                ))}
-              </ul>
-            </div>
+function InfoBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+      ℹ {children}
+    </div>
+  );
+}
+
+function InlineError({ message }: { message: string }) {
+  return <p className="text-sm text-red-600">{message}</p>;
+}
+
+function ErrorBox({ message }: { message: string }) {
+  return (
+    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+      {message}
+    </div>
+  );
+}
+
+function ValidationSummary({ state }: { state: HrWorkflowState }) {
+  const errors = Object.values(state.hrSetupErrors).filter(Boolean);
+  if (errors.length === 0) {
+    return null;
+  }
+  return (
+    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <ul className="list-inside list-disc">
+        {errors.map((error) => (
+          <li key={error}>{error}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ContextStatus({
+  state,
+  ui,
+}: {
+  state: HrWorkflowState;
+  ui: TranslationStrings;
+}) {
+  return (
+    <section className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-semibold text-slate-950">{ui.hrContextSummary}</h2>
+          <p className="text-sm text-slate-600">
+            {ui.hrStatusLabel}: <span className="font-medium">{state.hrContextResult?.status}</span>
+          </p>
+        </div>
+        {state.hrContextId ? (
+          <span className="rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-600">
+            {state.hrContextId}
+          </span>
+        ) : (
+          <span className="text-sm text-amber-700">{ui.hrNoContextId}</span>
+        )}
+      </div>
+
+      {state.hrContextResult?.summaries && (
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {([
+            [ui.hrCompanyLabel, state.hrContextResult.summaries.company],
+            [ui.hrRoleLabel, state.hrContextResult.summaries.role],
+            [ui.hrCandidateLabel, state.hrContextResult.summaries.candidate],
+          ] as const).map(([label, value]) =>
+            value ? (
+              <article key={label} className="rounded-lg border border-slate-200 bg-white p-3">
+                <h3 className="font-medium text-slate-900">{label}</h3>
+                <p className="mt-1 text-sm text-slate-600">{value}</p>
+              </article>
+            ) : null,
           )}
-        </section>
+        </div>
       )}
     </section>
+  );
+}
+
+function ResumeUploadModal({
+  state,
+  ui,
+  onClose,
+}: {
+  state: HrWorkflowState;
+  ui: TranslationStrings;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4">
+      <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">{ui.hrUploadPdfTitle}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {ui.hrUploadPdfSubtitle}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            aria-label={ui.closeLabel}
+          >
+            ×
+          </button>
+        </div>
+
+        <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 p-10 text-center text-sm text-slate-600 hover:border-blue-300 hover:bg-blue-50/40">
+          <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+            ⇧
+          </span>
+          <span className="font-medium">{ui.hrDragDropPdf}</span>
+          <span className="my-2">{ui.hrOrLabel}</span>
+          <span className="rounded-lg border border-blue-100 px-4 py-2 text-blue-700">
+            {ui.hrChooseFile}
+          </span>
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            disabled={state.hrContextLoading || state.hrResumeExtractLoading}
+            onChange={state.handleExtractResumePdf}
+            className="sr-only"
+          />
+        </label>
+
+        <p className="mt-4 text-sm text-slate-500">{ui.hrResumePdfHint}</p>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {ui.cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className={primaryButton}
+          >
+            {state.hrResumeExtractLoading ? ui.hrExtractingResumePdf : ui.doneLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function isBusy(state: HrWorkflowState) {
+  return (
+    state.hrContextLoading ||
+    state.hrClearLoading ||
+    state.hrCompanyFetchLoading ||
+    state.hrRoleFetchLoading ||
+    state.hrResumeExtractLoading ||
+    state.hrProfileFetchLoading ||
+    state.hrInterviewLoading ||
+    state.hrCandidateAnswerLoading
   );
 }

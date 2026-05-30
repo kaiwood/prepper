@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { ConversationMessage } from "../components/Conversation";
 import { formatApiError } from "../lib/inputLimits.mjs";
 import { hasSuspiciousPromptInjectionPattern } from "../lib/promptInjection.mjs";
@@ -18,6 +18,7 @@ import {
   buildHrInterviewStartPayload,
   buildHrInterviewTurnPayload,
 } from "../lib/hrInterviewLogic.mjs";
+import { endHrInterview } from "../lib/hrWorkflowApi";
 import type { LanguageCode } from "../lib/translations";
 import type {
   AdvancedSettings,
@@ -26,6 +27,7 @@ import type {
   CandidateAnswerResponse,
   ChatResponse,
   DifficultyValue,
+  HrContextResponse,
   HrInterviewResponse,
   HrLatestSetupResponse,
   InterviewRating,
@@ -40,6 +42,7 @@ type UseUserInterviewOptions = {
   presentationModeEnabled: boolean;
   language: LanguageCode;
   ui: TranslationStrings;
+  active?: boolean;
 };
 
 const HR_CANDIDATE_FIT_PROMPT = "hr_candidate_fit";
@@ -75,6 +78,7 @@ export function useUserInterview({
   presentationModeEnabled,
   language,
   ui,
+  active = true,
 }: UseUserInterviewOptions) {
   const [message, setMessage] = useState("");
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
@@ -95,6 +99,8 @@ export function useUserInterview({
     useState<InterviewStatus | null>(null);
   const [interviewId, setInterviewId] = useState<string | null>(null);
   const [hrContextId, setHrContextId] = useState<string | null>(null);
+  const [hrContextResult, setHrContextResult] =
+    useState<HrContextResponse | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
   const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>(
@@ -205,6 +211,34 @@ export function useUserInterview({
     setAdvancedSettings((prev) => ({ ...prev, [key]: nextValue }));
   };
 
+  const loadLatestHrContext = useCallback(async () => {
+    try {
+      const latestRes = await fetch(
+        buildApiUrl(apiBaseUrl, "/api/hr/setup/latest"),
+      );
+      const latestData: HrLatestSetupResponse = await latestRes.json();
+
+      if (!latestRes.ok) {
+        setHrContextResult(null);
+        setHrContextId(null);
+        return null;
+      }
+
+      const contextResult = latestData.context_result ?? null;
+      const contextId =
+        typeof contextResult?.context_id === "string" && contextResult.context_id
+          ? contextResult.context_id
+          : null;
+      setHrContextResult(contextResult);
+      setHrContextId(contextId);
+      return { contextId, contextResult };
+    } catch {
+      setHrContextResult(null);
+      setHrContextId(null);
+      return null;
+    }
+  }, [apiBaseUrl]);
+
   useEffect(() => {
     let isCancelled = false;
 
@@ -271,6 +305,49 @@ export function useUserInterview({
       isCancelled = true;
     };
   }, [apiBaseUrl, ui.errorLoadPrompts]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadLatestForActiveUser() {
+      try {
+        const latestRes = await fetch(
+          buildApiUrl(apiBaseUrl, "/api/hr/setup/latest"),
+        );
+        const latestData: HrLatestSetupResponse = await latestRes.json();
+
+        if (isCancelled) {
+          return;
+        }
+        if (!latestRes.ok) {
+          setHrContextResult(null);
+          setHrContextId(null);
+          return;
+        }
+
+        const contextResult = latestData.context_result ?? null;
+        const contextId =
+          typeof contextResult?.context_id === "string" && contextResult.context_id
+            ? contextResult.context_id
+            : null;
+        setHrContextResult(contextResult);
+        setHrContextId(contextId);
+      } catch {
+        if (!isCancelled) {
+          setHrContextResult(null);
+          setHrContextId(null);
+        }
+      }
+    }
+
+    if (active && isHrCandidateFitPrompt && !hasStarted) {
+      void loadLatestForActiveUser();
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [active, apiBaseUrl, isHrCandidateFitPrompt, hasStarted]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -390,21 +467,12 @@ export function useUserInterview({
 
     try {
       if (isHrCandidateFitPrompt) {
-        const latestRes = await fetch(
-          buildApiUrl(apiBaseUrl, "/api/hr/setup/latest"),
-        );
-        const latestData: HrLatestSetupResponse = await latestRes.json();
-
-        if (!latestRes.ok) {
-          setError(formatApiError(latestData, ui.errorFallback));
+        const latest = await loadLatestHrContext();
+        if (latest === null) {
+          setError(ui.errorBackendUnavailable);
           return;
         }
-
-        const contextId =
-          typeof latestData.context_result?.context_id === "string" &&
-          latestData.context_result.context_id
-            ? latestData.context_result.context_id
-            : null;
+        const contextId = latest.contextId;
         if (!contextId) {
           setError(ui.hrContextRequiredForInterview);
           return;
@@ -481,6 +549,43 @@ export function useUserInterview({
           setInterviewStatus(null);
         }
       }
+    } catch {
+      setError(ui.errorBackendUnavailable);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleEndInterview() {
+    if (
+      !isHrCandidateFitPrompt ||
+      !hrContextId ||
+      !interviewId ||
+      !hasStarted ||
+      loading ||
+      interviewCompleted
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { ok, data } = await endHrInterview(apiBaseUrl, hrContextId, interviewId);
+
+      if (!ok) {
+        setError(formatApiError(data, ui.errorFallback));
+        return;
+      }
+
+      if (data.reply) {
+        setConversation((prev) => [
+          ...prev,
+          { role: "assistant", content: data.reply ?? "" },
+        ]);
+      }
+      updateHrInterviewMetadata(data);
     } catch {
       setError(ui.errorBackendUnavailable);
     } finally {
@@ -581,11 +686,13 @@ export function useUserInterview({
     error,
     handleClear,
     handleClearAll,
+    handleEndInterview,
     handleGenerateCandidateAnswer,
     handlePromptChange,
     handleStart,
     handleSubmit,
     hasStarted,
+    hrContextResult,
     interviewCompleted,
     interviewRatingEnabled,
     interviewStatus,

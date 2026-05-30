@@ -23,16 +23,21 @@ import type {
   MetricsRecentEvent,
   MetricsResponse,
   MetricsToolSummary,
+  TranslationStrings,
 } from "../types/app";
 
 const REFRESH_MS = 30_000;
 const TOOL_COLORS = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2"];
 
+type DashboardTranslations = TranslationStrings["dashboard"];
+
 type DashboardPanelProps = {
   apiBaseUrl: string;
+  ui: TranslationStrings;
 };
 
-export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
+export default function DashboardPanel({ apiBaseUrl, ui }: DashboardPanelProps) {
+  const dashboard = ui.dashboard;
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,16 +53,16 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
         recentLimit: 30,
       });
       if (!ok) {
-        setError(data.error ?? "Metrics unavailable");
+        setError(data.error ?? dashboard.metricsUnavailable);
         return;
       }
       setMetrics(data);
     } catch {
-      setError("Backend unavailable");
+      setError(ui.errorBackendUnavailable);
     } finally {
       setLoading(false);
     }
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, dashboard.metricsUnavailable, ui.errorBackendUnavailable]);
 
   useEffect(() => {
     const initialTimer = window.setTimeout(() => {
@@ -86,31 +91,37 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
   );
   const tools = metrics?.tools ?? [];
   const recentEvents = metrics?.recent_events ?? [];
-  const health = resolveHealth(overview.error_rate ?? 0, overview.rate_limit_hits ?? 0);
+  const health = resolveHealth(
+    overview.error_rate ?? 0,
+    overview.rate_limit_hits ?? 0,
+    dashboard,
+  );
 
   return (
     <section className="w-full max-w-6xl rounded-3xl border border-slate-200 bg-slate-950 p-1 shadow-xl">
       <div className="rounded-[1.35rem] bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-6 text-white">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.35em] text-blue-200">Prepper AI Ops</p>
-            <h1 className="mt-2 text-3xl font-bold md:text-4xl">Dashboard</h1>
+            <p className="text-sm font-medium uppercase tracking-[0.35em] text-blue-200">{dashboard.eyebrow}</p>
+            <h1 className="mt-2 text-3xl font-bold md:text-4xl">{dashboard.title}</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-300">
-              Live operational view of requests, RAG retrieval, tool calls, LLM behavior, and safety events.
+              {dashboard.description}
             </p>
           </div>
           <div className="flex flex-col items-start gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur md:items-end">
             <span className={`rounded-full px-3 py-1 text-sm font-semibold ${health.className}`}>
               {health.label}
             </span>
-            <span className="text-xs text-slate-300">Updated {formatDateTime(metrics?.generated_at)}</span>
+            <span className="text-xs text-slate-300">
+              {dashboard.updated} {formatDateTime(metrics?.generated_at, dashboard)}
+            </span>
             <button
               type="button"
               onClick={() => void loadMetrics()}
               disabled={loading}
               className="rounded-lg border border-white/20 px-3 py-1 text-sm text-white transition hover:bg-white/10 disabled:opacity-50"
             >
-              {loading ? "Refreshing…" : "Refresh"}
+              {loading ? dashboard.refreshing : dashboard.refresh}
             </button>
           </div>
         </div>
@@ -122,19 +133,19 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
         )}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard label="Requests" value={formatNumber(overview.requests_total)} hint="Last 24 hours" accent="blue" />
-          <MetricCard label="Error rate" value={formatPercent(overview.error_rate)} hint={`${formatNumber(overview.error_count)} errors`} accent="red" />
-          <MetricCard label="P95 latency" value={`${formatNumber(overview.p95_latency_ms)}ms`} hint={`Avg ${formatNumber(overview.avg_latency_ms)}ms`} accent="amber" />
-          <MetricCard label="Tool success" value={formatPercent(overview.tool_success_rate)} hint="All HR tools" accent="green" />
-          <MetricCard label="Contexts built" value={formatNumber(overview.hr_contexts_built)} hint="HR setup runs" accent="blue" />
-          <MetricCard label="Interviews" value={formatNumber(overview.interviews_started)} hint={`${formatNumber(overview.interviews_completed)} completed`} accent="violet" />
-          <MetricCard label="RAG retrievals" value={formatNumber(overview.rag_retrievals)} hint={`${formatPercent(rag.success_rate)} success`} accent="cyan" />
-          <MetricCard label="LLM failures" value={formatNumber(overview.llm_failures)} hint={`${formatNumber(llm.calls)} total calls`} accent="red" />
+          <MetricCard label={dashboard.requests} value={formatNumber(overview.requests_total)} hint={dashboard.last24Hours} accent="blue" />
+          <MetricCard label={dashboard.errorRate} value={formatPercent(overview.error_rate)} hint={`${formatNumber(overview.error_count)} ${dashboard.errors}`} accent="red" />
+          <MetricCard label={dashboard.p95Latency} value={`${formatNumber(overview.p95_latency_ms)}ms`} hint={`${dashboard.avgMs} ${formatNumber(overview.avg_latency_ms)}ms`} accent="amber" />
+          <MetricCard label={dashboard.toolSuccess} value={formatPercent(overview.tool_success_rate)} hint={dashboard.allHrTools} accent="green" />
+          <MetricCard label={dashboard.contextsBuilt} value={formatNumber(overview.hr_contexts_built)} hint={dashboard.hrSetupRuns} accent="blue" />
+          <MetricCard label={dashboard.interviews} value={formatNumber(overview.interviews_started)} hint={`${formatNumber(overview.interviews_completed)} ${dashboard.completed}`} accent="violet" />
+          <MetricCard label={dashboard.ragRetrievals} value={formatNumber(overview.rag_retrievals)} hint={`${formatPercent(rag.success_rate)} ${dashboard.success}`} accent="cyan" />
+          <MetricCard label={dashboard.llmFailures} value={formatNumber(overview.llm_failures)} hint={`${formatNumber(llm.calls)} ${dashboard.totalCalls}`} accent="red" />
         </div>
       </div>
 
       <div className="grid gap-4 bg-slate-100 p-4 lg:grid-cols-2">
-        <DashboardCard title="Traffic over time" subtitle="Requests and errors by hour">
+        <DashboardCard title={dashboard.trafficTitle} subtitle={dashboard.trafficSubtitle}>
           <ChartFrame>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={timeBuckets}>
@@ -149,14 +160,14 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Legend />
-                <Area type="monotone" dataKey="requests" stroke="#2563eb" fill="url(#requests)" />
-                <Line type="monotone" dataKey="errors" stroke="#dc2626" strokeWidth={2} />
+                <Area type="monotone" dataKey="requests" name={dashboard.requests} stroke="#2563eb" fill="url(#requests)" />
+                <Line type="monotone" dataKey="errors" name={dashboard.errors} stroke="#dc2626" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </ChartFrame>
         </DashboardCard>
 
-        <DashboardCard title="Latency" subtitle="Average request latency by hour">
+        <DashboardCard title={dashboard.latencyTitle} subtitle={dashboard.latencySubtitle}>
           <ChartFrame>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={timeBuckets}>
@@ -164,13 +175,13 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="avg_latency_ms" name="avg ms" stroke="#f59e0b" strokeWidth={3} dot={false} />
+                <Line type="monotone" dataKey="avg_latency_ms" name={`${dashboard.avgMs} ms`} stroke="#f59e0b" strokeWidth={3} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </ChartFrame>
         </DashboardCard>
 
-        <DashboardCard title="Tool calls" subtitle="Usage and error mix by tool">
+        <DashboardCard title={dashboard.toolCallsTitle} subtitle={dashboard.toolCallsSubtitle}>
           <div className="grid gap-4 md:grid-cols-[220px_1fr]">
             <ChartFrame compact>
               <ResponsiveContainer width="100%" height="100%">
@@ -185,23 +196,23 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
               </ResponsiveContainer>
             </ChartFrame>
             <div className="overflow-hidden rounded-xl border border-slate-200">
-              <ToolTable tools={tools} />
+              <ToolTable tools={tools} dashboard={dashboard} />
             </div>
           </div>
         </DashboardCard>
 
-        <DashboardCard title="RAG retrieval" subtitle="Candidate evidence retrieval health">
+        <DashboardCard title={dashboard.ragTitle} subtitle={dashboard.ragSubtitle}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <MiniStat label="Success rate" value={formatPercent(rag.success_rate)} />
-            <MiniStat label="Avg top relevance" value={`${formatNumber(rag.avg_top_relevance_percent)}%`} />
-            <MiniStat label="Avg chunks" value={formatNumber(rag.avg_chunk_count)} />
-            <MiniStat label="No-result retrievals" value={formatNumber(rag.no_result_count)} />
-            <MiniStat label="Avg duration" value={`${formatNumber(rag.avg_duration_ms)}ms`} />
-            <MiniStat label="Embedding failures" value={formatNumber(rag.embedding_failures)} />
+            <MiniStat label={dashboard.successRate} value={formatPercent(rag.success_rate)} />
+            <MiniStat label={dashboard.avgTopRelevance} value={`${formatNumber(rag.avg_top_relevance_percent)}%`} />
+            <MiniStat label={dashboard.avgChunks} value={formatNumber(rag.avg_chunk_count)} />
+            <MiniStat label={dashboard.noResultRetrievals} value={formatNumber(rag.no_result_count)} />
+            <MiniStat label={dashboard.avgDuration} value={`${formatNumber(rag.avg_duration_ms)}ms`} />
+            <MiniStat label={dashboard.embeddingFailures} value={formatNumber(rag.embedding_failures)} />
           </div>
         </DashboardCard>
 
-        <DashboardCard title="LLM operations" subtitle="Calls grouped by operation">
+        <DashboardCard title={dashboard.llmTitle} subtitle={dashboard.llmSubtitle}>
           <ChartFrame compact>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={llm.operations ?? []}>
@@ -210,29 +221,30 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="calls" fill="#2563eb" />
-                <Bar dataKey="errors" fill="#dc2626" />
+                <Bar dataKey="calls" name={dashboard.calls} fill="#2563eb" />
+                <Bar dataKey="errors" name={dashboard.errors} fill="#dc2626" />
               </BarChart>
             </ResponsiveContainer>
           </ChartFrame>
         </DashboardCard>
 
-        <DashboardCard title="Safety events" subtitle="Security and validation signals">
+        <DashboardCard title={dashboard.safetyTitle} subtitle={dashboard.safetySubtitle}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <MiniStat label="Rate-limit hits" value={formatNumber(safety.rate_limit_hits)} tone="amber" />
-            <MiniStat label="Blocked URLs" value={formatNumber(safety.blocked_url_attempts)} tone="red" />
-            <MiniStat label="Oversized inputs" value={formatNumber(safety.oversized_input_rejections)} tone="red" />
-            <MiniStat label="Invalid PDFs" value={formatNumber(safety.invalid_pdf_uploads)} tone="amber" />
-            <MiniStat label="Validation errors" value={formatNumber(safety.client_validation_errors)} tone="amber" />
-            <MiniStat label="Debug requests" value={formatNumber(safety.debug_context_requests)} tone="blue" />
+            <MiniStat label={dashboard.rateLimitHits} value={formatNumber(safety.rate_limit_hits)} tone="amber" />
+            <MiniStat label={dashboard.blockedUrls} value={formatNumber(safety.blocked_url_attempts)} tone="red" />
+            <MiniStat label={dashboard.oversizedInputs} value={formatNumber(safety.oversized_input_rejections)} tone="red" />
+            <MiniStat label={dashboard.invalidPdfs} value={formatNumber(safety.invalid_pdf_uploads)} tone="amber" />
+            <MiniStat label={dashboard.validationErrors} value={formatNumber(safety.client_validation_errors)} tone="amber" />
+            <MiniStat label={dashboard.debugRequests} value={formatNumber(safety.debug_context_requests)} tone="blue" />
           </div>
         </DashboardCard>
       </div>
 
       <div className="rounded-b-[1.35rem] bg-slate-100 px-4 pb-4">
-        <DashboardCard title="Recent activity" subtitle="Sanitized operational event timeline">
+        <DashboardCard title={dashboard.recentActivityTitle} subtitle={dashboard.recentActivitySubtitle}>
           <EventTimeline
             events={recentEvents}
+            dashboard={dashboard}
             onSelectError={setSelectedErrorEvent}
           />
         </DashboardCard>
@@ -241,6 +253,7 @@ export default function DashboardPanel({ apiBaseUrl }: DashboardPanelProps) {
       {selectedErrorEvent && (
         <ErrorDetailsOverlay
           event={selectedErrorEvent}
+          dashboard={dashboard}
           onClose={() => setSelectedErrorEvent(null)}
         />
       )}
@@ -325,18 +338,24 @@ function MiniStat({
   );
 }
 
-function ToolTable({ tools }: { tools: MetricsToolSummary[] }) {
+function ToolTable({
+  tools,
+  dashboard,
+}: {
+  tools: MetricsToolSummary[];
+  dashboard: DashboardTranslations;
+}) {
   if (tools.length === 0) {
-    return <p className="p-4 text-sm text-slate-500">No tool calls recorded yet.</p>;
+    return <p className="p-4 text-sm text-slate-500">{dashboard.noToolCalls}</p>;
   }
   return (
     <table className="w-full text-left text-sm">
       <thead className="bg-slate-50 text-xs uppercase text-slate-500">
         <tr>
-          <th className="px-3 py-2">Tool</th>
-          <th className="px-3 py-2">Calls</th>
-          <th className="px-3 py-2">Errors</th>
-          <th className="px-3 py-2">Avg</th>
+          <th className="px-3 py-2">{dashboard.tool}</th>
+          <th className="px-3 py-2">{dashboard.calls}</th>
+          <th className="px-3 py-2">{dashboard.errors}</th>
+          <th className="px-3 py-2">{dashboard.avg}</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100">
@@ -355,13 +374,15 @@ function ToolTable({ tools }: { tools: MetricsToolSummary[] }) {
 
 function EventTimeline({
   events,
+  dashboard,
   onSelectError,
 }: {
   events: MetricsRecentEvent[];
+  dashboard: DashboardTranslations;
   onSelectError: (event: MetricsRecentEvent) => void;
 }) {
   if (events.length === 0) {
-    return <p className="text-sm text-slate-500">No operational events recorded yet.</p>;
+    return <p className="text-sm text-slate-500">{dashboard.noOperationalEvents}</p>;
   }
   return (
     <ol className="relative border-l border-slate-200 pl-5">
@@ -381,8 +402,8 @@ function EventTimeline({
               <div>
                 <p className="font-medium text-slate-900">{event.label}</p>
                 <p className="text-xs text-slate-500">
-                  {event.event} · {event.status} · {formatDateTime(event.timestamp)}
-                  {hasErrorDetails ? " · click for details" : ""}
+                  {event.event} · {event.status} · {formatDateTime(event.timestamp, dashboard)}
+                  {hasErrorDetails ? ` · ${dashboard.clickForDetails}` : ""}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
@@ -401,24 +422,26 @@ function EventTimeline({
 
 function ErrorDetailsOverlay({
   event,
+  dashboard,
   onClose,
 }: {
   event: MetricsRecentEvent;
+  dashboard: DashboardTranslations;
   onClose: () => void;
 }) {
   const details = [
-    ["Event", event.event],
-    ["Status", event.status],
-    ["Label", event.label],
-    ["Time", formatDateTime(event.timestamp)],
-    ["Route", [event.method, event.route].filter(Boolean).join(" ")],
-    ["Operation", event.operation],
-    ["Tool", event.tool_name],
-    ["Mode", event.mode],
-    ["Model", event.model],
-    ["Status code", event.status_code?.toString()],
-    ["Duration", typeof event.duration_ms === "number" ? `${event.duration_ms}ms` : ""],
-    ["Error type", event.error_type],
+    [dashboard.event, event.event],
+    [dashboard.status, event.status],
+    [dashboard.label, event.label],
+    [dashboard.time, formatDateTime(event.timestamp, dashboard)],
+    [dashboard.route, [event.method, event.route].filter(Boolean).join(" ")],
+    [dashboard.operation, event.operation],
+    [dashboard.tool, event.tool_name],
+    [dashboard.mode, event.mode],
+    [dashboard.model, event.model],
+    [dashboard.statusCode, event.status_code?.toString()],
+    [dashboard.duration, typeof event.duration_ms === "number" ? `${event.duration_ms}ms` : ""],
+    [dashboard.errorType, event.error_type],
   ].filter(([, value]) => value);
 
   return (
@@ -426,10 +449,10 @@ function ErrorDetailsOverlay({
       <section className="w-full max-w-2xl rounded-2xl border border-red-100 bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-red-600">Error details</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-red-600">{dashboard.errorDetails}</p>
             <h2 className="mt-1 text-2xl font-bold text-slate-900">{event.label}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Sanitized server error metadata. Sensitive input content is not stored.
+              {dashboard.sanitizedErrorMetadata}
             </p>
           </div>
           <button
@@ -437,7 +460,7 @@ function ErrorDetailsOverlay({
             onClick={onClose}
             className="rounded-lg border border-slate-200 px-3 py-1 text-sm text-slate-700 transition hover:bg-slate-50"
           >
-            Close
+            {dashboard.close}
           </button>
         </div>
         <div className="grid gap-3 p-5">
@@ -448,9 +471,9 @@ function ErrorDetailsOverlay({
             </div>
           ))}
           <div className="rounded-xl border border-red-100 bg-red-50 p-4">
-            <h3 className="text-sm font-semibold text-red-800">Message</h3>
+            <h3 className="text-sm font-semibold text-red-800">{dashboard.message}</h3>
             <p className="mt-2 whitespace-pre-wrap break-words text-sm text-red-900">
-              {event.error_message || "No error message was recorded for this event."}
+              {event.error_message || dashboard.noErrorMessage}
             </p>
           </div>
         </div>
@@ -476,14 +499,18 @@ function Badge({ children, tone = "slate" }: { children: React.ReactNode; tone?:
   );
 }
 
-function resolveHealth(errorRate: number, rateLimitHits: number) {
+function resolveHealth(
+  errorRate: number,
+  rateLimitHits: number,
+  dashboard: DashboardTranslations,
+) {
   if (errorRate >= 0.1) {
-    return { label: "Degraded ●", className: "bg-red-100 text-red-700" };
+    return { label: dashboard.degraded, className: "bg-red-100 text-red-700" };
   }
   if (errorRate >= 0.03 || rateLimitHits > 0) {
-    return { label: "Watch ●", className: "bg-amber-100 text-amber-800" };
+    return { label: dashboard.watch, className: "bg-amber-100 text-amber-800" };
   }
-  return { label: "Healthy ●", className: "bg-green-100 text-green-700" };
+  return { label: dashboard.healthy, className: "bg-green-100 text-green-700" };
 }
 
 function formatNumber(value: number | undefined | null): string {
@@ -502,9 +529,12 @@ function formatHour(value: string): string {
   return date.toLocaleTimeString([], { hour: "2-digit" });
 }
 
-function formatDateTime(value: string | undefined): string {
+function formatDateTime(
+  value: string | undefined,
+  dashboard: DashboardTranslations,
+): string {
   if (!value) {
-    return "never";
+    return dashboard.never;
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {

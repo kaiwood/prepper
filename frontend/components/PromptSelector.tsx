@@ -33,10 +33,10 @@ export default function PromptSelector({
   const hasPrompts = prompts.length > 0;
 
   return (
-    <section className="w-full max-w-3xl flex flex-col gap-2">
+    <section className="flex w-full flex-col gap-2">
       <label
         htmlFor="system-prompt"
-        className="text-sm font-medium text-gray-700"
+        className="text-sm font-medium text-slate-700"
       >
         {label}
       </label>
@@ -45,7 +45,7 @@ export default function PromptSelector({
         value={selectedPrompt}
         onChange={(e) => onPromptChange(e.target.value)}
         disabled={loading || locked || !hasPrompts}
-        className="border rounded-lg px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+        className="h-12 rounded-lg border border-slate-200 bg-white px-5 text-base text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
       >
         {!hasPrompts ? (
           <option value="">{loading ? loadingText : unavailableText}</option>
@@ -57,7 +57,7 @@ export default function PromptSelector({
           ))
         )}
       </select>
-      {locked && <p className="text-sm text-gray-500">{lockedHint}</p>}
+      {locked && <p className="text-sm text-slate-500">{lockedHint}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </section>
   );

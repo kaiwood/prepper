@@ -55,6 +55,7 @@ from prepper_cli import (
     parse_reply_metadata,
     resolve_pass_threshold,
     run_interview_turn,
+    score_interview,
 )
 from prepper_cli.hr_assistant import run_hr_assistant
 from prepper_cli.hr_context import (
@@ -664,6 +665,15 @@ def start_hr_interview():
     return jsonify(_attach_debug_context(payload, context, include_debug_context))
 
 
+@hr_bp.route("/api/hr/interview/end", methods=["OPTIONS"])
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def hr_interview_end_options():
+    return "", 204
+
+
 @hr_bp.post("/api/hr/interview")
 @limiter.limit("10 per minute")
 @cross_origin(
@@ -786,6 +796,109 @@ def continue_hr_interview():
         metadata_warning=turn_result["metadata_warning"],
         retrieval_payload=retrieval_payload,
         final_result=turn_result.get("final_result"),
+        tool_call_events=tool_call_events,
+    )
+    return jsonify(_attach_debug_context(payload, context, include_debug_context))
+
+
+@hr_bp.post("/api/hr/interview/end")
+@limiter.limit("10 per minute")
+@cross_origin(
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+def end_hr_interview():
+    cleanup_hr_state()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON object body is required"}), 400
+
+    try:
+        context_id = required_string(data, "context_id")
+        interview_id = required_string(data, "interview_id")
+        context = require_stored_context(context_id)
+        include_debug_context = _include_debug_context(data)
+    except InputLengthError as exc:
+        return jsonify(input_length_error_payload(exc)), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    session = get_hr_interview_session(interview_id)
+    if session is None:
+        return jsonify({"error": "invalid interview_id"}), 400
+    if session["context_id"] != context.context_id:
+        return jsonify({"error": "interview_id does not match context_id"}), 400
+    mark_state_seen(session)
+
+    try:
+        tool_event_recorder = _build_tool_event_recorder("hr_interview_end")
+        retrieval_payload = _run_hr_interview_retrieval(
+            context=context,
+            query="final HR candidate fit interview scoring",
+            mode=session["mode"],
+            recorder=tool_event_recorder,
+        )
+        tool_call_events = tool_event_recorder.to_public_dicts()
+    except ValueError as exc:
+        _log_hr_route_failure("hr_interview_end_retrieval", exc)
+        return jsonify(_public_hr_error("HR retrieval failed")), 502
+    except Exception as exc:
+        _log_hr_route_failure("hr_interview_end_retrieval", exc)
+        return jsonify(_public_hr_error("HR retrieval failed")), 502
+
+    was_completed = bool(session["interview_complete"])
+    final_result = session.get("final_result")
+    if final_result is None:
+        if session["mode"] == "mock":
+            final_result = _mock_hr_early_final_result(session)
+        else:
+            runtime_descriptor = _descriptor_with_hr_context(
+                session["descriptor"],
+                context=context,
+                retrieval_payload=retrieval_payload,
+            )
+            try:
+                final_result = score_interview(
+                    session["conversation"],
+                    runtime_descriptor,
+                    session.get("language"),
+                    session["pass_threshold"],
+                    model=session["model"],
+                )
+            except ValueError as exc:
+                _log_hr_route_failure("hr_interview_end_score", exc)
+                return jsonify(_public_hr_error("LLM request failed")), 502
+            except Exception as exc:
+                _log_hr_route_failure("hr_interview_end_score", exc)
+                return jsonify(_public_hr_error("LLM request failed")), 502
+
+    session["interview_complete"] = True
+    session["final_result"] = final_result
+    session["closing_reply"] = session.get("closing_reply") or _HR_FALLBACK_CLOSING_REPLY
+    if not was_completed:
+        session["conversation"].add_assistant_reply(session["closing_reply"])
+        _record_hr_metric(
+            "hr_interview",
+            status="ended",
+            context_id=context.context_id,
+            mode=session["mode"],
+            question_count=session["question_count"],
+            passed=(final_result or {}).get("passed"),
+        )
+
+    payload = _build_hr_interview_response_payload(
+        interview_id=interview_id,
+        context_id=context.context_id,
+        reply=session["closing_reply"],
+        interview_complete=True,
+        question_count=session["question_count"],
+        question_limit=session["question_limit"],
+        pass_threshold=session["pass_threshold"],
+        difficulty=session["difficulty"],
+        turn_type="other",
+        metadata_warning=False,
+        retrieval_payload=retrieval_payload,
+        final_result=final_result,
         tool_call_events=tool_call_events,
     )
     return jsonify(_attach_debug_context(payload, context, include_debug_context))
@@ -981,6 +1094,17 @@ def _mock_hr_interview_opener(context: HrContext) -> str:
         f"and company: what interests you about {context.summaries.company}, and how does "
         "your background connect to this opportunity?"
     )
+
+
+def _mock_hr_early_final_result(session: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "overall_score": session["pass_threshold"],
+        "pass_threshold": session["pass_threshold"],
+        "passed": True,
+        "criterion_scores": [],
+        "strengths": ["Mock HR interview ended and scored deterministically"],
+        "improvements": [],
+    }
 
 
 def _run_mock_hr_interview_turn(message: str, session: dict[str, Any]) -> dict[str, Any]:

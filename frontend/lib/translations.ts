@@ -16,6 +16,7 @@ type TranslationStrings = {
   appSubtitle: string;
   navUser: string;
   navAdmin: string;
+  navDashboard: string;
   promptLabel: string;
   promptLoading: string;
   promptUnavailable: string;
@@ -38,6 +39,8 @@ type TranslationStrings = {
   startInterview: string;
   starting: string;
   resetConversation: string;
+  endInterview: string;
+  endingInterview: string;
   generateCandidateAnswer: string;
   generatingCandidateAnswer: string;
   send: string;
@@ -63,6 +66,133 @@ type TranslationStrings = {
   interviewLockedPlaceholder: string;
   hrAdminTitle: string;
   hrAdminSubtitle: string;
+  hrBackToOverview: string;
+  hrOptionalLabel: string;
+  hrMarkdownSupportedSuffix: string;
+  hrResumeLabel: string;
+  hrProfileLabel: string;
+  hrSetupCompanyDescription: string;
+  hrSetupRoleDescription: string;
+  hrSetupResumeDescription: string;
+  hrSetupProfileDescription: string;
+  hrAddCompany: string;
+  hrEditCompany: string;
+  hrAddRole: string;
+  hrEditRole: string;
+  hrAddResume: string;
+  hrEditResume: string;
+  hrAddProfile: string;
+  hrEditProfile: string;
+  hrSetupCompleteHint: string;
+  hrCreateContext: string;
+  hrCompanyInfoTitle: string;
+  hrCompanyInfoSubtitle: string;
+  hrRoleInfoTitle: string;
+  hrRoleInfoSubtitle: string;
+  hrResumeInfoTitle: string;
+  hrResumeInfoSubtitle: string;
+  hrProfileInfoTitle: string;
+  hrProfileInfoSubtitle: string;
+  hrResumeExtractSuccessTitle: string;
+  hrResumeExtractSuccessText: string;
+  hrExtractedResumeTextLabel: string;
+  hrUploadPdfTitle: string;
+  hrUploadPdfSubtitle: string;
+  hrDragDropPdf: string;
+  hrOrLabel: string;
+  hrChooseFile: string;
+  cancelLabel: string;
+  doneLabel: string;
+  closeLabel: string;
+  interviewContextTitle: string;
+  editLabel: string;
+  notConfiguredLabel: string;
+  profileOptionalContextIncluded: string;
+  aiAssistantTitle: string;
+  aiAssistantIntro: string;
+  aiAssistantFollowUpQuestions: string;
+  aiAssistantFeedback: string;
+  aiAssistantTips: string;
+  aiAssistantInsights: string;
+  secureDataTitle: string;
+  secureDataSubtitle: string;
+  dashboard: {
+    title: string;
+    eyebrow: string;
+    description: string;
+    updated: string;
+    refresh: string;
+    refreshing: string;
+    metricsUnavailable: string;
+    requests: string;
+    last24Hours: string;
+    errorRate: string;
+    errors: string;
+    p95Latency: string;
+    avgMs: string;
+    toolSuccess: string;
+    allHrTools: string;
+    contextsBuilt: string;
+    hrSetupRuns: string;
+    interviews: string;
+    completed: string;
+    ragRetrievals: string;
+    success: string;
+    llmFailures: string;
+    totalCalls: string;
+    trafficTitle: string;
+    trafficSubtitle: string;
+    latencyTitle: string;
+    latencySubtitle: string;
+    toolCallsTitle: string;
+    toolCallsSubtitle: string;
+    ragTitle: string;
+    ragSubtitle: string;
+    successRate: string;
+    avgTopRelevance: string;
+    avgChunks: string;
+    noResultRetrievals: string;
+    avgDuration: string;
+    embeddingFailures: string;
+    llmTitle: string;
+    llmSubtitle: string;
+    safetyTitle: string;
+    safetySubtitle: string;
+    rateLimitHits: string;
+    blockedUrls: string;
+    oversizedInputs: string;
+    invalidPdfs: string;
+    validationErrors: string;
+    debugRequests: string;
+    recentActivityTitle: string;
+    recentActivitySubtitle: string;
+    noToolCalls: string;
+    noOperationalEvents: string;
+    tool: string;
+    calls: string;
+    avg: string;
+    clickForDetails: string;
+    errorDetails: string;
+    sanitizedErrorMetadata: string;
+    event: string;
+    status: string;
+    label: string;
+    time: string;
+    route: string;
+    operation: string;
+    mode: string;
+    model: string;
+    statusCode: string;
+    duration: string;
+    errorType: string;
+    message: string;
+    noErrorMessage: string;
+    close: string;
+    healthy: string;
+    watch: string;
+    degraded: string;
+    never: string;
+  };
   hrCompanyUrlLabel: string;
   hrCompanyUrlPlaceholder: string;
   hrCompanyUrlHint: string;
@@ -152,6 +282,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     appSubtitle: "Interview preparation, powered by AI.",
     navUser: "User",
     navAdmin: "Company",
+    navDashboard: "Dashboard",
     promptLabel: "Interview type",
     promptLoading: "Loading prompts...",
     promptUnavailable: "Prompt list unavailable",
@@ -177,6 +308,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     startInterview: "Start interview",
     starting: "Starting...",
     resetConversation: "Reset conversation",
+    endInterview: "End interview",
+    endingInterview: "Ending...",
     generateCandidateAnswer: "Draft",
     generatingCandidateAnswer: "Drafting...",
     send: "Send",
@@ -207,6 +340,133 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrAdminTitle: "Company HR setup",
     hrAdminSubtitle:
       "Build a candidate evaluation context from company, role, resume, and optional profile information.",
+    hrBackToOverview: "Back to overview",
+    hrOptionalLabel: "optional",
+    hrMarkdownSupportedSuffix: "Markdown supported",
+    hrResumeLabel: "Resume",
+    hrProfileLabel: "Profile",
+    hrSetupCompanyDescription: "Add company information from text or a public URL.",
+    hrSetupRoleDescription: "Define the role and responsibilities.",
+    hrSetupResumeDescription: "Extract resume text from a PDF or paste text.",
+    hrSetupProfileDescription: "Add profile text or link social profiles.",
+    hrAddCompany: "Add company",
+    hrEditCompany: "Edit company",
+    hrAddRole: "Add role",
+    hrEditRole: "Edit role",
+    hrAddResume: "Add resume",
+    hrEditResume: "Edit resume",
+    hrAddProfile: "Add profile",
+    hrEditProfile: "Edit profile",
+    hrSetupCompleteHint: "Complete the sections above to build a comprehensive evaluation context.",
+    hrCreateContext: "Create context",
+    hrCompanyInfoTitle: "Company information",
+    hrCompanyInfoSubtitle: "Add company information using text or a public URL.",
+    hrRoleInfoTitle: "Role description",
+    hrRoleInfoSubtitle: "Add the role description using text or a job ad URL.",
+    hrResumeInfoTitle: "Resume",
+    hrResumeInfoSubtitle: "Extract resume text from a PDF or paste text directly.",
+    hrProfileInfoTitle: "Profile (optional)",
+    hrProfileInfoSubtitle: "Add profile information using text or a professional link.",
+    hrResumeExtractSuccessTitle: "Resume extracted successfully",
+    hrResumeExtractSuccessText: "You can review and edit the extracted text below.",
+    hrExtractedResumeTextLabel: "Extracted resume text",
+    hrUploadPdfTitle: "Upload PDF",
+    hrUploadPdfSubtitle: "Upload a text-based PDF to extract resume text.",
+    hrDragDropPdf: "Drag and drop your PDF here",
+    hrOrLabel: "or",
+    hrChooseFile: "Choose file",
+    cancelLabel: "Cancel",
+    doneLabel: "Done",
+    closeLabel: "Close",
+    interviewContextTitle: "Interview context",
+    editLabel: "Edit",
+    notConfiguredLabel: "Not configured",
+    profileOptionalContextIncluded: "Optional context included",
+    aiAssistantTitle: "AI Assistant",
+    aiAssistantIntro: "I'm here to help you prepare. You can ask for:",
+    aiAssistantFollowUpQuestions: "Follow-up questions",
+    aiAssistantFeedback: "Feedback on your answer",
+    aiAssistantTips: "Tips and improvement ideas",
+    aiAssistantInsights: "Role or company insights",
+    secureDataTitle: "Your data is processed securely",
+    secureDataSubtitle: "and never shared.",
+    dashboard: {
+      title: "Dashboard",
+      eyebrow: "Prepper AI Ops",
+      description: "Live operational view of requests, RAG retrieval, tool calls, LLM behavior, and safety events.",
+      updated: "Updated",
+      refresh: "Refresh",
+      refreshing: "Refreshing…",
+      metricsUnavailable: "Metrics unavailable",
+      requests: "Requests",
+      last24Hours: "Last 24 hours",
+      errorRate: "Error rate",
+      errors: "errors",
+      p95Latency: "P95 latency",
+      avgMs: "Avg",
+      toolSuccess: "Tool success",
+      allHrTools: "All HR tools",
+      contextsBuilt: "Contexts built",
+      hrSetupRuns: "HR setup runs",
+      interviews: "Interviews",
+      completed: "completed",
+      ragRetrievals: "RAG retrievals",
+      success: "success",
+      llmFailures: "LLM failures",
+      totalCalls: "total calls",
+      trafficTitle: "Traffic over time",
+      trafficSubtitle: "Requests and errors by hour",
+      latencyTitle: "Latency",
+      latencySubtitle: "Average request latency by hour",
+      toolCallsTitle: "Tool calls",
+      toolCallsSubtitle: "Usage and error mix by tool",
+      ragTitle: "RAG retrieval",
+      ragSubtitle: "Candidate evidence retrieval health",
+      successRate: "Success rate",
+      avgTopRelevance: "Avg top relevance",
+      avgChunks: "Avg chunks",
+      noResultRetrievals: "No-result retrievals",
+      avgDuration: "Avg duration",
+      embeddingFailures: "Embedding failures",
+      llmTitle: "LLM operations",
+      llmSubtitle: "Calls grouped by operation",
+      safetyTitle: "Safety events",
+      safetySubtitle: "Security and validation signals",
+      rateLimitHits: "Rate-limit hits",
+      blockedUrls: "Blocked URLs",
+      oversizedInputs: "Oversized inputs",
+      invalidPdfs: "Invalid PDFs",
+      validationErrors: "Validation errors",
+      debugRequests: "Debug requests",
+      recentActivityTitle: "Recent activity",
+      recentActivitySubtitle: "Sanitized operational event timeline",
+      noToolCalls: "No tool calls recorded yet.",
+      noOperationalEvents: "No operational events recorded yet.",
+      tool: "Tool",
+      calls: "Calls",
+      avg: "Avg",
+      clickForDetails: "click for details",
+      errorDetails: "Error details",
+      sanitizedErrorMetadata: "Sanitized server error metadata. Sensitive input content is not stored.",
+      event: "Event",
+      status: "Status",
+      label: "Label",
+      time: "Time",
+      route: "Route",
+      operation: "Operation",
+      mode: "Mode",
+      model: "Model",
+      statusCode: "Status code",
+      duration: "Duration",
+      errorType: "Error type",
+      message: "Message",
+      noErrorMessage: "No error message was recorded for this event.",
+      close: "Close",
+      healthy: "Healthy ●",
+      watch: "Watch ●",
+      degraded: "Degraded ●",
+      never: "never",
+    },
     hrCompanyUrlLabel: "Company URL",
     hrCompanyUrlPlaceholder: "Enter a public company URL.",
     hrCompanyUrlHint: "Use either a public company URL or paste company text below.",
@@ -298,6 +558,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     appSubtitle: "Interviewvorbereitung mit KI-Unterstützung.",
     navUser: "Nutzer",
     navAdmin: "Unternehmen",
+    navDashboard: "Dashboard",
     promptLabel: "Interviewtyp",
     promptLoading: "Prompts werden geladen...",
     promptUnavailable: "Prompt-Liste nicht verfügbar",
@@ -325,6 +586,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     startInterview: "Interview starten",
     starting: "Startet...",
     resetConversation: "Gespräch zurücksetzen",
+    endInterview: "Interview beenden",
+    endingInterview: "Wird beendet...",
     generateCandidateAnswer: "Entwurf",
     generatingCandidateAnswer: "Entwirft...",
     send: "Senden",
@@ -355,6 +618,133 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrAdminTitle: "Unternehmens-HR-Einrichtung",
     hrAdminSubtitle:
       "Erstelle einen Kontext zur Kandidatenbewertung aus Unternehmen, Rolle, Lebenslauf und optionalen Profilinformationen.",
+    hrBackToOverview: "Zurück zur Übersicht",
+    hrOptionalLabel: "optional",
+    hrMarkdownSupportedSuffix: "Markdown unterstützt",
+    hrResumeLabel: "Lebenslauf",
+    hrProfileLabel: "Profil",
+    hrSetupCompanyDescription: "Füge Unternehmensinformationen als Text oder über eine öffentliche URL hinzu.",
+    hrSetupRoleDescription: "Definiere die Rolle und Verantwortlichkeiten.",
+    hrSetupResumeDescription: "Extrahiere Lebenslauftext aus einer PDF oder füge Text ein.",
+    hrSetupProfileDescription: "Füge Profiltext hinzu oder verknüpfe soziale Profile.",
+    hrAddCompany: "Unternehmen hinzufügen",
+    hrEditCompany: "Unternehmen bearbeiten",
+    hrAddRole: "Rolle hinzufügen",
+    hrEditRole: "Rolle bearbeiten",
+    hrAddResume: "Lebenslauf hinzufügen",
+    hrEditResume: "Lebenslauf bearbeiten",
+    hrAddProfile: "Profil hinzufügen",
+    hrEditProfile: "Profil bearbeiten",
+    hrSetupCompleteHint: "Vervollständige die Abschnitte oben, um einen umfassenden Bewertungskontext zu erstellen.",
+    hrCreateContext: "Kontext erstellen",
+    hrCompanyInfoTitle: "Unternehmensinformationen",
+    hrCompanyInfoSubtitle: "Füge Unternehmensinformationen über Text oder eine öffentliche URL hinzu.",
+    hrRoleInfoTitle: "Rollenbeschreibung",
+    hrRoleInfoSubtitle: "Füge die Rollenbeschreibung über Text oder eine Stellenanzeigen-URL hinzu.",
+    hrResumeInfoTitle: "Lebenslauf",
+    hrResumeInfoSubtitle: "Extrahiere Lebenslauftext aus einer PDF oder füge Text direkt ein.",
+    hrProfileInfoTitle: "Profil (optional)",
+    hrProfileInfoSubtitle: "Füge Profilinformationen über Text oder einen beruflichen Link hinzu.",
+    hrResumeExtractSuccessTitle: "Lebenslauf erfolgreich extrahiert",
+    hrResumeExtractSuccessText: "Du kannst den extrahierten Text unten prüfen und bearbeiten.",
+    hrExtractedResumeTextLabel: "Extrahierter Lebenslauftext",
+    hrUploadPdfTitle: "PDF hochladen",
+    hrUploadPdfSubtitle: "Lade eine textbasierte PDF hoch, um Lebenslauftext zu extrahieren.",
+    hrDragDropPdf: "PDF hierher ziehen und ablegen",
+    hrOrLabel: "oder",
+    hrChooseFile: "Datei auswählen",
+    cancelLabel: "Abbrechen",
+    doneLabel: "Fertig",
+    closeLabel: "Schließen",
+    interviewContextTitle: "Interviewkontext",
+    editLabel: "Bearbeiten",
+    notConfiguredLabel: "Nicht konfiguriert",
+    profileOptionalContextIncluded: "Optionaler Kontext enthalten",
+    aiAssistantTitle: "KI-Assistent",
+    aiAssistantIntro: "Ich helfe dir bei der Vorbereitung. Du kannst fragen nach:",
+    aiAssistantFollowUpQuestions: "Rückfragen",
+    aiAssistantFeedback: "Feedback zu deiner Antwort",
+    aiAssistantTips: "Tipps und Verbesserungsideen",
+    aiAssistantInsights: "Einblicke zu Rolle oder Unternehmen",
+    secureDataTitle: "Deine Daten werden sicher verarbeitet",
+    secureDataSubtitle: "und niemals weitergegeben.",
+    dashboard: {
+      title: "Dashboard",
+      eyebrow: "Prepper KI-Ops",
+      description: "Live-Betriebsübersicht zu Anfragen, RAG-Abrufen, Tool-Aufrufen, LLM-Verhalten und Sicherheitsereignissen.",
+      updated: "Aktualisiert",
+      refresh: "Aktualisieren",
+      refreshing: "Aktualisiert…",
+      metricsUnavailable: "Metriken nicht verfügbar",
+      requests: "Anfragen",
+      last24Hours: "Letzte 24 Stunden",
+      errorRate: "Fehlerrate",
+      errors: "Fehler",
+      p95Latency: "P95-Latenz",
+      avgMs: "Ø",
+      toolSuccess: "Tool-Erfolg",
+      allHrTools: "Alle HR-Tools",
+      contextsBuilt: "Erstellte Kontexte",
+      hrSetupRuns: "HR-Setup-Läufe",
+      interviews: "Interviews",
+      completed: "abgeschlossen",
+      ragRetrievals: "RAG-Abrufe",
+      success: "Erfolg",
+      llmFailures: "LLM-Fehler",
+      totalCalls: "Aufrufe gesamt",
+      trafficTitle: "Traffic im Zeitverlauf",
+      trafficSubtitle: "Anfragen und Fehler pro Stunde",
+      latencyTitle: "Latenz",
+      latencySubtitle: "Durchschnittliche Anfragelatenz pro Stunde",
+      toolCallsTitle: "Tool-Aufrufe",
+      toolCallsSubtitle: "Nutzung und Fehlermix nach Tool",
+      ragTitle: "RAG-Abruf",
+      ragSubtitle: "Zustand der Kandidatennachweis-Abrufe",
+      successRate: "Erfolgsrate",
+      avgTopRelevance: "Ø Top-Relevanz",
+      avgChunks: "Ø Chunks",
+      noResultRetrievals: "Abrufe ohne Ergebnis",
+      avgDuration: "Ø Dauer",
+      embeddingFailures: "Embedding-Fehler",
+      llmTitle: "LLM-Operationen",
+      llmSubtitle: "Aufrufe nach Operation gruppiert",
+      safetyTitle: "Sicherheitsereignisse",
+      safetySubtitle: "Sicherheits- und Validierungssignale",
+      rateLimitHits: "Rate-Limit-Treffer",
+      blockedUrls: "Blockierte URLs",
+      oversizedInputs: "Zu große Eingaben",
+      invalidPdfs: "Ungültige PDFs",
+      validationErrors: "Validierungsfehler",
+      debugRequests: "Debug-Anfragen",
+      recentActivityTitle: "Letzte Aktivität",
+      recentActivitySubtitle: "Bereinigte Ereignis-Zeitleiste",
+      noToolCalls: "Noch keine Tool-Aufrufe erfasst.",
+      noOperationalEvents: "Noch keine Betriebsereignisse erfasst.",
+      tool: "Tool",
+      calls: "Aufrufe",
+      avg: "Ø",
+      clickForDetails: "für Details klicken",
+      errorDetails: "Fehlerdetails",
+      sanitizedErrorMetadata: "Bereinigte Server-Fehlermetadaten. Sensible Eingaben werden nicht gespeichert.",
+      event: "Ereignis",
+      status: "Status",
+      label: "Label",
+      time: "Zeit",
+      route: "Route",
+      operation: "Operation",
+      mode: "Modus",
+      model: "Modell",
+      statusCode: "Statuscode",
+      duration: "Dauer",
+      errorType: "Fehlertyp",
+      message: "Nachricht",
+      noErrorMessage: "Für dieses Ereignis wurde keine Fehlermeldung erfasst.",
+      close: "Schließen",
+      healthy: "Stabil ●",
+      watch: "Beobachten ●",
+      degraded: "Beeinträchtigt ●",
+      never: "nie",
+    },
     hrCompanyUrlLabel: "Unternehmens-URL",
     hrCompanyUrlPlaceholder: "Öffentliche Unternehmens-URL eingeben.",
     hrCompanyUrlHint: "Nutze entweder eine öffentliche Unternehmens-URL oder füge unten Unternehmenstext ein.",
@@ -446,6 +836,7 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     appSubtitle: "Préparation aux entretiens techniques, avec IA.",
     navUser: "Utilisateur",
     navAdmin: "Entreprise",
+    navDashboard: "Tableau de bord",
     promptLabel: "Type d'entretien",
     promptLoading: "Chargement des prompts...",
     promptUnavailable: "Liste des prompts indisponible",
@@ -471,6 +862,8 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     startInterview: "Démarrer l'entretien",
     starting: "Démarrage...",
     resetConversation: "Réinitialiser la conversation",
+    endInterview: "Terminer l'entretien",
+    endingInterview: "Fin en cours...",
     generateCandidateAnswer: "Brouillon",
     generatingCandidateAnswer: "Rédaction...",
     send: "Envoyer",
@@ -501,6 +894,133 @@ export const TRANSLATIONS: Record<LanguageCode, TranslationStrings> = {
     hrAdminTitle: "Configuration RH de l’entreprise",
     hrAdminSubtitle:
       "Créez un contexte d'évaluation du candidat à partir de l'entreprise, du rôle, du CV et d'informations de profil optionnelles.",
+    hrBackToOverview: "Retour à l'aperçu",
+    hrOptionalLabel: "optionnel",
+    hrMarkdownSupportedSuffix: "Markdown pris en charge",
+    hrResumeLabel: "CV",
+    hrProfileLabel: "Profil",
+    hrSetupCompanyDescription: "Ajoutez des informations sur l'entreprise sous forme de texte ou via une URL publique.",
+    hrSetupRoleDescription: "Définissez le rôle et les responsabilités.",
+    hrSetupResumeDescription: "Extrayez le texte du CV depuis un PDF ou collez du texte.",
+    hrSetupProfileDescription: "Ajoutez un texte de profil ou liez des profils sociaux.",
+    hrAddCompany: "Ajouter l'entreprise",
+    hrEditCompany: "Modifier l'entreprise",
+    hrAddRole: "Ajouter le rôle",
+    hrEditRole: "Modifier le rôle",
+    hrAddResume: "Ajouter le CV",
+    hrEditResume: "Modifier le CV",
+    hrAddProfile: "Ajouter le profil",
+    hrEditProfile: "Modifier le profil",
+    hrSetupCompleteHint: "Complétez les sections ci-dessus pour créer un contexte d'évaluation complet.",
+    hrCreateContext: "Créer le contexte",
+    hrCompanyInfoTitle: "Informations sur l'entreprise",
+    hrCompanyInfoSubtitle: "Ajoutez des informations sur l'entreprise avec du texte ou une URL publique.",
+    hrRoleInfoTitle: "Description du rôle",
+    hrRoleInfoSubtitle: "Ajoutez la description du rôle avec du texte ou une URL d'offre d'emploi.",
+    hrResumeInfoTitle: "CV",
+    hrResumeInfoSubtitle: "Extrayez le texte du CV depuis un PDF ou collez directement du texte.",
+    hrProfileInfoTitle: "Profil (optionnel)",
+    hrProfileInfoSubtitle: "Ajoutez des informations de profil avec du texte ou un lien professionnel.",
+    hrResumeExtractSuccessTitle: "CV extrait avec succès",
+    hrResumeExtractSuccessText: "Vous pouvez consulter et modifier le texte extrait ci-dessous.",
+    hrExtractedResumeTextLabel: "Texte extrait du CV",
+    hrUploadPdfTitle: "Importer un PDF",
+    hrUploadPdfSubtitle: "Importez un PDF textuel pour extraire le texte du CV.",
+    hrDragDropPdf: "Glissez-déposez votre PDF ici",
+    hrOrLabel: "ou",
+    hrChooseFile: "Choisir un fichier",
+    cancelLabel: "Annuler",
+    doneLabel: "Terminé",
+    closeLabel: "Fermer",
+    interviewContextTitle: "Contexte d'entretien",
+    editLabel: "Modifier",
+    notConfiguredLabel: "Non configuré",
+    profileOptionalContextIncluded: "Contexte optionnel inclus",
+    aiAssistantTitle: "Assistant IA",
+    aiAssistantIntro: "Je suis là pour vous aider à vous préparer. Vous pouvez demander :",
+    aiAssistantFollowUpQuestions: "Questions de suivi",
+    aiAssistantFeedback: "Retour sur votre réponse",
+    aiAssistantTips: "Conseils et pistes d'amélioration",
+    aiAssistantInsights: "Informations sur le rôle ou l'entreprise",
+    secureDataTitle: "Vos données sont traitées en toute sécurité",
+    secureDataSubtitle: "et ne sont jamais partagées.",
+    dashboard: {
+      title: "Tableau de bord",
+      eyebrow: "Ops IA Prepper",
+      description: "Vue opérationnelle en direct des requêtes, récupérations RAG, appels d'outils, comportement LLM et événements de sécurité.",
+      updated: "Mis à jour",
+      refresh: "Actualiser",
+      refreshing: "Actualisation…",
+      metricsUnavailable: "Métriques indisponibles",
+      requests: "Requêtes",
+      last24Hours: "Dernières 24 heures",
+      errorRate: "Taux d'erreur",
+      errors: "erreurs",
+      p95Latency: "Latence P95",
+      avgMs: "Moy.",
+      toolSuccess: "Succès des outils",
+      allHrTools: "Tous les outils RH",
+      contextsBuilt: "Contextes créés",
+      hrSetupRuns: "Exécutions de configuration RH",
+      interviews: "Entretiens",
+      completed: "terminés",
+      ragRetrievals: "Récupérations RAG",
+      success: "succès",
+      llmFailures: "Échecs LLM",
+      totalCalls: "appels au total",
+      trafficTitle: "Trafic dans le temps",
+      trafficSubtitle: "Requêtes et erreurs par heure",
+      latencyTitle: "Latence",
+      latencySubtitle: "Latence moyenne des requêtes par heure",
+      toolCallsTitle: "Appels d'outils",
+      toolCallsSubtitle: "Usage et erreurs par outil",
+      ragTitle: "Récupération RAG",
+      ragSubtitle: "Santé de la récupération d'éléments candidat",
+      successRate: "Taux de succès",
+      avgTopRelevance: "Pertinence max. moy.",
+      avgChunks: "Chunks moyens",
+      noResultRetrievals: "Récupérations sans résultat",
+      avgDuration: "Durée moyenne",
+      embeddingFailures: "Échecs d'embedding",
+      llmTitle: "Opérations LLM",
+      llmSubtitle: "Appels groupés par opération",
+      safetyTitle: "Événements de sécurité",
+      safetySubtitle: "Signaux de sécurité et de validation",
+      rateLimitHits: "Limites de taux atteintes",
+      blockedUrls: "URL bloquées",
+      oversizedInputs: "Entrées trop volumineuses",
+      invalidPdfs: "PDF invalides",
+      validationErrors: "Erreurs de validation",
+      debugRequests: "Requêtes de debug",
+      recentActivityTitle: "Activité récente",
+      recentActivitySubtitle: "Chronologie opérationnelle assainie",
+      noToolCalls: "Aucun appel d'outil enregistré pour le moment.",
+      noOperationalEvents: "Aucun événement opérationnel enregistré pour le moment.",
+      tool: "Outil",
+      calls: "Appels",
+      avg: "Moy.",
+      clickForDetails: "cliquer pour les détails",
+      errorDetails: "Détails de l'erreur",
+      sanitizedErrorMetadata: "Métadonnées d'erreur serveur assainies. Le contenu sensible n'est pas stocké.",
+      event: "Événement",
+      status: "Statut",
+      label: "Libellé",
+      time: "Heure",
+      route: "Route",
+      operation: "Opération",
+      mode: "Mode",
+      model: "Modèle",
+      statusCode: "Code de statut",
+      duration: "Durée",
+      errorType: "Type d'erreur",
+      message: "Message",
+      noErrorMessage: "Aucun message d'erreur n'a été enregistré pour cet événement.",
+      close: "Fermer",
+      healthy: "Sain ●",
+      watch: "À surveiller ●",
+      degraded: "Dégradé ●",
+      never: "jamais",
+    },
     hrCompanyUrlLabel: "URL de l'entreprise",
     hrCompanyUrlPlaceholder: "Saisissez une URL publique de l'entreprise.",
     hrCompanyUrlHint: "Utilisez soit une URL publique de l'entreprise, soit le texte de l'entreprise ci-dessous.",

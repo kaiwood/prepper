@@ -108,9 +108,11 @@ export default function HrInterviewPanel({
         onSubmit={state.handleSubmitHrInterview}
         onStart={state.handleStartHrInterview}
         onClear={state.resetHrInterview}
+        onEnd={state.handleEndHrInterview}
         loading={state.hrInterviewLoading}
         candidateAnswerLoading={state.hrCandidateAnswerLoading}
         canClear={state.hrConversation.length > 0}
+        canEnd={state.hrHasStarted && !state.hrInterviewCompleted}
         canStart={!state.hrHasStarted}
         canGenerateCandidateAnswer={Boolean(state.latestHrInterviewerQuestion)}
         hasStarted={state.hrHasStarted}
@@ -127,6 +129,8 @@ export default function HrInterviewPanel({
         startInterviewText={ui.hrStartInterview}
         startingText={ui.hrStartingInterview}
         resetConversationText={ui.hrResetInterview}
+        endInterviewText={ui.endInterview}
+        endingInterviewText={ui.endingInterview}
         generateCandidateAnswerText={ui.generateCandidateAnswer}
         generatingCandidateAnswerText={ui.generatingCandidateAnswer}
         sendText={ui.hrSendAnswer}

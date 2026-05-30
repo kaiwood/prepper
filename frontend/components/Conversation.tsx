@@ -79,21 +79,21 @@ export default function ConversationWindow({
       ref={conversationRef}
       onMouseMove={handleConversationMouseMove}
       onMouseLeave={handleConversationMouseLeave}
-      className="relative w-full max-w-3xl border rounded-xl bg-white shadow-sm p-4 h-[50vh] overflow-y-auto"
+      className="relative h-[55vh] w-full overflow-y-auto rounded-t-xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       {conversation.length === 0 && !loading ? (
-        <p className="text-gray-500">{emptyStateText}</p>
+        <p className="text-slate-500">{emptyStateText}</p>
       ) : (
         <>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-5">
             {conversation.map((item, index) => (
               <div
                 key={`${item.role}-${index}`}
                 data-message="true"
-                className={`group relative max-w-[80%] rounded-xl px-4 pb-3 pt-3 ${
+                className={`group relative max-w-[82%] rounded-xl border px-5 pb-4 pt-4 shadow-sm ${
                   item.role === "user"
-                    ? "self-end bg-blue-600 text-white whitespace-pre-wrap"
-                    : "self-start bg-gray-100 text-gray-900"
+                    ? "self-end border-blue-100 bg-blue-50 text-slate-950 whitespace-pre-wrap"
+                    : "self-start border-slate-200 bg-white text-slate-950"
                 }`}
               >
                 <div className="absolute bottom-2 right-2">
@@ -119,7 +119,7 @@ export default function ConversationWindow({
             {loading && (
               <div
                 data-message="true"
-                className="group relative self-start bg-gray-100 text-gray-900 rounded-xl px-4 pb-3 pt-3"
+                className="group relative self-start rounded-xl border border-slate-200 bg-white px-5 pb-4 pt-4 text-slate-950 shadow-sm"
               >
                 {thinkingText}
               </div>

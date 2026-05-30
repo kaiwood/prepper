@@ -16,6 +16,7 @@ import {
   buildHrContext,
   clearHrSetup,
   continueHrInterview,
+  endHrInterview,
   extractHrResume,
   fetchHrCompany,
   fetchHrProfile,
@@ -595,6 +596,46 @@ export function useHrWorkflow({
     }
   }
 
+  async function handleEndHrInterview() {
+    if (
+      !hrContextId ||
+      !hrInterviewId ||
+      !hrHasStarted ||
+      hrInterviewLoading ||
+      hrInterviewCompleted
+    ) {
+      return;
+    }
+
+    setHrInterviewLoading(true);
+    setHrInterviewError(null);
+
+    try {
+      const { ok, data } = await endHrInterview(
+        apiBaseUrl,
+        hrContextId,
+        hrInterviewId,
+      );
+
+      if (!ok) {
+        setHrInterviewError(formatApiError(data, ui.errorFallback));
+        return;
+      }
+
+      if (data.reply) {
+        setHrConversation((prev) => [
+          ...prev,
+          { role: "assistant", content: data.reply ?? "" },
+        ]);
+      }
+      updateHrInterviewMetadata(data);
+    } catch {
+      setHrInterviewError(ui.errorBackendUnavailable);
+    } finally {
+      setHrInterviewLoading(false);
+    }
+  }
+
   async function handleGenerateHrCandidateAnswer() {
     if (
       !presentationModeEnabled ||
@@ -637,6 +678,7 @@ export function useHrWorkflow({
     handleFetchCompanyUrl,
     handleFetchRoleUrl,
     handleFetchSocialProfile,
+    handleEndHrInterview,
     handleGenerateHrCandidateAnswer,
     handleStartHrInterview,
     handleSubmitHrInterview,

@@ -205,6 +205,94 @@ def test_hr_interview_mock_start_and_turn_include_retrieval():
     assert "snippets" not in turn_data["tool_results"][0]["output"]
 
 
+def test_hr_interview_mock_end_scores_current_conversation():
+    app = create_app()
+    client = app.test_client()
+    context_id = _build_context(client)
+
+    start = client.post(
+        "/api/hr/interview/start",
+        json={"context_id": context_id, "mode": "mock", "max_question_roundtrips": 5},
+    )
+    assert start.status_code == 200
+    start_data = start.get_json()
+
+    response = client.post(
+        "/api/hr/interview/end",
+        json={
+            "context_id": context_id,
+            "interview_id": start_data["interview_id"],
+            "include_debug_context": True,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["interview_complete"] is True
+    assert data["current_turn_type"] == "other"
+    assert data["final_result"]["passed"] is True
+    assert data["final_result"]["pass_threshold"] == data["pass_threshold"]
+    assert data["tool_results"][0]["tool_name"] == "retrieve_company_context"
+    assert data["debug_context"]["context_id"] == context_id
+
+
+def test_hr_interview_llm_end_scores_current_conversation(monkeypatch):
+    captured = {}
+
+    def fake_retrieval(**kwargs):
+        captured["retrieval_query"] = kwargs["query"]
+        return {
+            "tool_name": "retrieve_company_context",
+            "status": "success",
+            "output": {"mode": "llm", "query": kwargs["query"], "snippets": []},
+        }
+
+    def fake_opener(**kwargs):
+        return "Opening question?\n[PREPPER_JSON] {\"turn_type\":\"QUESTION\",\"interview_complete\":false}"
+
+    def fake_score(conversation, descriptor, language, pass_threshold, model=None):
+        captured["score_messages"] = conversation.get_messages()
+        captured["score_descriptor"] = descriptor.content
+        captured["score_language"] = language
+        return {
+            "overall_score": 7.0,
+            "pass_threshold": pass_threshold,
+            "passed": True,
+            "criterion_scores": [],
+            "strengths": ["clear examples"],
+            "improvements": [],
+        }
+
+    monkeypatch.setattr("app.routes.hr._run_hr_interview_retrieval", fake_retrieval)
+    monkeypatch.setattr("app.routes.hr.get_interview_opener", fake_opener)
+    monkeypatch.setattr("app.routes.hr.score_interview", fake_score)
+
+    app = create_app()
+    client = app.test_client()
+    context_id = _build_context(client)
+
+    start = client.post(
+        "/api/hr/interview/start",
+        json={"context_id": context_id, "mode": "llm", "language": "fr"},
+    )
+    assert start.status_code == 200
+    start_data = start.get_json()
+
+    response = client.post(
+        "/api/hr/interview/end",
+        json={"context_id": context_id, "interview_id": start_data["interview_id"]},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["interview_complete"] is True
+    assert data["final_result"]["overall_score"] == 7.0
+    assert captured["retrieval_query"] == "final HR candidate fit interview scoring"
+    assert captured["score_messages"][0]["role"] == "assistant"
+    assert "Resume/profile skills" in captured["score_descriptor"]
+    assert captured["score_language"] == "fr"
+
+
 def test_hr_interview_llm_uses_start_language(monkeypatch):
     captured = {}
 
