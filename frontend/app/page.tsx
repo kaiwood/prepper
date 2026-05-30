@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AreaLanguageNav from "../components/AreaLanguageNav";
+import DashboardPanel from "../components/DashboardPanel";
 import UserInterviewPanel from "../components/UserInterviewPanel";
 import HrSetupPanel from "../components/hr/HrSetupPanel";
 import { useHrWorkflow } from "../hooks/useHrWorkflow";
@@ -18,7 +19,7 @@ const PRESENTATION_MODE_ENABLED = resolvePresentationMode(
   process.env.NEXT_PUBLIC_PREPPER_PRESENTATION_MODE,
 );
 
-type Area = "user" | "admin";
+type Area = "user" | "admin" | "dashboard";
 
 export default function Home() {
   const [selectedArea, setSelectedArea] = useState<Area>("user");
@@ -59,6 +60,8 @@ export default function Home() {
           ui={ui}
           onClearAllData={handleClearAllData}
         />
+      ) : selectedArea === "dashboard" ? (
+        <DashboardPanel apiBaseUrl={API_BASE_URL} />
       ) : (
         <UserInterviewPanel
           state={userInterview}

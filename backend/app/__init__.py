@@ -1,10 +1,11 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, g, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 import logging
 import re
+import time
 from logging.handlers import RotatingFileHandler
 import os
 
@@ -86,18 +87,61 @@ def create_app():
 
     limiter.init_app(app)
 
+    @app.before_request
+    def _metrics_request_started():
+        g.metrics_started_at = time.monotonic()
+
+    @app.after_request
+    def _record_route_metric(response):
+        if request.path != "/api/metrics":
+            started_at = getattr(g, "metrics_started_at", None)
+            duration = int((time.monotonic() - started_at) * 1000) if started_at else None
+            try:
+                from prepper_cli.metrics import record_metric_event
+
+                body = request.get_json(silent=True) if request.is_json else None
+                include_debug_context = (
+                    isinstance(body, dict) and body.get("include_debug_context") is True
+                )
+                record_metric_event(
+                    "route_request",
+                    status="error" if response.status_code >= 400 else "success",
+                    route=request.path,
+                    method=request.method,
+                    status_code=response.status_code,
+                    duration_ms=duration,
+                    include_debug_context=include_debug_context,
+                )
+            except Exception:
+                pass
+        return response
+
     from .routes.health import health_bp
     from .routes.chat import chat_bp
     from .routes.hr import hr_bp
     from .routes.prompts import prompts_bp
+    from .routes.metrics import metrics_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(hr_bp)
     app.register_blueprint(prompts_bp)
+    app.register_blueprint(metrics_bp)
 
     @app.errorhandler(429)
     def rate_limit_handler(error):
+        try:
+            from prepper_cli.metrics import record_metric_event
+
+            record_metric_event(
+                "rate_limit",
+                status="error",
+                route=request.path,
+                method=request.method,
+                status_code=429,
+            )
+        except Exception:
+            pass
         return jsonify({"error": "rate limit exceeded"}), 429
 
     return app

@@ -75,6 +75,7 @@ from prepper_cli.hr_langchain_tools import (
 )
 from prepper_cli.hr_tool_events import HrToolEventRecorder
 from prepper_cli.structured_logging import exception_log_fields, log_structured_event
+from prepper_cli.metrics import record_metric_event
 from prepper_cli.hr_tools import (
     hr_tool_result_to_dict,
     run_fetch_company_website_tool,
@@ -220,6 +221,15 @@ def build_hr_context():
 
     if result.context is not None:
         store_hr_context(result.context)
+        _record_hr_metric(
+            "hr_context",
+            status=result.status,
+            context_id=result.context.context_id,
+            mode=result.context.mode,
+            source_count=len(result.context.sources),
+            chunk_count=len(result.context.chunks),
+            tool_result_count=len(result.tool_results),
+        )
 
     response_payload = _build_response_payload(
         result,
@@ -628,6 +638,14 @@ def start_hr_interview():
     }
     mark_state_created(session)
     store_hr_interview_session(interview_id, session)
+    _record_hr_metric(
+        "hr_interview",
+        status="started",
+        context_id=context.context_id,
+        mode=mode,
+        question_limit=question_limit,
+        difficulty=difficulty,
+    )
 
     payload = _build_hr_interview_response_payload(
         interview_id=interview_id,
@@ -740,10 +758,20 @@ def continue_hr_interview():
             return jsonify(_public_hr_error("LLM request failed")), 502
 
     session["question_count"] = turn_result["question_count"]
+    was_completed = bool(session["interview_complete"])
     session["interview_complete"] = bool(turn_result["interview_complete"])
     if session["interview_complete"]:
         session["final_result"] = turn_result.get("final_result")
         session["closing_reply"] = turn_result["reply"]
+        if not was_completed:
+            _record_hr_metric(
+                "hr_interview",
+                status="completed",
+                context_id=context.context_id,
+                mode=session["mode"],
+                question_count=turn_result["question_count"],
+                passed=(turn_result.get("final_result") or {}).get("passed"),
+            )
 
     payload = _build_hr_interview_response_payload(
         interview_id=interview_id,
@@ -1071,6 +1099,13 @@ def _sources_from_retrieval_payload(retrieval_payload: dict[str, Any]) -> list[d
             }
         )
     return sources
+
+def _record_hr_metric(event: str, *, status: str, **fields: Any) -> None:
+    try:
+        record_metric_event(event, status=status, **fields)
+    except Exception:
+        pass
+
 
 def _log_hr_route_failure(operation: str, exc: Exception) -> None:
     log_structured_event(

@@ -4,7 +4,7 @@ import {
 } from "../lib/translations";
 import type { TranslationStrings } from "../types/app";
 
-type Area = "user" | "admin";
+type Area = "user" | "admin" | "dashboard";
 
 type AreaLanguageNavProps = {
   language: LanguageCode;
@@ -27,6 +27,7 @@ export default function AreaLanguageNav({
         {([
           ["user", ui.navUser],
           ["admin", ui.navAdmin],
+          ["dashboard", "Dashboard"],
         ] as const).map(([area, label]) => {
           const isActive = selectedArea === area;
 

@@ -66,6 +66,13 @@ def log_structured_event(
         if value is not None
     )
     target_logger.log(level, " ".join(parts))
+    try:
+        from .metrics import record_metric_event
+
+        record_metric_event(event, status=status, **safe_fields)
+    except Exception:
+        # Observability persistence must never break application behavior.
+        pass
 
 
 def _sanitize_mapping(fields: dict[str, Any]) -> dict[str, Any]:

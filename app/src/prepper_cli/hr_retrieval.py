@@ -497,6 +497,7 @@ def retrieve_hr_context(
         status="success",
         duration_ms=duration_ms(started_at),
         result_count=len(result.results),
+        top_score=max((match.score for match in result.results), default=0.0),
         **log_fields,
     )
     return result

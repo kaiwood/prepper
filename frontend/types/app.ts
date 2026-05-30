@@ -268,6 +268,102 @@ export type HrInterviewResponse = {
   tool_call_events?: HrToolCallEvent[];
 };
 
+export type MetricsOverview = {
+  requests_total?: number;
+  error_count?: number;
+  error_rate?: number;
+  avg_latency_ms?: number;
+  p95_latency_ms?: number;
+  rate_limit_hits?: number;
+  hr_contexts_built?: number;
+  interviews_started?: number;
+  interviews_completed?: number;
+  rag_retrievals?: number;
+  tool_success_rate?: number;
+  llm_failures?: number;
+};
+
+export type MetricsTimeBucket = {
+  bucket: string;
+  requests: number;
+  errors: number;
+  avg_latency_ms: number;
+};
+
+export type MetricsToolSummary = {
+  name: string;
+  calls: number;
+  successes: number;
+  errors: number;
+  avg_duration_ms: number;
+  last_status?: string;
+  last_error_type?: string;
+};
+
+export type MetricsRagSummary = {
+  retrievals?: number;
+  successes?: number;
+  errors?: number;
+  success_rate?: number;
+  avg_duration_ms?: number;
+  avg_result_count?: number;
+  no_result_count?: number;
+  avg_chunk_count?: number;
+  avg_top_relevance_percent?: number;
+  embedding_failures?: number;
+};
+
+export type MetricsLlmOperation = {
+  operation: string;
+  calls: number;
+  errors: number;
+  avg_duration_ms: number;
+  models?: string[];
+};
+
+export type MetricsLlmSummary = {
+  calls?: number;
+  successes?: number;
+  errors?: number;
+  avg_duration_ms?: number;
+  operations?: MetricsLlmOperation[];
+};
+
+export type MetricsSafetySummary = {
+  rate_limit_hits?: number;
+  blocked_url_attempts?: number;
+  oversized_input_rejections?: number;
+  invalid_pdf_uploads?: number;
+  client_validation_errors?: number;
+  debug_context_requests?: number;
+};
+
+export type MetricsRecentEvent = {
+  timestamp: string;
+  event: string;
+  status: string;
+  label: string;
+  duration_ms?: number | null;
+  model?: string;
+  mode?: string;
+  error_type?: string;
+  status_code?: number | null;
+};
+
+export type MetricsResponse = {
+  schema_version?: string;
+  generated_at?: string;
+  window_hours?: number;
+  overview?: MetricsOverview;
+  time_buckets?: MetricsTimeBucket[];
+  tools?: MetricsToolSummary[];
+  rag?: MetricsRagSummary;
+  llm?: MetricsLlmSummary;
+  safety?: MetricsSafetySummary;
+  recent_events?: MetricsRecentEvent[];
+  error?: string;
+};
+
 export type AdvancedSettings = {
   temperature: number;
   top_p: number;
