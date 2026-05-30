@@ -125,8 +125,10 @@ def test_hr_context_retrieve_command_prints_json(monkeypatch, tmp_path: Path, ca
     payload = json.loads(captured.out)
     assert payload["query"] == "company values"
     assert len(payload["results"]) == 3
-    assert any(result["metadata"]["source_kind"] == "company" for result in payload["results"])
-    assert any(result["metadata"]["field_path"] == "sources" for result in payload["results"])
+    assert {result["metadata"]["source_kind"] for result in payload["results"]}.issubset(
+        {"resume", "profile", "candidate_profile"}
+    )
+    assert any(result["metadata"]["field_path"] == "candidate_profile" for result in payload["results"])
     assert 0 < payload["results"][0]["score"] <= 1
 
 

@@ -43,9 +43,9 @@ def test_replay_hr_interview_transcript_returns_canonical_summary():
     assert summary["tool_calls"][0]["result"]["output"]["result_count"] == 3
     assert summary["sources"] == [
         {
-            "title": "Northstar Analytics Company Overview",
-            "url": "fixture://company.md",
-            "excerpt": "Northstar Analytics values evidence-led decisions, customer empathy, privacy-first handling of employee and candidate data, and practical automation that keeps humans accountable.",
+            "title": "Candidate Resume: Jordan Lee",
+            "url": "fixture://resume.md",
+            "excerpt": "Built SQL dashboards that helped customer success managers identify accounts at risk of poor onboarding completion.",
         }
     ]
     assert summary["final_result"]["overall_score"] == pytest.approx(8.4)

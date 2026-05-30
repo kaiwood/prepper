@@ -60,7 +60,7 @@ def test_parse_transcript_markdown_reads_turns_tools_sources_and_result():
         "candidate",
     ]
     assert transcript.tool_events[0].tool_name == "retrieve_company_context"
-    assert transcript.sources[0].url == "fixture://company.md"
+    assert transcript.sources[0].url == "fixture://resume.md"
     assert transcript.expected_final_result.overall_score == pytest.approx(8.4)
 
 

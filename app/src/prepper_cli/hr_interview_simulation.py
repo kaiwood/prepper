@@ -381,7 +381,7 @@ def _generate_closing_interviewer_turn(
             question_count=question_count,
             question_limit=question_limit,
         )
-        + "\n\nRetrieved company context for final assessment only; do not ask another question.\n"
+        + "\n\nRetrieved candidate evidence for final assessment only; do not ask another question.\n"
         + _format_retrieved_context(retrieved_context)
     )
     raw_reply = _invoke_langchain_chat(
@@ -496,25 +496,25 @@ def _build_hr_context_prompt(*, fixture: HrFixture, retrieved_context: dict[str,
         f"{_wrap_untrusted(fixture.role_markdown, 'role')}\n\n"
         "Candidate profile inputs:\n"
         f"{_wrap_untrusted(fixture.resume_markdown + chr(10) + fixture.profile_markdown, 'candidate_profile')}\n\n"
-        "Retrieved company context:\n"
+        "Retrieved candidate evidence relevant to the company and role:\n"
         f"{_format_retrieved_context(retrieved_context)}"
     )
 
 
 def _build_retrieval_query(candidate_message: str, question_count: int) -> str:
     if question_count == 0:
-        return "company values role success signals candidate motivation"
+        return "candidate resume profile evidence for company motivation and role success signals"
     normalized = " ".join(candidate_message.split())
     if not normalized:
-        return "company context for HR candidate fit follow-up"
-    return f"HR candidate fit follow-up company context: {normalized[:500]}"
+        return "candidate resume profile evidence for HR candidate fit follow-up"
+    return f"HR candidate fit follow-up candidate evidence: {normalized[:500]}"
 
 
 def _format_retrieved_context(retrieved_context: dict[str, Any]) -> str:
     output = retrieved_context.get("output", {})
     snippets = output.get("snippets", []) if isinstance(output, dict) else []
     if not isinstance(snippets, list) or not snippets:
-        return "No company snippets retrieved."
+        return "No candidate evidence snippets retrieved."
 
     lines = []
     for index, snippet in enumerate(snippets, start=1):
@@ -526,7 +526,7 @@ def _format_retrieved_context(retrieved_context: dict[str, Any]) -> str:
         lines.append(
             f"Source {index}: {title}\nURI: {uri}\n{_wrap_untrusted(str(text), f'retrieved_snippet_{index}')}"
         )
-    return "\n\n".join(lines) if lines else "No company snippets retrieved."
+    return "\n\n".join(lines) if lines else "No candidate evidence snippets retrieved."
 
 
 def _collect_sources(sources_by_url: dict[str, dict[str, str]], result_payload: dict[str, Any]) -> None:

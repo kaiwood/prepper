@@ -7,6 +7,8 @@ import pytest
 from prepper_cli.hr_context import HrContextValidationError, build_mock_hr_context
 from prepper_cli.hr_fixtures import validate_hr_fixture
 from prepper_cli.hr_retrieval import (
+    build_candidate_fit_retrieval_chunks,
+    build_candidate_fit_retrieval_query,
     load_openrouter_embedding_config,
     retrieval_result_to_dict,
     retrieve_hr_context,
@@ -15,12 +17,14 @@ from prepper_cli.hr_retrieval import (
 
 class FakeEmbeddings:
     def embed_query(self, query):
-        assert query == "company values"
+        assert "Company context:" in query
+        assert "Role requirements:" in query
+        assert "Current interview query or turn: company values" in query
         return [1.0, 0.0]
 
     def embed_documents(self, documents):
         return [
-            [1.0, 0.0] if "Values" in document else [0.0, 1.0]
+            [1.0, 0.0] if "# Candidate profile" in document else [0.0, 1.0]
             for document in documents
         ]
 
@@ -74,21 +78,42 @@ def test_mock_retrieval_returns_expected_chunks_and_metadata():
     assert payload["query"] == "company values"
     assert payload["mode"] == "mock"
     assert len(payload["results"]) == 3
-    assert any(chunk["metadata"]["source_kind"] == "company" for chunk in payload["results"])
-    assert any(chunk["metadata"]["field_path"] == "sources" for chunk in payload["results"])
+    assert {
+        chunk["metadata"]["source_kind"] for chunk in payload["results"]
+    }.issubset({"resume", "profile", "candidate_profile"})
+    assert all(
+        chunk["metadata"]["field_path"] in {
+            "candidate_inputs[0].markdown",
+            "candidate_inputs[1].markdown",
+            "candidate_profile",
+        }
+        for chunk in payload["results"]
+    )
     assert 0 < payload["results"][0]["score"] <= 1
     assert 0 < payload["results"][0]["relevance_percent"] <= 100
-    company_result = next(
-        chunk for chunk in payload["results"] if chunk["metadata"]["source_kind"] == "company"
+    candidate_result = next(
+        chunk for chunk in payload["results"] if chunk["metadata"]["source_kind"] == "candidate_profile"
     )
-    assert company_result["source"] == {
-        "id": "company",
-        "kind": "company",
-        "title": "Northstar Analytics",
-        "uri": "fixture://company.md",
+    assert candidate_result["source"] == {
+        "id": "candidate_profile",
+        "kind": "candidate_profile",
+        "title": "Candidate profile",
+        "uri": "context://candidate_profile",
     }
-    assert company_result["metadata"]["source_title"] == "Northstar Analytics"
-    assert company_result["metadata"]["source_uri"] == "fixture://company.md"
+    assert candidate_result["metadata"]["source_title"] == "Candidate profile"
+    assert candidate_result["metadata"]["source_uri"] == "context://candidate_profile"
+
+
+def test_candidate_fit_retrieval_query_uses_company_role_and_user_query():
+    context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
+
+    query = build_candidate_fit_retrieval_query(context, "company values")
+
+    assert "Company context:" in query
+    assert "Role requirements:" in query
+    assert "Current interview query or turn: company values" in query
+    assert "Northstar Analytics" in query
+    assert "Customer Success Data Analyst" in query
 
 
 def test_retrieval_logs_latency_and_counts(caplog):
@@ -113,8 +138,10 @@ def test_mock_retrieval_can_rebuild_missing_chunks_for_old_contexts():
     result = retrieve_hr_context(old_context, query="company values", mode="mock")
 
     assert len(result.results) == 3
-    assert any(match.chunk.metadata["source_kind"] == "company" for match in result.results)
-    assert any(match.chunk.metadata["field_path"] == "sources" for match in result.results)
+    assert {
+        match.chunk.metadata["source_kind"] for match in result.results
+    }.issubset({"resume", "profile", "candidate_profile"})
+    assert any(match.chunk.metadata["field_path"] == "candidate_profile" for match in result.results)
 
 
 def test_mock_retrieval_persists_faiss_index(tmp_path, monkeypatch):
@@ -135,7 +162,7 @@ def test_mock_retrieval_persists_faiss_index(tmp_path, monkeypatch):
     manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
     assert manifest["embedding_model"] == "mock-hashing-v1"
     assert manifest["vector_dimension"] == 128
-    assert manifest["chunk_count"] == len(context.chunks)
+    assert manifest["chunk_count"] == len(build_candidate_fit_retrieval_chunks(context))
 
 
 def test_mock_retrieval_rejects_empty_query():
@@ -172,11 +199,11 @@ def test_llm_retrieval_uses_embeddings_and_source_metadata(monkeypatch, tmp_path
     payload = retrieval_result_to_dict(result)
 
     assert payload["mode"] == "llm"
-    assert [chunk["id"] for chunk in payload["results"]] == ["company_chunk_001"]
+    assert [chunk["id"] for chunk in payload["results"]] == ["candidate_profile_chunk_001"]
     assert 0 < payload["results"][0]["score"] <= 1
     assert 0 < payload["results"][0]["relevance_percent"] <= 100
-    assert payload["results"][0]["source"]["uri"] == "fixture://company.md"
-    assert payload["results"][0]["metadata"]["source_uri"] == "fixture://company.md"
+    assert payload["results"][0]["source"]["uri"] == "context://candidate_profile"
+    assert payload["results"][0]["metadata"]["source_uri"] == "context://candidate_profile"
     manifests = list((tmp_path / "faiss").glob("llm/*/index_manifest.json"))
     assert manifests
     manifest = json.loads(manifests[0].read_text(encoding="utf-8"))

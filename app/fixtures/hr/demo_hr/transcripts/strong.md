@@ -15,13 +15,13 @@ I'm interested because the role combines customer-facing analytics with workforc
 
 tool: retrieve_company_context
 query: company values and responsible workforce analytics
-result: Retrieved company facts about evidence-led decisions, customer empathy, privacy-first data handling, and practical automation.
+result: Retrieved candidate evidence about SQL dashboards, HR customer analytics, stakeholder communication, and privacy-aware workforce data handling.
 
 ## Source
 
-title: Northstar Analytics Company Overview
-url: fixture://company.md
-excerpt: Northstar Analytics values evidence-led decisions, customer empathy, privacy-first handling of employee and candidate data, and practical automation that keeps humans accountable.
+title: Candidate Resume: Jordan Lee
+url: fixture://resume.md
+excerpt: Built SQL dashboards that helped customer success managers identify accounts at risk of poor onboarding completion.
 
 ## Interviewer
 

@@ -327,6 +327,96 @@ def _summarize_retrieval_text(text: str, *, max_chars: int = 280) -> str:
     return f"{truncated or normalized[: max_chars - 3].rstrip()}..."
 
 
+def build_candidate_fit_retrieval_chunks(
+    context: HrContext,
+) -> tuple[HrContextChunk, ...]:
+    """Build searchable candidate evidence chunks for company/role fit retrieval."""
+    source_by_id = {source.id: source for source in context.sources}
+    chunks: list[HrContextChunk] = []
+
+    for index, document in enumerate(context.candidate_inputs):
+        source = source_by_id.get(document.source_id)
+        if source is None:
+            raise HrContextValidationError(
+                f"Cannot chunk document '{document.source_id}' because its source is missing"
+            )
+        chunks.extend(
+            build_document_retrieval_chunks(
+                document=document,
+                source=source,
+                field_path=f"candidate_inputs[{index}].markdown",
+            )
+        )
+
+    profile_markdown = _candidate_profile_to_markdown(context.candidate_profile)
+    normalized_profile = _normalize_chunk_text(profile_markdown)
+    if normalized_profile:
+        profile_source = HrContextSource(
+            id="candidate_profile",
+            kind="candidate_profile",
+            title="Candidate profile",
+            uri="context://candidate_profile",
+            content_sha256=_sha256_text(normalized_profile),
+        )
+        profile_document = HrContextInputDocument(
+            source_id=profile_source.id,
+            title=profile_source.title,
+            markdown=normalized_profile,
+            summary=_summarize_retrieval_text(normalized_profile),
+        )
+        chunks.extend(
+            build_document_retrieval_chunks(
+                document=profile_document,
+                source=profile_source,
+                field_path="candidate_profile",
+            )
+        )
+
+    return tuple(chunks)
+
+
+def build_candidate_fit_retrieval_query(context: HrContext, query: str) -> str:
+    """Build the semantic search query used to find candidate evidence for this role."""
+    normalized_query = " ".join(query.split())
+    company_signal = _join_retrieval_signals(
+        [
+            context.summaries.company,
+            *(document.title for document in context.company_inputs),
+            *(document.summary for document in context.company_inputs),
+        ],
+        max_chars=1200,
+    )
+    role_signal = _join_retrieval_signals(
+        [
+            context.summaries.role,
+            context.role_description.title,
+            context.role_description.summary,
+        ],
+        max_chars=1200,
+    )
+    return "\n".join(
+        line
+        for line in (
+            "Find candidate resume/profile evidence that is most relevant to this company and role.",
+            f"Company context: {company_signal}",
+            f"Role requirements: {role_signal}",
+            f"Current interview query or turn: {normalized_query}",
+        )
+        if line.strip()
+    )
+
+
+def _join_retrieval_signals(values: list[str], *, max_chars: int) -> str:
+    joined = " ".join(
+        " ".join(value.split()) for value in values if value and value.strip()
+    )
+    if not joined:
+        return "none"
+    if len(joined) <= max_chars:
+        return joined
+    return joined[: max_chars - 1].rstrip() + "…"
+
+
 def retrieve_hr_context(
     context: HrContext,
     *,
@@ -342,6 +432,7 @@ def retrieve_hr_context(
         "limit": limit,
         "context_id": context.context_id,
         "query_snippet": safe_snippet(normalized_query),
+        "retrieval_scope": "candidate_fit",
         "rebuild_missing_chunks": rebuild_missing_chunks,
     }
     try:
@@ -352,25 +443,14 @@ def retrieve_hr_context(
         if mode not in {"llm", "mock"}:
             raise HrContextValidationError("Retrieval mode must be one of: llm, mock")
 
-        chunks = context.chunks
-        rebuilt_chunks = False
-        if rebuild_missing_chunks and (
-            not chunks or not _chunks_cover_full_context(context, chunks)
-        ):
-            chunks = build_retrieval_chunks(
-                company_inputs=context.company_inputs,
-                role_description=context.role_description,
-                candidate_inputs=context.candidate_inputs,
-                summaries=context.summaries,
-                candidate_profile=context.candidate_profile,
-                sources=context.sources,
-                tool_results=context.tool_results,
-                replay_metadata=context.replay_metadata,
-                context_metadata=_context_metadata(context),
-            )
-            rebuilt_chunks = True
+        chunks = (
+            build_candidate_fit_retrieval_chunks(context)
+            if rebuild_missing_chunks
+            else _candidate_fit_chunks_from_existing(context.chunks)
+        )
+        search_query = build_candidate_fit_retrieval_query(context, normalized_query)
         log_fields["chunk_count"] = len(chunks)
-        log_fields["rebuilt_chunks"] = rebuilt_chunks
+        log_fields["search_query_snippet"] = safe_snippet(search_query)
         if not chunks:
             result = HrRetrievalResult(query=normalized_query, mode=mode, results=())
         elif mode == "mock":
@@ -379,7 +459,7 @@ def retrieve_hr_context(
                 mode=mode,
                 results=_retrieve_mock_chunks(
                     chunks,
-                    normalized_query,
+                    search_query,
                     limit=limit,
                 ),
             )
@@ -394,7 +474,7 @@ def retrieve_hr_context(
                 mode=mode,
                 results=_retrieve_llm_chunks(
                     chunks,
-                    normalized_query,
+                    search_query,
                     config=config,
                     limit=limit,
                 ),
@@ -447,6 +527,18 @@ def retrieval_result_to_dict(result: HrRetrievalResult) -> dict[str, Any]:
     }
 
 
+def _candidate_fit_chunks_from_existing(
+    chunks: tuple[HrContextChunk, ...],
+) -> tuple[HrContextChunk, ...]:
+    candidate_field_prefix = "candidate_inputs["
+    return tuple(
+        chunk
+        for chunk in chunks
+        if chunk.metadata.get("field_path") == "candidate_profile"
+        or chunk.metadata.get("field_path", "").startswith(candidate_field_prefix)
+    )
+
+
 def _context_metadata(context: HrContext) -> dict[str, Any]:
     return {
         "schema_version": context.schema_version,
@@ -460,36 +552,6 @@ def _context_metadata(context: HrContext) -> dict[str, Any]:
         "replay_transcript_count": len(context.replay_metadata.transcripts),
     }
 
-
-def _chunks_cover_full_context(
-    context: HrContext,
-    chunks: tuple[HrContextChunk, ...],
-) -> bool:
-    actual_field_paths = {
-        chunk.metadata.get("field_path")
-        for chunk in chunks
-        if chunk.metadata.get("field_path")
-    }
-    expected_field_paths = {
-        "role_description.markdown",
-        "context_metadata",
-        "summaries",
-        "candidate_profile",
-        "sources",
-        "replay_metadata",
-    }
-    expected_field_paths.update(
-        f"company_inputs[{index}].markdown"
-        for index in range(len(context.company_inputs))
-    )
-    expected_field_paths.update(
-        f"candidate_inputs[{index}].markdown"
-        for index in range(len(context.candidate_inputs))
-    )
-    expected_field_paths.update(
-        f"tool_results[{index}]" for index in range(len(context.tool_results))
-    )
-    return expected_field_paths.issubset(actual_field_paths)
 
 
 def _chunk_document(

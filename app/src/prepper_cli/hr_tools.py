@@ -406,7 +406,7 @@ def run_retrieve_company_context_tool(
     mode: str,
     limit: int = DEFAULT_MOCK_RETRIEVAL_LIMIT,
 ) -> HrToolResult:
-    """Retrieve role/company context snippets for an HR interview query."""
+    """Retrieve candidate resume/profile evidence relevant to the company and role."""
     started_at = time.monotonic()
     log_fields = {
         "tool_name": RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
@@ -425,7 +425,6 @@ def run_retrieve_company_context_tool(
                 query=query,
                 mode=mode,
                 limit=limit,
-                rebuild_missing_chunks=False,
             )
         except ValueError as exc:
             raise HrToolError(str(exc)) from exc

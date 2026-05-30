@@ -171,7 +171,7 @@ def test_extract_candidate_profile_converts_to_context_profile():
     assert profile.interview_focus_areas
 
 
-def test_retrieve_company_context_mock_returns_source_snippets():
+def test_retrieve_company_context_mock_returns_candidate_evidence_snippets():
     context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
 
     result = run_retrieve_company_context_tool(
@@ -187,24 +187,32 @@ def test_retrieve_company_context_mock_returns_source_snippets():
     assert payload["output"]["query"] == "company values"
     assert payload["output"]["result_count"] == 3
     snippets = payload["output"]["snippets"]
-    assert any(snippet["source_kind"] == "company" for snippet in snippets)
-    assert any(snippet["metadata"]["field_path"] == "sources" for snippet in snippets)
+    assert {snippet["source_kind"] for snippet in snippets}.issubset(
+        {"resume", "profile", "candidate_profile"}
+    )
+    assert all(
+        snippet["metadata"]["field_path"]
+        in {"candidate_inputs[0].markdown", "candidate_inputs[1].markdown", "candidate_profile"}
+        for snippet in snippets
+    )
     assert 0 < snippets[0]["score"] <= 1
     assert 0 < snippets[0]["relevance_percent"] <= 100
-    company_snippet = next(snippet for snippet in snippets if snippet["source_kind"] == "company")
-    assert company_snippet["source_title"] == "Northstar Analytics"
-    assert company_snippet["source_uri"] == "fixture://company.md"
-    assert company_snippet["source"] == {
-        "id": "company",
-        "kind": "company",
-        "title": "Northstar Analytics",
-        "uri": "fixture://company.md",
+    candidate_snippet = next(
+        snippet for snippet in snippets if snippet["source_kind"] == "candidate_profile"
+    )
+    assert candidate_snippet["source_title"] == "Candidate profile"
+    assert candidate_snippet["source_uri"] == "context://candidate_profile"
+    assert candidate_snippet["source"] == {
+        "id": "candidate_profile",
+        "kind": "candidate_profile",
+        "title": "Candidate profile",
+        "uri": "context://candidate_profile",
     }
-    assert company_snippet["metadata"]["source_kind"] == "company"
+    assert candidate_snippet["metadata"]["source_kind"] == "candidate_profile"
     assert payload["output"]["sources"][0]["relevance_percent"] == snippets[0]["relevance_percent"]
 
 
-def test_retrieve_company_context_can_return_role_snippets():
+def test_retrieve_company_context_returns_candidate_snippets_for_role_query():
     context = build_mock_hr_context(validate_hr_fixture("demo_hr"))
 
     result = run_retrieve_company_context_tool(
@@ -214,12 +222,13 @@ def test_retrieve_company_context_can_return_role_snippets():
     )
     payload = hr_tool_result_to_dict(result)
 
-    assert any(
-        snippet["source_kind"] == "role" for snippet in payload["output"]["snippets"]
+    assert payload["output"]["snippets"]
+    assert {snippet["source_kind"] for snippet in payload["output"]["snippets"]}.issubset(
+        {"resume", "profile", "candidate_profile"}
     )
 
 
-def test_retrieve_company_context_empty_chunks_returns_empty_result():
+def test_retrieve_company_context_rebuilds_candidate_chunks_for_old_contexts():
     context = replace(build_mock_hr_context(validate_hr_fixture("demo_hr")), chunks=())
 
     result = run_retrieve_company_context_tool(
@@ -229,8 +238,8 @@ def test_retrieve_company_context_empty_chunks_returns_empty_result():
     )
     payload = hr_tool_result_to_dict(result)
 
-    assert payload["output"]["snippets"] == []
-    assert payload["output"]["result_count"] == 0
+    assert payload["output"]["snippets"]
+    assert payload["output"]["result_count"] == 3
 
 
 def test_retrieve_company_context_rejects_empty_query():

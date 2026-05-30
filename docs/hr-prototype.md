@@ -1,6 +1,6 @@
 # HR Prototype
 
-The HR prototype extends Prepper with fixture-backed company/candidate context, HR-domain tools, retrieval, candidate-fit interviews, and a setup assistant.
+The HR prototype extends Prepper with fixture-backed company/candidate context, HR-domain tools, candidate-fit retrieval, candidate-fit interviews, and a setup assistant.
 
 ## Scope
 
@@ -61,6 +61,8 @@ prepper-cli hr context build --fixture demo_hr --mode mock --out tmp/hr-context.
 prepper-cli hr context inspect --context tmp/hr-context.json --json
 prepper-cli hr context retrieve --context tmp/hr-context.json --query "company values" --mode mock --json
 ```
+
+Retrieval searches candidate resume/profile evidence only. Company and role context are used to shape the semantic query so returned snippets are candidate facts relevant to the opportunity.
 
 Run tools:
 

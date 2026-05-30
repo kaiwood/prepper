@@ -148,9 +148,8 @@ def test_hr_tool_run_retrieve_company_context_mock_prints_json(
     assert payload["status"] == "success"
     assert payload["output"]["mode"] == "mock"
     assert payload["output"]["query"] == "company values"
-    assert any(
-        snippet["source_uri"] == "fixture://company.md"
-        for snippet in payload["output"]["snippets"]
+    assert {snippet["source_kind"] for snippet in payload["output"]["snippets"]}.issubset(
+        {"resume", "profile", "candidate_profile"}
     )
 
 

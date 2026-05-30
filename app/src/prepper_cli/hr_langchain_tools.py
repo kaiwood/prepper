@@ -197,7 +197,7 @@ def create_retrieve_company_context_tool(
     def retrieve_company_context(
         query: str, limit: int = DEFAULT_MOCK_RETRIEVAL_LIMIT
     ) -> dict[str, Any]:
-        """Retrieve company and role snippets relevant to an HR interview question."""
+        """Retrieve candidate evidence relevant to the company, role, and query."""
         started_at = time.monotonic()
         try:
             result = run_retrieve_company_context_tool(
@@ -227,7 +227,10 @@ def create_retrieve_company_context_tool(
     return StructuredTool.from_function(
         func=retrieve_company_context,
         name=RETRIEVE_COMPANY_CONTEXT_TOOL_NAME,
-        description="Retrieve relevant HR company/role context snippets by semantic query.",
+        description=(
+            "Retrieve candidate resume/profile evidence most relevant to the supplied "
+            "HR interview query, company context, and role requirements."
+        ),
     )
 
 

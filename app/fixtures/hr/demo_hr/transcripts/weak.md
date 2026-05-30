@@ -15,13 +15,13 @@ It seems like a good company and I want to work more with data. I have used dash
 
 tool: retrieve_company_context
 query: company values and candidate interest
-result: Retrieved company facts about evidence-led decisions, customer empathy, privacy-first data handling, and measurable customer outcomes.
+result: Retrieved candidate evidence about dashboards, customer analytics, HR software, and stakeholder communication.
 
 ## Source
 
-title: Northstar Analytics Company Overview
-url: fixture://company.md
-excerpt: Candidates should show interest in responsible AI, data quality, and measurable customer outcomes.
+title: Candidate Profile Summary
+url: fixture://profile.md
+excerpt: Jordan Lee is a customer analytics professional with four years of experience in HR software and workforce operations.
 
 ## Interviewer
 
