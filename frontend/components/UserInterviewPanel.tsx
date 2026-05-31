@@ -82,6 +82,41 @@ export default function UserInterviewPanel({
                 ? ui.passLabel
                 : ui.failLabel}
             </p>
+
+            {(state.interviewStatus.final_result.criterion_scores?.length ?? 0) > 0 && (
+              <div className="mt-3">
+                <h3 className="font-medium">{ui.rubricLabel}</h3>
+                <ul className="list-inside list-disc">
+                  {state.interviewStatus.final_result.criterion_scores.map((criterion) => (
+                    <li key={criterion.criterion}>
+                      {criterion.criterion}: {criterion.score.toFixed(1)} / 10
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {(state.interviewStatus.final_result.strengths?.length ?? 0) > 0 && (
+              <div className="mt-3">
+                <h3 className="font-medium">{ui.strengthsLabel}</h3>
+                <ul className="list-inside list-disc">
+                  {state.interviewStatus.final_result.strengths.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {(state.interviewStatus.final_result.improvements?.length ?? 0) > 0 && (
+              <div className="mt-3">
+                <h3 className="font-medium">{ui.improvementsLabel}</h3>
+                <ul className="list-inside list-disc">
+                  {state.interviewStatus.final_result.improvements.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
         )}
 
